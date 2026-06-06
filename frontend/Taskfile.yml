@@ -1,0 +1,88 @@
+version: '3'
+
+includes:
+  infra:
+    taskfile: ../../../tbc-localdev-infra/Taskfile.yml
+    dir: ../../../tbc-localdev-infra
+
+vars:
+  COMPOSE: docker compose
+  SVC: upmovies-frontend
+  EXEC: "{{.COMPOSE}} exec -T {{.SVC}}"
+
+tasks:
+  up:
+    desc: Start the frontend container (requires infra to be up)
+    cmds:
+      - "{{.COMPOSE}} up -d"
+
+  down:
+    desc: Stop the frontend container
+    cmds:
+      - "{{.COMPOSE}} down"
+
+  build:
+    desc: Rebuild the frontend image and sync deps into the node_modules volume
+    cmds:
+      - "{{.COMPOSE}} build"
+      - "{{.COMPOSE}} run --rm --no-deps {{.SVC}} pnpm install"
+
+  logs:
+    desc: Follow frontend logs
+    cmds:
+      - "{{.COMPOSE}} logs -f {{.SVC}}"
+
+  shell:
+    desc: Open a shell inside the frontend container
+    cmds:
+      - "{{.COMPOSE}} exec {{.SVC}} sh"
+
+  ps:
+    desc: Show compose service status
+    cmds:
+      - "{{.COMPOSE}} ps"
+
+  install:
+    desc: Install dependencies inside the container
+    cmds:
+      - "{{.EXEC}} pnpm install"
+
+  test:
+    desc: Run the vitest suite once
+    cmds:
+      - "{{.EXEC}} pnpm test {{.CLI_ARGS}}"
+
+  test:watch:
+    desc: Run vitest in watch mode
+    cmds:
+      - "{{.COMPOSE}} exec {{.SVC}} pnpm test:watch {{.CLI_ARGS}}"
+
+  lint:
+    desc: Run eslint
+    cmds:
+      - "{{.EXEC}} pnpm lint"
+
+  format:
+    desc: Run prettier --write
+    cmds:
+      - "{{.EXEC}} pnpm format"
+
+  typecheck:
+    desc: Run tsc --noEmit
+    cmds:
+      - "{{.EXEC}} pnpm typecheck"
+
+  build:app:
+    desc: Run vite build inside the container
+    cmds:
+      - "{{.EXEC}} pnpm build"
+
+  deps:add:
+    desc: 'Add a runtime dependency (task deps:add -- <package>)'
+    cmds:
+      - "{{.EXEC}} pnpm add {{.CLI_ARGS}}"
+
+  deps:add-dev:
+    desc: 'Add a dev dependency (task deps:add-dev -- <package>)'
+    cmds:
+      - "{{.EXEC}} pnpm add -D {{.CLI_ARGS}}"
