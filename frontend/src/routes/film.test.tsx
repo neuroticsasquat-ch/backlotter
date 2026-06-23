@@ -1,0 +1,130 @@
+import { RouterContextProvider, createRoutesStub } from "react-router";
+import { render, screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { describe, expect, it } from "vitest";
+import { server } from "@/test/msw/server";
+import { cloudflareContext } from "@/lib/load-context";
+import FilmPage, { ErrorBoundary, loader, meta } from "@/routes/film";
+import type { FilmDetail } from "@/api/types";
+
+const BACKEND = "https://api.upmovies.localhost";
+
+const film: FilmDetail = {
+  slug: "the-odyssey-2026",
+  title: "The Odyssey",
+  release_date: "2026-07-17",
+  release_year: 2026,
+  poster_path: "/poster.jpg",
+  arc_stage: "trailer",
+  events: [
+    {
+      event_type: "casting",
+      confidence: "confirmed",
+      occurred_at: "2025-01-01T00:00:00Z",
+      summary: "Casting announced.",
+      sources: [
+        { url: "https://deadline.com/a", source: "Deadline", title: "Cast", published_at: null },
+      ],
+    },
+    {
+      event_type: "trailer",
+      confidence: "rumored",
+      occurred_at: "2026-06-01T00:00:00Z",
+      summary: "Trailer dropped.",
+      sources: [],
+    },
+  ],
+};
+
+function contextWithEnv() {
+  const context = new RouterContextProvider();
+  context.set(cloudflareContext, { env: { API_BASE_URL: BACKEND } });
+  return context;
+}
+
+function callLoader(slug: string) {
+  return loader({
+    request: new Request(`https://upmovies.example/film/${slug}`),
+    context: contextWithEnv(),
+    params: { slug },
+  } as unknown as Parameters<typeof loader>[0]);
+}
+
+describe("film route loader", () => {
+  it("fetches the film detail by slug", async () => {
+    server.use(http.get(`${BACKEND}/films/the-odyssey-2026`, () => HttpResponse.json(film)));
+    const data = await callLoader("the-odyssey-2026");
+    expect(data.film.slug).toBe("the-odyssey-2026");
+  });
+
+  it("throws a 404 Response for an unknown slug", async () => {
+    server.use(http.get(`${BACKEND}/films/missing`, () => new HttpResponse(null, { status: 404 })));
+    await expect(callLoader("missing")).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("film route meta", () => {
+  it("builds the head from film data including the poster OG image", () => {
+    const tags = meta({
+      loaderData: { film },
+      location: { pathname: "/film/the-odyssey-2026" },
+    } as unknown as Parameters<typeof meta>[0]);
+    expect(tags).toContainEqual({ title: "The Odyssey (2026) · Upcoming Movies Tracker" });
+    expect(tags.some((t) => "property" in t && t.property === "og:image")).toBe(true);
+    expect(tags.some((t) => "tagName" in t && t.tagName === "link" && t.rel === "canonical")).toBe(
+      true,
+    );
+  });
+
+  it("returns a noindex head when the film is missing", () => {
+    const tags = meta({
+      loaderData: undefined,
+      location: { pathname: "/film/missing" },
+    } as unknown as Parameters<typeof meta>[0]);
+    expect(tags).toContainEqual({ name: "robots", content: "noindex" });
+  });
+});
+
+describe("film route render", () => {
+  it("renders the arc, ascending timeline, and outbound source links", async () => {
+    const Stub = createRoutesStub([
+      { path: "/film/:slug", Component: FilmPage, loader: () => ({ film }) },
+    ]);
+    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+
+    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
+    expect(screen.getByText("Released")).toBeInTheDocument(); // ArcStepper renders all 7 labels; "Released" is always present
+    const summaries = screen.getAllByText(/announced|dropped/).map((el) => el.textContent);
+    expect(summaries).toEqual(["Casting announced.", "Trailer dropped."]);
+    const link = screen.getByRole("link", { name: "Deadline" });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("shows the empty state when there are no events", async () => {
+    const Stub = createRoutesStub([
+      {
+        path: "/film/:slug",
+        Component: FilmPage,
+        loader: () => ({ film: { ...film, events: [] } }),
+      },
+    ]);
+    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    expect(await screen.findByText(/no updates yet/i)).toBeInTheDocument();
+  });
+
+  it("renders the not-found error boundary on a 404", async () => {
+    const Stub = createRoutesStub([
+      {
+        path: "/film/:slug",
+        Component: FilmPage,
+        ErrorBoundary,
+        loader: () => {
+          throw new Response(null, { status: 404 });
+        },
+      },
+    ]);
+    render(<Stub initialEntries={["/film/missing"]} />);
+    expect(await screen.findByText(/film not found/i)).toBeInTheDocument();
+  });
+});
