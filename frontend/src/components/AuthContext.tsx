@@ -92,14 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       refresh,
     }),
-    [
-      meQuery.data,
-      meQuery.isLoading,
-      loginMut,
-      signupMut,
-      logoutMut,
-      refresh,
-    ],
+    [meQuery.data, meQuery.isLoading, loginMut, signupMut, logoutMut, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

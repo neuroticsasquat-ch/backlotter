@@ -72,3 +72,5 @@ export function AdminIngest() {
     </main>
   );
 }
+
+export default AdminIngest;

@@ -32,7 +32,7 @@ export default [
   },
   {
     // Entry point — not subject to fast-refresh exports rule
-    files: ["src/main.tsx"],
+    files: ["src/entry.client.tsx"],
     rules: {
       "react-refresh/only-export-components": "off",
     },

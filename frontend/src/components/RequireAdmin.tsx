@@ -12,3 +12,5 @@ export function RequireAdmin() {
   if (!user?.is_admin) return <Navigate to="/" replace />;
   return <Outlet />;
 }
+
+export default RequireAdmin;

@@ -11,3 +11,5 @@ export function RequireAuth() {
   }
   return <Outlet />;
 }
+
+export default RequireAuth;

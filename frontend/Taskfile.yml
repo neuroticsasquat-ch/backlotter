@@ -68,9 +68,20 @@ tasks:
       - "{{.EXEC}} pnpm format"
 
   typecheck:
-    desc: Run tsc --noEmit
+    desc: Run react-router typegen + tsc
     cmds:
-      - "{{.EXEC}} pnpm typecheck"
+      - "{{.EXEC}} pnpm exec react-router typegen"
+      - "{{.EXEC}} pnpm exec tsc -b"
+
+  cf-typegen:
+    desc: Regenerate Cloudflare Worker types (Env)
+    cmds:
+      - "{{.EXEC}} pnpm exec wrangler types"
+
+  deploy:
+    desc: Build and deploy the Worker to Cloudflare
+    cmds:
+      - "{{.EXEC}} pnpm exec wrangler deploy"
 
   build:app:
     desc: Run vite build inside the container

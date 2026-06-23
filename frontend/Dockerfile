@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1.7
-FROM node:22-alpine AS base
+# node:22 (Debian) required — workerd/wrangler depend on glibc; Alpine (musl) is incompatible
+FROM node:22 AS base
 ENV CI=1 \
     PNPM_HOME=/root/.local/share/pnpm \
     PATH=/root/.local/share/pnpm:$PATH

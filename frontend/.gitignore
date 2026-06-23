@@ -20,3 +20,16 @@ vite.config.js
 vite.config.d.ts
 vitest.config.js
 vitest.config.d.ts
+
+# React Router framework-mode generated types
+.react-router/
+
+# Wrangler local state
+.wrangler/
+
+# tsc-emitted artifacts from workers/ composite build
+workers/*.js
+workers/*.d.ts
+
+# tsc -b composite project output
+.tsc-out/

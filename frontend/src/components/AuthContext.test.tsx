@@ -23,11 +23,7 @@ function ProbeUser() {
 
 function LoginButton() {
   const { login } = useAuth();
-  return (
-    <button onClick={() => login("alice@example.com", "password123")}>
-      login
-    </button>
-  );
+  return <button onClick={() => login("alice@example.com", "password123")}>login</button>;
 }
 
 function renderWithProviders(node: React.ReactNode) {
@@ -47,11 +43,7 @@ describe("AuthContext", () => {
   });
 
   it("populates user after successful login", async () => {
-    server.use(
-      http.post(`${env.apiBaseUrl}/auth/login`, () =>
-        HttpResponse.json(AUTHED_USER),
-      ),
-    );
+    server.use(http.post(`${env.apiBaseUrl}/auth/login`, () => HttpResponse.json(AUTHED_USER)));
 
     renderWithProviders(
       <>
@@ -65,8 +57,6 @@ describe("AuthContext", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "login" }));
 
-    await waitFor(() =>
-      expect(screen.getByText("alice@example.com")).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
   });
 });
