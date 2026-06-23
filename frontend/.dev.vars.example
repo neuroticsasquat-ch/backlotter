@@ -1,0 +1,4 @@
+# Copy this to .dev.vars for local Docker dev.
+# API_BASE_URL must use the Docker container name so workerd (the SSR server)
+# can reach the backend container-to-container without going through Traefik.
+API_BASE_URL=http://upmovies_backend:8000

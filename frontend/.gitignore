@@ -33,3 +33,6 @@ workers/*.d.ts
 
 # tsc -b composite project output
 .tsc-out/
+
+# Wrangler local dev overrides (may contain secrets)
+.dev.vars
