@@ -17,7 +17,7 @@ function renderAt(path: string) {
         <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route path="/signup" element={<Signup />} />
-            <Route path="/" element={<div>home page</div>} />
+            <Route path="/app" element={<div>app home</div>} />
           </Routes>
         </MemoryRouter>
       </AuthProvider>
@@ -33,7 +33,7 @@ async function fillCommonFields(invite = "test-invite") {
 }
 
 describe("Signup", () => {
-  it("creates an account and redirects to /", async () => {
+  it("creates an account and redirects to /app", async () => {
     server.use(
       http.get(`${env.apiBaseUrl}/me`, () =>
         HttpResponse.json({ detail: "auth_required" }, { status: 401 }),
@@ -54,7 +54,7 @@ describe("Signup", () => {
     renderAt("/signup");
     await fillCommonFields();
     await userEvent.click(screen.getByRole("button", { name: /sign up/i }));
-    await waitFor(() => expect(screen.getByText("home page")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("app home")).toBeInTheDocument());
   });
 
   it("surfaces email_in_use (409)", async () => {
@@ -112,6 +112,6 @@ describe("Signup", () => {
     // runs in this case, so we just confirm no API call was made by checking
     // the page doesn't navigate away.
     await userEvent.click(screen.getByRole("button", { name: /sign up/i }));
-    expect(screen.queryByText("home page")).not.toBeInTheDocument();
+    expect(screen.queryByText("app home")).not.toBeInTheDocument();
   });
 });

@@ -14,7 +14,7 @@ function renderAtAdmin() {
       <AuthProvider>
         <MemoryRouter initialEntries={["/admin"]}>
           <Routes>
-            <Route path="/" element={<div>home page</div>} />
+            <Route path="/app" element={<div>app home</div>} />
             <Route element={<RequireAdmin />}>
               <Route path="/admin" element={<div>secret admin area</div>} />
             </Route>
@@ -32,10 +32,10 @@ describe("RequireAdmin", () => {
     await waitFor(() => expect(screen.getByText("secret admin area")).toBeInTheDocument());
   });
 
-  it("redirects a non-admin to /", async () => {
+  it("redirects a non-admin to /app", async () => {
     server.use(meHandler({ is_admin: false }));
     renderAtAdmin();
-    await waitFor(() => expect(screen.getByText("home page")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("app home")).toBeInTheDocument());
     expect(screen.queryByText("secret admin area")).not.toBeInTheDocument();
   });
 });

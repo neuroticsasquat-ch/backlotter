@@ -29,7 +29,7 @@ export function Signup() {
     setSubmitting(true);
     try {
       await signup(email, password, displayName, inviteCode.trim());
-      navigate("/");
+      navigate("/app");
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
         setError("Invite code is invalid, already used, or doesn't match this email.");

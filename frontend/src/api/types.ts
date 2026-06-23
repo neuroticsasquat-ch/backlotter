@@ -56,3 +56,21 @@ export interface FilmDetail {
   arc_stage: ArcStage;
   events: FilmEvent[];
 }
+
+export interface FeedItem {
+  film_slug: string;
+  film_title: string;
+  event_type: string;
+  confidence: string; // "confirmed" | "rumored" (backend free text; rendered via a map)
+  occurred_at: string;
+  created_at: string; // the "updated today" axis; the feed is ordered by this, descending
+  summary: string;
+  sources: FilmSource[];
+}
+
+export interface FeedResponse {
+  items: FeedItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}

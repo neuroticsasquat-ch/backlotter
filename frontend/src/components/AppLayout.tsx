@@ -9,7 +9,7 @@ export function AppLayout() {
     <div className="min-h-screen">
       <header className="border-b">
         <nav className="mx-auto flex max-w-4xl items-center gap-4 p-4">
-          <Link to="/" className="font-semibold">
+          <Link to="/app" className="font-semibold">
             Upcoming Movies
           </Link>
           <div className="flex-1" />

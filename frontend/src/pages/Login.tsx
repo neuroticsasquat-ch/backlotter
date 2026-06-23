@@ -18,7 +18,7 @@ export function Login() {
     setSubmitting(true);
     try {
       await login(email, password);
-      const next = params.get("next") || "/";
+      const next = params.get("next") || "/app";
       navigate(next);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
