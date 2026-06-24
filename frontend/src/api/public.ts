@@ -1,4 +1,4 @@
-import type { FeedResponse, FilmDetail } from "./types";
+import type { FeedDayResponse, FilmDetail } from "./types";
 
 /**
  * Fetch a film's public detail from the no-auth backend. The base URL is injected by the
@@ -16,19 +16,18 @@ export async function getFilm(baseUrl: string, slug: string): Promise<FilmDetail
 }
 
 /**
- * Fetch the global "updated today" feed from the no-auth backend. The base URL is injected by
- * the caller (the SSR loader reads it from the Worker env), so this stays pure and runs in the
- * Workers runtime and under test. The feed always responds 200 (no 404 branch); throws on any
- * non-OK response.
+ * Fetch the per-(film, day) grouped public feed from the no-auth backend (NEU-364). The base URL is
+ * injected by the caller (the SSR loader reads it from the Worker env), so this stays pure and runs
+ * in the Workers runtime and under test. Always responds 200 (no 404 branch); throws on any non-OK.
  */
-export async function getFeed(
+export async function getFeedGrouped(
   baseUrl: string,
   { limit = 50, offset = 0 }: { limit?: number; offset?: number } = {},
-): Promise<FeedResponse> {
-  const url = new URL("/feed", baseUrl);
+): Promise<FeedDayResponse> {
+  const url = new URL("/feed/grouped", baseUrl);
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("offset", String(offset));
   const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`GET /feed failed: ${res.status}`);
-  return (await res.json()) as FeedResponse;
+  if (!res.ok) throw new Error(`GET /feed/grouped failed: ${res.status}`);
+  return (await res.json()) as FeedDayResponse;
 }

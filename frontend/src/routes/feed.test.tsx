@@ -5,33 +5,27 @@ import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
 import { cloudflareContext } from "@/lib/load-context";
 import FeedPage, { loader, meta } from "@/routes/feed";
-import type { FeedResponse } from "@/api/types";
+import type { FeedDayResponse } from "@/api/types";
 
 const BACKEND = "https://api.upmovies.localhost";
 
-const feed: FeedResponse = {
+const feed: FeedDayResponse = {
   items: [
     {
       film_slug: "the-odyssey-2026",
       film_title: "The Odyssey",
-      event_type: "trailer",
-      confidence: "confirmed",
-      occurred_at: "2026-06-01T00:00:00Z",
-      created_at: "2026-06-23T10:00:00Z",
-      summary: "Trailer dropped.",
-      sources: [
-        { url: "https://deadline.com/a", source: "Deadline", title: "Trailer", published_at: null },
-      ],
+      poster_path: "/odyssey.jpg",
+      day: "2026-06-23",
+      top_event_type: "trailer",
+      event_count: 1,
     },
     {
       film_slug: "dune-3-2026",
       film_title: "Dune Part Three",
-      event_type: "casting",
-      confidence: "rumored",
-      occurred_at: "2025-03-01T00:00:00Z",
-      created_at: "2026-06-22T09:00:00Z",
-      summary: "New cast rumored.",
-      sources: [],
+      poster_path: null,
+      day: "2026-06-22",
+      top_event_type: "casting",
+      event_count: 3,
     },
   ],
   total: 2,
@@ -54,8 +48,8 @@ function callLoader() {
 }
 
 describe("feed route loader", () => {
-  it("fetches the feed from the backend", async () => {
-    server.use(http.get(`${BACKEND}/feed`, () => HttpResponse.json(feed)));
+  it("fetches the grouped feed from the backend", async () => {
+    server.use(http.get(`${BACKEND}/feed/grouped`, () => HttpResponse.json(feed)));
     const data = await callLoader();
     expect(data.feed.total).toBe(2);
     expect(data.feed.items[0].film_slug).toBe("the-odyssey-2026");
@@ -76,17 +70,19 @@ describe("feed route meta", () => {
 });
 
 describe("feed route render", () => {
-  it("groups items by day (newest first) and links each to its film page", async () => {
+  it("groups films by day (newest first) and links each card to its film page", async () => {
     const Stub = createRoutesStub([{ path: "/", Component: FeedPage, loader: () => ({ feed }) }]);
     render(<Stub initialEntries={["/"]} />);
 
     expect(await screen.findByRole("heading", { name: "Latest Updates" })).toBeInTheDocument();
     expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
     expect(screen.getByText(/June 22, 2026/)).toBeInTheDocument();
-    expect(screen.getByText("Trailer dropped.")).toBeInTheDocument();
-    expect(screen.getByText("New cast rumored.")).toBeInTheDocument();
-    const filmLink = screen.getByRole("link", { name: "The Odyssey" });
-    expect(filmLink).toHaveAttribute("href", "/film/the-odyssey-2026");
+
+    const odyssey = screen.getByRole("link", { name: /The Odyssey/ });
+    expect(odyssey).toHaveAttribute("href", "/film/the-odyssey-2026");
+    const dune = screen.getByRole("link", { name: /Dune Part Three/ });
+    expect(dune).toHaveAttribute("href", "/film/dune-3-2026");
+    expect(screen.getByText("+2")).toBeInTheDocument();
   });
 
   it("shows the empty state when there are no updates", async () => {

@@ -1,17 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { groupByDay } from "@/lib/feed-groups";
-import type { FeedItem } from "@/api/types";
+import type { FeedDayItem } from "@/api/types";
 
-function item(created_at: string, summary: string): FeedItem {
+function item(day: string, film_slug: string, event_count = 1): FeedDayItem {
   return {
-    film_slug: "f",
-    film_title: "F",
-    event_type: "casting",
-    confidence: "confirmed",
-    occurred_at: created_at,
-    created_at,
-    summary,
-    sources: [],
+    film_slug,
+    film_title: film_slug.toUpperCase(),
+    poster_path: null,
+    day,
+    top_event_type: "casting",
+    event_count,
   };
 }
 
@@ -20,25 +18,22 @@ describe("groupByDay", () => {
     expect(groupByDay([])).toEqual([]);
   });
 
-  it("buckets same-UTC-day items into one group, preserving input order", () => {
-    const groups = groupByDay([
-      item("2026-06-23T10:00:00Z", "newest"),
-      item("2026-06-23T01:00:00Z", "same day, older"),
-    ]);
+  it("buckets same-day items into one group, preserving input order", () => {
+    const groups = groupByDay([item("2026-06-23", "a"), item("2026-06-23", "b")]);
     expect(groups).toHaveLength(1);
     expect(groups[0].dayKey).toBe("2026-06-23");
-    expect(groups[0].items.map((i) => i.summary)).toEqual(["newest", "same day, older"]);
+    expect(groups[0].items.map((i) => i.film_slug)).toEqual(["a", "b"]);
   });
 
   it("opens a new group on a day boundary, keeping groups newest-first", () => {
     const groups = groupByDay([
-      item("2026-06-23T10:00:00Z", "today a"),
-      item("2026-06-23T01:00:00Z", "today b"),
-      item("2026-06-22T23:00:00Z", "yesterday"),
+      item("2026-06-23", "a"),
+      item("2026-06-23", "b"),
+      item("2026-06-22", "c"),
     ]);
     expect(groups.map((g) => g.dayKey)).toEqual(["2026-06-23", "2026-06-22"]);
     expect(groups[0].items).toHaveLength(2);
-    expect(groups[1].items.map((i) => i.summary)).toEqual(["yesterday"]);
+    expect(groups[1].items.map((i) => i.film_slug)).toEqual(["c"]);
     expect(groups[1].heading).toContain("June 22, 2026");
   });
 });

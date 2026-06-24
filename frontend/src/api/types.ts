@@ -57,19 +57,17 @@ export interface FilmDetail {
   events: FilmEvent[];
 }
 
-export interface FeedItem {
+export interface FeedDayItem {
   film_slug: string;
   film_title: string;
-  event_type: string;
-  confidence: string; // "confirmed" | "rumored" (backend free text; rendered via a map)
-  occurred_at: string;
-  created_at: string; // the "updated today" axis; the feed is ordered by this, descending
-  summary: string;
-  sources: FilmSource[];
+  poster_path: string | null;
+  day: string; // "YYYY-MM-DD" (UTC); one row per film per day
+  top_event_type: string; // raw event_type, rendered via eventTypeLabel
+  event_count: number;
 }
 
-export interface FeedResponse {
-  items: FeedItem[];
+export interface FeedDayResponse {
+  items: FeedDayItem[];
   total: number;
   limit: number;
   offset: number;

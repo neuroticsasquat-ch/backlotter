@@ -1,15 +1,15 @@
 /* eslint-disable react-refresh/only-export-components -- route files intentionally export loader + meta + ErrorBoundary alongside the component */
 import { Link } from "react-router";
 import type { Route } from "./+types/feed";
-import { getFeed } from "@/api/public";
+import { getFeedGrouped } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
 import { buildMeta } from "@/lib/seo";
 import { groupByDay } from "@/lib/feed-groups";
-import { FeedItemCard } from "@/components/feed/FeedItemCard";
+import { FeedDayCard } from "@/components/feed/FeedDayCard";
 
 export async function loader({ context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
-  const feed = await getFeed(env.API_BASE_URL);
+  const feed = await getFeedGrouped(env.API_BASE_URL);
   return { feed };
 }
 
@@ -37,9 +37,9 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
             <h2 className="text-sm font-medium text-gray-500">
               <time dateTime={group.dayKey}>{group.heading}</time>
             </h2>
-            <div className="mt-3 space-y-4">
-              {group.items.map((item, i) => (
-                <FeedItemCard key={`${item.film_slug}-${item.created_at}-${i}`} item={item} />
+            <div className="mt-3 space-y-3">
+              {group.items.map((item) => (
+                <FeedDayCard key={item.film_slug} item={item} />
               ))}
             </div>
           </section>
