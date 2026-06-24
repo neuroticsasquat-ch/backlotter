@@ -34,3 +34,15 @@ export function truncate(text: string, max = 155): string {
   const cut = lastSpace > 0 ? slice.slice(0, lastSpace) : slice;
   return `${cut.trimEnd()}…`;
 }
+
+const USD_FMT = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4,
+});
+
+/** Format a dollar amount as USD with 2–4 fractional digits (LLM costs are sub-cent). */
+export function formatUsd(amount: number): string {
+  return USD_FMT.format(amount);
+}

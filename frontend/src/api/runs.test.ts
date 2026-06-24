@@ -24,6 +24,7 @@ describe("runs api", () => {
             last_progress_at: null,
             detail: null,
             error: null,
+            llm_usage: [],
           },
         ]);
       }),
@@ -48,11 +49,49 @@ describe("runs api", () => {
           last_progress_at: null,
           detail: null,
           error: null,
+          llm_usage: [],
         }),
       ),
     );
     const run = await fetchRun("r9");
     expect(run.id).toBe("r9");
     expect(run.status).toBe("running");
+  });
+
+  it("fetchRuns surfaces the llm_usage breakdown on a run", async () => {
+    server.use(
+      http.get(`${base}/admin/runs`, () =>
+        HttpResponse.json([
+          {
+            id: "r2",
+            kind: "feeds",
+            status: "succeeded",
+            started_at: "2026-06-13T09:00:00Z",
+            finished_at: "2026-06-13T09:05:00Z",
+            items_processed: 12,
+            items_failed: 0,
+            last_progress_at: null,
+            detail: null,
+            error: null,
+            llm_usage: [
+              {
+                stage: "link",
+                model: "claude-haiku-4-5",
+                batched: true,
+                input_tokens: 12000,
+                output_tokens: 800,
+                cache_read_input_tokens: 4000,
+                cache_creation_input_tokens: 1000,
+                cost_usd: 0.0123,
+              },
+            ],
+          },
+        ]),
+      ),
+    );
+    const runs = await fetchRuns();
+    expect(runs[0].llm_usage).toHaveLength(1);
+    expect(runs[0].llm_usage[0].stage).toBe("link");
+    expect(runs[0].llm_usage[0].cost_usd).toBeCloseTo(0.0123);
   });
 });

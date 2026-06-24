@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayKey, formatDayHeading, formatEventDate, truncate } from "@/lib/format";
+import { dayKey, formatDayHeading, formatEventDate, formatUsd, truncate } from "@/lib/format";
 
 describe("formatEventDate", () => {
   it("formats an ISO timestamp as 'Mon D, YYYY'", () => {
@@ -53,5 +53,20 @@ describe("formatDayHeading", () => {
 
   it("uses UTC so a late-UTC time keeps the same day", () => {
     expect(formatDayHeading("2025-03-14T23:30:00Z")).toContain("March 14, 2025");
+  });
+});
+
+describe("formatUsd", () => {
+  it("formats whole and 2-decimal amounts with a dollar sign", () => {
+    expect(formatUsd(0)).toBe("$0.00");
+    expect(formatUsd(1.5)).toBe("$1.50");
+  });
+
+  it("keeps sub-cent precision up to 4 fractional digits", () => {
+    expect(formatUsd(0.0123)).toBe("$0.0123");
+  });
+
+  it("rounds to at most 4 fractional digits", () => {
+    expect(formatUsd(0.012345)).toBe("$0.0123");
   });
 });

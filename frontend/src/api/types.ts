@@ -10,6 +10,21 @@ export interface AuthedUser {
 export type IngestRunKind = "tmdb" | "feeds";
 export type IngestRunStatus = "running" | "succeeded" | "failed" | "cancelled";
 
+export type LlmStage = "link" | "cluster" | "summarize";
+
+/** Per-stage LLM token usage + estimated dollar cost for one ingest run. Mirrors the
+ * backend `RunOut.llm_usage` element (NEU-375). Older runs predate telemetry and return []. */
+export interface LlmStageUsage {
+  stage: LlmStage;
+  model: string;
+  batched: boolean;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens: number;
+  cache_creation_input_tokens: number;
+  cost_usd: number;
+}
+
 export interface IngestRun {
   id: string;
   kind: IngestRunKind;
@@ -21,6 +36,7 @@ export interface IngestRun {
   last_progress_at: string | null;
   detail: string | null;
   error: string | null;
+  llm_usage: LlmStageUsage[];
 }
 
 export type ArcStage =

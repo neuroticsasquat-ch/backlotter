@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { server } from "@/test/msw/server";
 import { env } from "@/env";
-import type { IngestRun } from "@/api/types";
+import type { IngestRun, LlmStageUsage } from "@/api/types";
 import { AdminIngest } from "./AdminIngest";
 
 const base = env.apiBaseUrl;
@@ -21,6 +22,21 @@ function makeRun(overrides: Partial<IngestRun> = {}): IngestRun {
     last_progress_at: "2026-06-13T09:05:00Z",
     detail: null,
     error: null,
+    llm_usage: [],
+    ...overrides,
+  };
+}
+
+function makeUsage(overrides: Partial<LlmStageUsage> = {}): LlmStageUsage {
+  return {
+    stage: "link",
+    model: "claude-haiku-4-5",
+    batched: true,
+    input_tokens: 12000,
+    output_tokens: 800,
+    cache_read_input_tokens: 4000,
+    cache_creation_input_tokens: 1000,
+    cost_usd: 0.0123,
     ...overrides,
   };
 }
@@ -78,5 +94,68 @@ describe("AdminIngest", () => {
     );
     renderPage();
     expect(await screen.findByText(/failed to load/i)).toBeInTheDocument();
+  });
+
+  it("shows the per-run total cost", async () => {
+    server.use(
+      http.get(`${base}/admin/runs`, () =>
+        HttpResponse.json([
+          makeRun({
+            kind: "tmdb",
+            llm_usage: [
+              makeUsage({ stage: "link", cost_usd: 0.025 }),
+              makeUsage({ stage: "summarize", cost_usd: 0.025 }),
+            ],
+          }),
+        ]),
+      ),
+    );
+    renderPage();
+    // total = 0.025 + 0.025 = 0.05 -> "$0.05"
+    expect(await screen.findByText("$0.05")).toBeInTheDocument();
+  });
+
+  it("reveals per-stage tokens and cost when the breakdown is expanded", async () => {
+    server.use(
+      http.get(`${base}/admin/runs`, () =>
+        HttpResponse.json([
+          makeRun({
+            kind: "tmdb",
+            llm_usage: [
+              makeUsage({
+                stage: "link",
+                model: "claude-haiku-4-5",
+                input_tokens: 12000,
+                output_tokens: 800,
+                cache_read_input_tokens: 4000,
+                cache_creation_input_tokens: 1000,
+                cost_usd: 0.0123,
+              }),
+            ],
+          }),
+        ]),
+      ),
+    );
+    renderPage();
+    const toggle = await screen.findByText(/breakdown/i);
+    await userEvent.click(toggle);
+    expect(screen.getByText("link")).toBeInTheDocument();
+    expect(screen.getByText("claude-haiku-4-5")).toBeInTheDocument();
+    expect(screen.getByText("12,000")).toBeInTheDocument();
+    expect(screen.getByText("4,000")).toBeInTheDocument();
+    // $0.0123 appears in both summary and breakdown td — both are valid
+    expect(screen.getAllByText("$0.0123").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders runs with empty llm_usage without a breakdown", async () => {
+    server.use(
+      http.get(`${base}/admin/runs`, () =>
+        HttpResponse.json([makeRun({ kind: "tmdb", llm_usage: [] })]),
+      ),
+    );
+    renderPage();
+    expect(await screen.findByText("tmdb")).toBeInTheDocument();
+    // empty usage -> no disclosure control, muted dash for cost
+    expect(screen.queryByText(/breakdown/i)).not.toBeInTheDocument();
   });
 });
