@@ -7,7 +7,7 @@ export interface AuthedUser {
   csrf_token: string;
 }
 
-export type IngestRunKind = "tmdb" | "feeds";
+export type IngestRunKind = "tmdb" | "feeds" | "link" | "synthesize";
 export type IngestRunStatus = "running" | "succeeded" | "failed" | "cancelled";
 
 export type LlmStage = "link" | "cluster" | "summarize";

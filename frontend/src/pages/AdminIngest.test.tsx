@@ -61,9 +61,20 @@ describe("AdminIngest", () => {
       ),
     );
     renderPage();
-    expect(await screen.findByText("tmdb")).toBeInTheDocument();
-    expect(screen.getByText("feeds")).toBeInTheDocument();
+    expect(await screen.findByText("TMDB")).toBeInTheDocument();
+    expect(screen.getByText("Feeds")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
+  });
+
+  it("renders friendly labels for link and synthesize run kinds", async () => {
+    server.use(
+      http.get(`${base}/admin/runs`, () =>
+        HttpResponse.json([makeRun({ kind: "link" }), makeRun({ kind: "synthesize" })]),
+      ),
+    );
+    renderPage();
+    expect(await screen.findByText("Link")).toBeInTheDocument();
+    expect(screen.getByText("Synthesize")).toBeInTheDocument();
   });
 
   it("shows running vs terminal statuses", async () => {
@@ -154,7 +165,7 @@ describe("AdminIngest", () => {
       ),
     );
     renderPage();
-    expect(await screen.findByText("tmdb")).toBeInTheDocument();
+    expect(await screen.findByText("TMDB")).toBeInTheDocument();
     // empty usage -> no disclosure control, muted dash for cost
     expect(screen.queryByText(/breakdown/i)).not.toBeInTheDocument();
   });

@@ -1,6 +1,13 @@
 import { useRuns } from "@/api/runs";
-import type { IngestRunStatus, LlmStageUsage } from "@/api/types";
+import type { IngestRunKind, IngestRunStatus, LlmStageUsage } from "@/api/types";
 import { formatUsd } from "@/lib/format";
+
+const KIND_LABELS: Record<IngestRunKind, string> = {
+  tmdb: "TMDB",
+  feeds: "Feeds",
+  link: "Link",
+  synthesize: "Synthesize",
+};
 
 const STATUS_STYLES: Record<IngestRunStatus, string> = {
   running: "bg-blue-100 text-blue-800",
@@ -108,7 +115,7 @@ export function AdminIngest() {
           <tbody>
             {runs.map((run) => (
               <tr key={run.id} className="border-b align-top">
-                <td className="py-2 pr-4">{run.kind}</td>
+                <td className="py-2 pr-4">{KIND_LABELS[run.kind]}</td>
                 <td className="py-2 pr-4">
                   <StatusBadge status={run.status} />
                 </td>
