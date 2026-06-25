@@ -22,14 +22,17 @@ function renderCard(overrides: Partial<FeedDayItem> = {}) {
 }
 
 describe("FeedDayCard", () => {
-  it("links the whole card to the film page and shows the poster, title, and beat", () => {
+  it("links the whole row to the film page and shows the title and beat", () => {
     renderCard();
     const link = screen.getByRole("link");
     expect(link).toHaveAttribute("href", "/film/the-odyssey-2026");
     expect(screen.getByText("The Odyssey")).toBeInTheDocument();
     expect(screen.getByText("Release date")).toBeInTheDocument();
-    const poster = screen.getByRole("img", { name: "The Odyssey poster" });
-    expect(poster.getAttribute("src")).toContain("/w154/odyssey.jpg");
+  });
+
+  it("renders no poster image", () => {
+    renderCard();
+    expect(screen.queryByRole("img")).toBeNull();
   });
 
   it("shows no +N suffix for a single-event day", () => {
@@ -40,10 +43,5 @@ describe("FeedDayCard", () => {
   it("shows +N (events beyond the headline beat) when a film has multiple events that day", () => {
     renderCard({ event_count: 3 });
     expect(screen.getByText("+2")).toBeInTheDocument();
-  });
-
-  it("renders a placeholder and no image when the film has no poster", () => {
-    renderCard({ poster_path: null });
-    expect(screen.queryByRole("img")).toBeNull();
   });
 });

@@ -33,11 +33,11 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
         <p className="mt-6 text-sm text-gray-500">No updates yet — check back soon.</p>
       ) : (
         groups.map((group) => (
-          <section key={group.dayKey} className="mt-8">
+          <section key={group.dayKey} className="mt-6">
             <h2 className="text-sm font-medium text-gray-500">
               <time dateTime={group.dayKey}>{group.heading}</time>
             </h2>
-            <div className="mt-3 space-y-3">
+            <div className="mt-2 divide-y divide-gray-100">
               {group.items.map((item) => (
                 <FeedDayCard key={item.film_slug} item={item} />
               ))}
