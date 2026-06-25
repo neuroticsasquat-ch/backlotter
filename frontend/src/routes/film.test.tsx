@@ -83,10 +83,37 @@ describe("film route meta", () => {
     } as unknown as Parameters<typeof meta>[0]);
     expect(tags).toContainEqual({ name: "robots", content: "noindex" });
   });
+
+  it("uses the newest event's summary for the description, regardless of array order", () => {
+    const outOfOrder: FilmDetail = {
+      ...film,
+      events: [
+        {
+          event_type: "trailer",
+          confidence: "confirmed",
+          occurred_at: "2026-06-01T00:00:00Z",
+          summary: "Newest: trailer dropped.",
+          sources: [],
+        },
+        {
+          event_type: "casting",
+          confidence: "confirmed",
+          occurred_at: "2025-01-01T00:00:00Z",
+          summary: "Oldest: casting announced.",
+          sources: [],
+        },
+      ],
+    };
+    const tags = meta({
+      loaderData: { film: outOfOrder },
+      location: { pathname: "/film/the-odyssey-2026" },
+    } as unknown as Parameters<typeof meta>[0]);
+    expect(tags).toContainEqual({ name: "description", content: "Newest: trailer dropped." });
+  });
 });
 
 describe("film route render", () => {
-  it("renders the arc, ascending timeline, and outbound source links", async () => {
+  it("renders the arc, the timeline newest-first, and outbound source links", async () => {
     const Stub = createRoutesStub([
       { path: "/film/:slug", Component: FilmPage, loader: () => ({ film }) },
     ]);
@@ -95,7 +122,7 @@ describe("film route render", () => {
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
     expect(screen.getByText("Released")).toBeInTheDocument(); // ArcStepper renders all 7 labels; "Released" is always present
     const summaries = screen.getAllByText(/announced|dropped/).map((el) => el.textContent);
-    expect(summaries).toEqual(["Casting announced.", "Trailer dropped."]);
+    expect(summaries).toEqual(["Trailer dropped.", "Casting announced."]);
     const link = screen.getByRole("link", { name: "Deadline" });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link.getAttribute("rel")).toContain("noopener");

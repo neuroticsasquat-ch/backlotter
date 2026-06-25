@@ -27,7 +27,9 @@ export function meta({ loaderData, location }: Route.MetaArgs): Route.MetaDescri
   }
   const { film } = loaderData;
   const title = film.release_year ? `${film.title} (${film.release_year})` : film.title;
-  const latest = film.events.at(-1)?.summary; // events are ascending by occurred_at; last = most recent
+  // Pick the newest event by occurred_at, independent of array order (ISO-8601 sorts chronologically).
+  const latest = [...film.events].sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1))[0]
+    ?.summary;
   const description = latest
     ? truncate(latest)
     : `Release dates, casting, trailers, and the full update timeline for ${title}.`;
