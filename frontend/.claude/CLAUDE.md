@@ -2,6 +2,11 @@
 
 React + TypeScript SPA for the Upcoming Movies Tracker. Vite, react-router, TanStack Query (server state), Tailwind v4 + Radix/shadcn-style UI primitives, Sentry, sonner. Tooling: ESLint, Prettier, `tsc`, Vitest + Testing Library + MSW. pnpm (`pnpm@9.15.0`). Runs in a container — **no local Node/pnpm**.
 
+## Linear
+
+- `linear_initiative`: Upcoming Movies Tracker
+- `linear_team`: Neuroticsasquatch
+
 ## Golden rule: everything runs in the container via `task`
 
 Do **not** run `pnpm`, `vitest`, `eslint`, or `tsc` on the host. Use `task` targets (they `docker compose exec` into the `upmovies-frontend` container). Source is bind-mounted (Vite HMR is live); **dependency changes require `task build`** (rebuilds the image and syncs `node_modules` into the volume). Add deps with `task deps:add -- <pkg>` / `task deps:add-dev -- <pkg>`.
