@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it } from "vitest";
 import PublicLayout from "@/routes/public-layout";
@@ -14,8 +14,12 @@ describe("PublicLayout", () => {
         </Routes>
       </MemoryRouter>,
     );
-    const brand = screen.getByRole("link", { name: /upcoming movies tracker/i });
+    const banner = screen.getByRole("banner");
+    const brand = within(banner).getByRole("link", { name: /backlotter/i });
     expect(brand).toHaveAttribute("href", "/");
     expect(screen.getByText("page body")).toBeInTheDocument();
+
+    const footer = screen.getByRole("contentinfo");
+    expect(within(footer).getByText(/©\s*\d{4}\s*BackLotter/)).toBeInTheDocument();
   });
 });

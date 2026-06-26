@@ -61,7 +61,7 @@ describe("feed route meta", () => {
     const tags = meta({
       location: { pathname: "/" },
     } as unknown as Parameters<typeof meta>[0]);
-    expect(tags).toContainEqual({ title: "Latest Updates · Upcoming Movies Tracker" });
+    expect(tags).toContainEqual({ title: "Latest Updates · BackLotter" });
     expect(tags.some((t) => "name" in t && t.name === "description")).toBe(true);
     expect(tags.some((t) => "tagName" in t && t.tagName === "link" && t.rel === "canonical")).toBe(
       true,

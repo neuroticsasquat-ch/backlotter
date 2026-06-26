@@ -1,12 +1,12 @@
 import type { MetaDescriptor } from "react-router";
 import { env } from "@/env";
 
-const SITE_NAME = "Upcoming Movies Tracker";
+export const SITE_NAME = "BackLotter";
 const DEFAULT_DESCRIPTION =
   "Track upcoming movies: release dates, casting, trailers, and a chronological update log for every film.";
 
 export interface SeoInput {
-  /** Page title; templated as "<title> · Upcoming Movies Tracker". Omit for the site name alone. */
+  /** Page title; templated as "<title> · BackLotter". Omit for the site name alone. */
   title?: string;
   /** Meta/OG description. Omit for the site default. */
   description?: string;
