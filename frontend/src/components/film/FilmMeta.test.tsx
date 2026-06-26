@@ -23,6 +23,7 @@ function makeFilm(overrides: Partial<FilmDetail> = {}): FilmDetail {
     production_companies: ["Acme Studios", "Global Films"],
     collection: { name: "The Test Saga" },
     release_dates: [],
+    alternative_titles: [],
     ...overrides,
   };
 }

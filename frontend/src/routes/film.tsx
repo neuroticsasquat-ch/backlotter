@@ -8,6 +8,7 @@ import { posterUrl } from "@/lib/poster";
 import { truncate } from "@/lib/format";
 import { FilmHeader } from "@/components/film/FilmHeader";
 import { FilmMeta } from "@/components/film/FilmMeta";
+import { AlsoKnownAs } from "@/components/film/AlsoKnownAs";
 import { ReleaseDates } from "@/components/film/ReleaseDates";
 import { EventTimeline } from "@/components/film/EventTimeline";
 
@@ -51,6 +52,7 @@ export default function FilmPage({ loaderData }: Route.ComponentProps) {
       <FilmHeader film={film} />
       <ReleaseDates dates={film.release_dates} />
       <FilmMeta film={film} />
+      <AlsoKnownAs titles={film.alternative_titles} />
       <EventTimeline events={film.events} />
     </main>
   );

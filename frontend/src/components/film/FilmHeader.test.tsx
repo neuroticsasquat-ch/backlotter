@@ -22,6 +22,7 @@ const film: FilmDetail = {
   production_companies: [],
   collection: null,
   release_dates: [],
+  alternative_titles: [],
 };
 
 describe("FilmHeader", () => {

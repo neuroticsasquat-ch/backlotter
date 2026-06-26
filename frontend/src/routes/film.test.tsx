@@ -45,6 +45,7 @@ const film: FilmDetail = {
   production_companies: ["Universal Pictures"],
   collection: null,
   release_dates: [],
+  alternative_titles: ["Odysseia", "Οδύσσεια"],
 };
 
 function contextWithEnv() {
@@ -197,5 +198,27 @@ describe("film route render", () => {
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /release dates/i })).toBeNull();
     expect(screen.getByText("Released")).toBeInTheDocument(); // ArcStepper still renders
+  });
+
+  it("renders the AlsoKnownAs line when the film has alternative titles", async () => {
+    const Stub = createRoutesStub([
+      { path: "/film/:slug", Component: FilmPage, loader: () => ({ film }) },
+    ]);
+    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
+    expect(screen.getByText(/Odysseia/)).toBeInTheDocument();
+  });
+
+  it("omits the AlsoKnownAs line when alternative_titles is empty", async () => {
+    const Stub = createRoutesStub([
+      {
+        path: "/film/:slug",
+        Component: FilmPage,
+        loader: () => ({ film: { ...film, alternative_titles: [] } }),
+      },
+    ]);
+    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
+    expect(screen.queryByText(/Also known as/)).toBeNull();
   });
 });

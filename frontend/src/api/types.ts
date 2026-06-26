@@ -94,6 +94,7 @@ export interface FilmDetail {
   production_companies: string[];
   collection: FilmCollection | null;
   release_dates: ReleaseDate[];
+  alternative_titles: string[];
 }
 
 export interface FeedDayItem {
