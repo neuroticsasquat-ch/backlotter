@@ -21,6 +21,7 @@ const film: FilmDetail = {
   backdrop_path: null,
   production_companies: [],
   collection: null,
+  release_dates: [],
 };
 
 describe("FilmHeader", () => {

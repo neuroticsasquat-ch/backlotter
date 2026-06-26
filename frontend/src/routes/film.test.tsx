@@ -44,6 +44,7 @@ const film: FilmDetail = {
   backdrop_path: "/backdrop.jpg",
   production_companies: ["Universal Pictures"],
   collection: null,
+  release_dates: [],
 };
 
 function contextWithEnv() {
@@ -164,5 +165,37 @@ describe("film route render", () => {
     ]);
     render(<Stub initialEntries={["/film/missing"]} />);
     expect(await screen.findByText(/film not found/i)).toBeInTheDocument();
+  });
+
+  it("renders the release-dates section when the film has release dates", async () => {
+    const filmWithDates: FilmDetail = {
+      ...film,
+      release_dates: [
+        {
+          country: "US",
+          release_type: 3,
+          type_label: "Theatrical (limited)",
+          date: "2026-06-25T00:00:00Z",
+          certification: "PG-13",
+        },
+      ],
+    };
+    const Stub = createRoutesStub([
+      { path: "/film/:slug", Component: FilmPage, loader: () => ({ film: filmWithDates }) },
+    ]);
+    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
+    expect(screen.getByText("Theatrical (limited)")).toBeInTheDocument();
+    expect(screen.getByText("Jun 25, 2026")).toBeInTheDocument();
+  });
+
+  it("omits the release-dates heading when release_dates is empty", async () => {
+    const Stub = createRoutesStub([
+      { path: "/film/:slug", Component: FilmPage, loader: () => ({ film }) },
+    ]);
+    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /release dates/i })).toBeNull();
+    expect(screen.getByText("Released")).toBeInTheDocument(); // ArcStepper still renders
   });
 });
