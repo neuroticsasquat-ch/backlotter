@@ -22,6 +22,7 @@ function makeFilm(overrides: Partial<FilmDetail> = {}): FilmDetail {
     backdrop_path: "/backdrop.jpg",
     production_companies: ["Acme Studios", "Global Films"],
     collection: { name: "The Test Saga" },
+    release_dates: [],
     ...overrides,
   };
 }

@@ -8,6 +8,7 @@ import { posterUrl } from "@/lib/poster";
 import { truncate } from "@/lib/format";
 import { FilmHeader } from "@/components/film/FilmHeader";
 import { FilmMeta } from "@/components/film/FilmMeta";
+import { ReleaseDates } from "@/components/film/ReleaseDates";
 import { EventTimeline } from "@/components/film/EventTimeline";
 
 export async function loader({ params, context }: Route.LoaderArgs) {
@@ -48,6 +49,7 @@ export default function FilmPage({ loaderData }: Route.ComponentProps) {
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <FilmHeader film={film} />
+      <ReleaseDates dates={film.release_dates} />
       <FilmMeta film={film} />
       <EventTimeline events={film.events} />
     </main>

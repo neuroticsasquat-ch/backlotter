@@ -67,6 +67,14 @@ export interface FilmCollection {
   name: string;
 }
 
+export interface ReleaseDate {
+  country: string; // ISO 3166-1 (e.g. "US")
+  release_type: number; // TMDB type 1..6; FE renders type_label, not this
+  type_label: string; // human label from the backend (e.g. "Theatrical (limited)")
+  date: string; // ISO datetime (timestamptz, e.g. "2026-06-25T00:00:00Z")
+  certification: string | null; // e.g. "PG-13"; may be "" → treat as absent
+}
+
 export interface FilmDetail {
   slug: string;
   title: string;
@@ -85,6 +93,7 @@ export interface FilmDetail {
   backdrop_path: string | null;
   production_companies: string[];
   collection: FilmCollection | null;
+  release_dates: ReleaseDate[];
 }
 
 export interface FeedDayItem {
