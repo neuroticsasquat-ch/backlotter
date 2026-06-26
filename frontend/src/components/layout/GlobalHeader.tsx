@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { WORDMARK } from "@/components/layout/nav-items";
 import { PrimaryNav } from "@/components/layout/PrimaryNav";
 import HeaderAccount from "@/components/layout/HeaderAccount";
+import { SearchBox } from "@/components/search/SearchBox";
 
 /**
  * Site-wide header. Thin composition: wordmark + primary nav + account island.
@@ -21,7 +22,8 @@ export function GlobalHeader() {
         {/* Primary navigation */}
         <PrimaryNav />
 
-        {/* M4 search box mounts here — insertion slot */}
+        {/* Search box */}
+        <SearchBox />
 
         {/* Push account area to the right */}
         <div className="ml-auto">

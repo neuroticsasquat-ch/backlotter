@@ -31,9 +31,13 @@ describe("PublicLayout", () => {
       "href",
       "/browse",
     );
+    expect(within(primaryNav).getByRole("link", { name: /^search$/i })).toHaveAttribute(
+      "href",
+      "/search",
+    );
 
     // 3. Disabled nav seats — present but not links (no route yet → would 404)
-    for (const label of [/^search$/i, /^calendar$/i]) {
+    for (const label of [/^calendar$/i]) {
       expect(within(primaryNav).queryByRole("link", { name: label })).toBeNull();
       const seat = within(primaryNav).getByText(label);
       expect(seat).toHaveAttribute("aria-disabled", "true");

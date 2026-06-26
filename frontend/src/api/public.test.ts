@@ -1,7 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
-import { getFeedGrouped, getFilm, getFilms, PAGE_SIZE } from "@/api/public";
+import { getFeedGrouped, getFilm, getFilmSearch, getFilms, PAGE_SIZE } from "@/api/public";
 import type { FeedDayResponse, FilmDetail, FilmIndexResponse } from "@/api/types";
 
 const BACKEND = "https://api.upmovies.localhost";
@@ -134,5 +134,56 @@ describe("getFilms", () => {
   it("throws on a 500", async () => {
     server.use(http.get(`${BACKEND}/films`, () => new HttpResponse(null, { status: 500 })));
     await expect(getFilms(BACKEND)).rejects.toThrow(/failed: 5\d\d/);
+  });
+});
+
+const sampleSearch: FilmIndexResponse = {
+  items: [
+    {
+      slug: "the-matrix-1999",
+      title: "The Matrix",
+      release_year: 1999,
+      poster_path: "/matrix.jpg",
+      arc_stage: "released",
+    },
+  ],
+  total: 1,
+  limit: 8,
+  offset: 0,
+};
+
+describe("getFilmSearch", () => {
+  it("returns typed FilmIndexResponse on 200", async () => {
+    server.use(http.get(`${BACKEND}/films/search`, () => HttpResponse.json(sampleSearch)));
+    const result = await getFilmSearch(BACKEND, "matrix");
+    expect(result.total).toBe(1);
+    expect(result.items[0].slug).toBe("the-matrix-1999");
+    expect(result.items[0].arc_stage).toBe("released");
+  });
+
+  it("sends q, limit, and offset as query params", async () => {
+    let captured: URLSearchParams | undefined;
+    server.use(
+      http.get(`${BACKEND}/films/search`, ({ request }) => {
+        captured = new URL(request.url).searchParams;
+        return HttpResponse.json(sampleSearch);
+      }),
+    );
+    await getFilmSearch(BACKEND, "matrix", { limit: 8, offset: 0 });
+    expect(captured?.get("q")).toBe("matrix");
+    expect(captured?.get("limit")).toBe("8");
+    expect(captured?.get("offset")).toBe("0");
+  });
+
+  it("throws on non-OK response", async () => {
+    server.use(http.get(`${BACKEND}/films/search`, () => new HttpResponse(null, { status: 500 })));
+    await expect(getFilmSearch(BACKEND, "matrix")).rejects.toThrow(/failed: 500/);
+  });
+
+  it("respects a provided AbortSignal", async () => {
+    server.use(http.get(`${BACKEND}/films/search`, () => HttpResponse.json(sampleSearch)));
+    const controller = new AbortController();
+    controller.abort();
+    await expect(getFilmSearch(BACKEND, "matrix", { signal: controller.signal })).rejects.toThrow();
   });
 });

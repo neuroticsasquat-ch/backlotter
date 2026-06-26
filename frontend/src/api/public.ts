@@ -30,6 +30,24 @@ export async function getFilms(
   return (await res.json()) as FilmIndexResponse;
 }
 
+export async function getFilmSearch(
+  baseUrl: string,
+  q: string,
+  {
+    limit = 20,
+    offset = 0,
+    signal,
+  }: { limit?: number; offset?: number; signal?: AbortSignal } = {},
+): Promise<FilmIndexResponse> {
+  const url = new URL("/films/search", baseUrl);
+  url.searchParams.set("q", q);
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("offset", String(offset));
+  const res = await fetch(url, { headers: { Accept: "application/json" }, signal });
+  if (!res.ok) throw new Error(`GET /films/search failed: ${res.status}`);
+  return (await res.json()) as FilmIndexResponse;
+}
+
 /**
  * Fetch the per-(film, day) grouped public feed from the no-auth backend (NEU-364). The base URL is
  * injected by the caller (the SSR loader reads it from the Worker env), so this stays pure and runs

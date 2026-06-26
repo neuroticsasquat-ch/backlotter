@@ -88,4 +88,22 @@ describe("Pagination", () => {
       expect(screen.queryByRole("link", { name: /next/i })).toBeNull();
     });
   });
+
+  describe("preserving other query params", () => {
+    it("keeps existing params (e.g. q) when building page links", () => {
+      render(
+        <MemoryRouter initialEntries={["/search?q=matrix&page=2"]}>
+          <Pagination page={2} totalPages={5} />
+        </MemoryRouter>,
+      );
+      expect(screen.getByRole("link", { name: /prev/i })).toHaveAttribute(
+        "href",
+        "/search?q=matrix&page=1",
+      );
+      expect(screen.getByRole("link", { name: /next/i })).toHaveAttribute(
+        "href",
+        "/search?q=matrix&page=3",
+      );
+    });
+  });
 });
