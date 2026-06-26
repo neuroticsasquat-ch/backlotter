@@ -34,6 +34,16 @@ const film: FilmDetail = {
       sources: [],
     },
   ],
+  overview: "A contemporary retelling of Homer's epic voyage.",
+  tagline: "The journey home begins.",
+  runtime: 148,
+  genres: ["Adventure", "Drama"],
+  vote_average: 7.8,
+  vote_count: 1200,
+  original_language: "en",
+  backdrop_path: "/backdrop.jpg",
+  production_companies: ["Universal Pictures"],
+  collection: null,
 };
 
 function contextWithEnv() {
@@ -121,6 +131,7 @@ describe("film route render", () => {
 
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
     expect(screen.getByText("Released")).toBeInTheDocument(); // ArcStepper renders all 7 labels; "Released" is always present
+    expect(screen.getByText("The journey home begins.")).toBeInTheDocument(); // FilmMeta tagline
     const summaries = screen.getAllByText(/announced|dropped/).map((el) => el.textContent);
     expect(summaries).toEqual(["Trailer dropped.", "Casting announced."]);
     const link = screen.getByRole("link", { name: "Deadline" });

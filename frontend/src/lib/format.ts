@@ -46,3 +46,36 @@ const USD_FMT = new Intl.NumberFormat("en-US", {
 export function formatUsd(amount: number): string {
   return USD_FMT.format(amount);
 }
+
+/**
+ * Format a runtime in minutes as a human-readable string.
+ * Pure — no Intl, no timezone dependency.
+ * Examples: 135 → "2h 15m", 60 → "1h", 45 → "45m", 0/negative → ""
+ */
+export function formatRuntime(minutes: number): string {
+  if (minutes <= 0) return "";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+
+const LANGUAGE_DISPLAY = new Intl.DisplayNames(["en"], { type: "language" });
+
+/**
+ * Resolve an ISO 639-1 language code to its English display name.
+ * Falls back to the uppercased code if Intl cannot resolve it (returns the
+ * code unchanged) or returns undefined.
+ * Pins locale to ["en"] for SSR/client determinism.
+ */
+export function formatLanguage(code: string): string {
+  try {
+    const name = LANGUAGE_DISPLAY.of(code);
+    // Intl.DisplayNames may return the code unchanged when it cannot resolve it
+    if (!name || name === code) return code.toUpperCase();
+    return name;
+  } catch {
+    return code.toUpperCase();
+  }
+}

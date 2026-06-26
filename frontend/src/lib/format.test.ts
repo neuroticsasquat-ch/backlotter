@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { dayKey, formatDayHeading, formatEventDate, formatUsd, truncate } from "@/lib/format";
+import {
+  dayKey,
+  formatDayHeading,
+  formatEventDate,
+  formatLanguage,
+  formatRuntime,
+  formatUsd,
+  truncate,
+} from "@/lib/format";
 
 describe("formatEventDate", () => {
   it("formats an ISO timestamp as 'Mon D, YYYY'", () => {
@@ -68,5 +76,37 @@ describe("formatUsd", () => {
 
   it("rounds to at most 4 fractional digits", () => {
     expect(formatUsd(0.012345)).toBe("$0.0123");
+  });
+});
+
+describe("formatRuntime", () => {
+  it("formats hours and minutes", () => {
+    expect(formatRuntime(135)).toBe("2h 15m");
+  });
+
+  it("omits minutes when zero", () => {
+    expect(formatRuntime(60)).toBe("1h");
+  });
+
+  it("omits hours when zero", () => {
+    expect(formatRuntime(45)).toBe("45m");
+  });
+
+  it("returns empty string for zero", () => {
+    expect(formatRuntime(0)).toBe("");
+  });
+
+  it("returns empty string for negative values", () => {
+    expect(formatRuntime(-10)).toBe("");
+  });
+});
+
+describe("formatLanguage", () => {
+  it("resolves a known language code to its English display name", () => {
+    expect(formatLanguage("en")).toBe("English");
+  });
+
+  it("falls back to uppercased code for unknown codes", () => {
+    expect(formatLanguage("xx")).toBe("XX");
   });
 });

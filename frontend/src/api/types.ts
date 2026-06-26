@@ -63,6 +63,10 @@ export interface FilmEvent {
   sources: FilmSource[];
 }
 
+export interface FilmCollection {
+  name: string;
+}
+
 export interface FilmDetail {
   slug: string;
   title: string;
@@ -71,6 +75,16 @@ export interface FilmDetail {
   poster_path: string | null;
   arc_stage: ArcStage;
   events: FilmEvent[];
+  overview: string | null;
+  tagline: string | null;
+  runtime: number | null;
+  genres: string[];
+  vote_average: number | null;
+  vote_count: number | null;
+  original_language: string | null;
+  backdrop_path: string | null;
+  production_companies: string[];
+  collection: FilmCollection | null;
 }
 
 export interface FeedDayItem {

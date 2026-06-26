@@ -11,6 +11,16 @@ const film: FilmDetail = {
   poster_path: "/poster.jpg",
   arc_stage: "shooting",
   events: [],
+  overview: null,
+  tagline: null,
+  runtime: null,
+  genres: [],
+  vote_average: null,
+  vote_count: null,
+  original_language: null,
+  backdrop_path: null,
+  production_companies: [],
+  collection: null,
 };
 
 describe("FilmHeader", () => {
