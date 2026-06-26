@@ -46,6 +46,11 @@ const film: FilmDetail = {
   collection: null,
   release_dates: [],
   alternative_titles: ["Odysseia", "Οδύσσεια"],
+  cast: [
+    { name: "Timothée Chalamet", character: "Telemachus", profile_path: "/tchalamet.jpg" },
+    { name: "Cate Blanchett", character: null, profile_path: null },
+  ],
+  directors: ["Christopher Nolan"],
 };
 
 function contextWithEnv() {
@@ -220,5 +225,31 @@ describe("film route render", () => {
     render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
     expect(screen.queryByText(/Also known as/)).toBeNull();
+  });
+
+  it("renders the cast & crew section with director and cast member names", async () => {
+    const Stub = createRoutesStub([
+      { path: "/film/:slug", Component: FilmPage, loader: () => ({ film }) },
+    ]);
+    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Cast & crew" })).toBeInTheDocument();
+    expect(screen.getByText(/Christopher Nolan/)).toBeInTheDocument();
+    expect(screen.getByText("Timothée Chalamet")).toBeInTheDocument();
+    expect(screen.getByText("Telemachus")).toBeInTheDocument();
+  });
+
+  it("omits the cast & crew section when both cast and directors are empty", async () => {
+    const Stub = createRoutesStub([
+      {
+        path: "/film/:slug",
+        Component: FilmPage,
+        loader: () => ({ film: { ...film, cast: [], directors: [] } }),
+      },
+    ]);
+    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Cast & crew" })).toBeNull();
+    expect(screen.queryByText("Timothée Chalamet")).toBeNull();
   });
 });

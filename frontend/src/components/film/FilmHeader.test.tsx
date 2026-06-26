@@ -23,6 +23,8 @@ const film: FilmDetail = {
   collection: null,
   release_dates: [],
   alternative_titles: [],
+  cast: [],
+  directors: [],
 };
 
 describe("FilmHeader", () => {

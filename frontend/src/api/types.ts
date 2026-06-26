@@ -75,6 +75,12 @@ export interface ReleaseDate {
   certification: string | null; // e.g. "PG-13"; may be "" → treat as absent
 }
 
+export interface CastMember {
+  name: string;
+  character: string | null;
+  profile_path: string | null; // raw TMDB path; FE builds the URL via profileUrl()
+}
+
 export interface FilmDetail {
   slug: string;
   title: string;
@@ -95,6 +101,8 @@ export interface FilmDetail {
   collection: FilmCollection | null;
   release_dates: ReleaseDate[];
   alternative_titles: string[];
+  cast: CastMember[];
+  directors: string[];
 }
 
 export interface FeedDayItem {

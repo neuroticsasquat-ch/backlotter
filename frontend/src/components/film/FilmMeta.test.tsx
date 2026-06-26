@@ -24,6 +24,8 @@ function makeFilm(overrides: Partial<FilmDetail> = {}): FilmDetail {
     collection: { name: "The Test Saga" },
     release_dates: [],
     alternative_titles: [],
+    cast: [],
+    directors: [],
     ...overrides,
   };
 }
