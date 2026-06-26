@@ -102,3 +102,18 @@ export interface FeedDayResponse {
   limit: number;
   offset: number;
 }
+
+export interface FilmIndexItem {
+  slug: string;
+  title: string;
+  release_year: number | null;
+  poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()
+  arc_stage: ArcStage; // mirrors the backend; not rendered on /browse yet (reserved for a future badge)
+}
+
+export interface FilmIndexResponse {
+  items: FilmIndexItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}

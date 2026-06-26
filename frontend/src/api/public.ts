@@ -1,4 +1,4 @@
-import type { FeedDayResponse, FilmDetail } from "./types";
+import type { FeedDayResponse, FilmDetail, FilmIndexResponse } from "./types";
 
 /**
  * Fetch a film's public detail from the no-auth backend. The base URL is injected by the
@@ -13,6 +13,21 @@ export async function getFilm(baseUrl: string, slug: string): Promise<FilmDetail
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`GET /films/${encodeURIComponent(slug)} failed: ${res.status}`);
   return (await res.json()) as FilmDetail;
+}
+
+/** Grid-friendly page size for the /browse index; within the backend's 1..100 limit bound. */
+export const PAGE_SIZE = 36;
+
+export async function getFilms(
+  baseUrl: string,
+  { limit = PAGE_SIZE, offset = 0 }: { limit?: number; offset?: number } = {},
+): Promise<FilmIndexResponse> {
+  const url = new URL("/films", baseUrl);
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("offset", String(offset));
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`GET /films failed: ${res.status}`);
+  return (await res.json()) as FilmIndexResponse;
 }
 
 /**

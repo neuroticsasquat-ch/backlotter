@@ -12,6 +12,12 @@ export interface SeoInput {
   description?: string;
   /** Route pathname (e.g. location.pathname). Must not include query string — pass pathname only. */
   pathname: string;
+  /**
+   * Optional query string (e.g. "?page=2") folded into the canonical + og:url so paginated
+   * pages self-canonicalize. Omit (or pass "") for the bare-pathname URL. Pages 2+ of a
+   * paginated route MUST set this, or the canonical points back to page 1 and fights rel=prev/next.
+   */
+  search?: string;
   /** Optional absolute or site-relative image → og:image + twitter:image. */
   image?: string;
   /** og:type. Defaults to "website". */
@@ -22,7 +28,7 @@ export interface SeoInput {
 export function buildMeta(input: SeoInput): MetaDescriptor[] {
   const title = input.title ? `${input.title} · ${SITE_NAME}` : SITE_NAME;
   const description = input.description ?? DEFAULT_DESCRIPTION;
-  const url = new URL(input.pathname, env.publicSiteUrl).toString();
+  const url = new URL(input.pathname + (input.search ?? ""), env.publicSiteUrl).toString();
 
   const descriptors: MetaDescriptor[] = [
     { title },

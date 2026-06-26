@@ -6,7 +6,7 @@ export const WORDMARK = SITE_NAME;
 // its route exists in routes.ts, or the link 404s wherever it appears (header + footer).
 export const NAV_ITEMS = [
   { label: "Home", href: "/", enabled: true },
-  { label: "Browse", href: "/browse", enabled: false },
+  { label: "Browse", href: "/browse", enabled: true },
   { label: "Search", href: "/search", enabled: false },
   { label: "Calendar", href: "/calendar", enabled: false },
 ] as const;

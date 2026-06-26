@@ -1,8 +1,8 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
-import { getFeedGrouped, getFilm } from "@/api/public";
-import type { FeedDayResponse, FilmDetail } from "@/api/types";
+import { getFeedGrouped, getFilm, getFilms, PAGE_SIZE } from "@/api/public";
+import type { FeedDayResponse, FilmDetail, FilmIndexResponse } from "@/api/types";
 
 const BACKEND = "https://api.upmovies.localhost";
 
@@ -81,5 +81,58 @@ describe("getFeedGrouped", () => {
   it("throws on a 500", async () => {
     server.use(http.get(`${BACKEND}/feed/grouped`, () => new HttpResponse(null, { status: 500 })));
     await expect(getFeedGrouped(BACKEND)).rejects.toThrow(/failed: 500/);
+  });
+});
+
+const sampleFilmIndex: FilmIndexResponse = {
+  items: [
+    {
+      slug: "the-odyssey-2026",
+      title: "The Odyssey",
+      release_year: 2026,
+      poster_path: "/poster.jpg",
+      arc_stage: "trailer",
+    },
+  ],
+  total: 1,
+  limit: 36,
+  offset: 0,
+};
+
+describe("getFilms", () => {
+  it("returns the typed response on 200 and sends default limit/offset", async () => {
+    let captured: URL | undefined;
+    server.use(
+      http.get(`${BACKEND}/films`, ({ request }) => {
+        captured = new URL(request.url);
+        return HttpResponse.json(sampleFilmIndex);
+      }),
+    );
+    const result = await getFilms(BACKEND);
+    expect(result.total).toBe(1);
+    expect(result.items[0].slug).toBe("the-odyssey-2026");
+    expect(result.items[0].arc_stage).toBe("trailer");
+    expect(captured?.searchParams.get("limit")).toBe(String(PAGE_SIZE));
+    expect(captured?.searchParams.get("offset")).toBe("0");
+  });
+
+  it("sends explicit limit and offset when provided", async () => {
+    let captured: URL | undefined;
+    server.use(
+      http.get(`${BACKEND}/films`, ({ request }) => {
+        captured = new URL(request.url);
+        return HttpResponse.json({ ...sampleFilmIndex, limit: 10, offset: 20 });
+      }),
+    );
+    const result = await getFilms(BACKEND, { limit: 10, offset: 20 });
+    expect(result.limit).toBe(10);
+    expect(result.offset).toBe(20);
+    expect(captured?.searchParams.get("limit")).toBe("10");
+    expect(captured?.searchParams.get("offset")).toBe("20");
+  });
+
+  it("throws on a 500", async () => {
+    server.use(http.get(`${BACKEND}/films`, () => new HttpResponse(null, { status: 500 })));
+    await expect(getFilms(BACKEND)).rejects.toThrow(/failed: 5\d\d/);
   });
 });
