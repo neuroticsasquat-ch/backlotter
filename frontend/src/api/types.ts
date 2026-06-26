@@ -135,3 +135,18 @@ export interface FilmIndexResponse {
   limit: number;
   offset: number;
 }
+
+export interface CalendarItem {
+  film_slug: string;
+  film_title: string;
+  poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()
+  release_date: string; // "YYYY-MM-DD" (US date)
+  release_type: string; // bucket: "premiere" | "limited" | "wide" — rendered via releaseBucketLabel
+}
+
+export interface CalendarResponse {
+  items: CalendarItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}

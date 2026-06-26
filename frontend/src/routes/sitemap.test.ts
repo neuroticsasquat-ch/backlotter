@@ -34,7 +34,7 @@ describe("sitemap.xml", () => {
     expect(await res.text()).toBe(xml);
   });
 
-  it("injects a /browse url entry and preserves the root entry", async () => {
+  it("injects /browse and /calendar url entries and preserves the root entry", async () => {
     const APP_BASE = "https://app.upmovies.localhost";
     const xml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
@@ -60,6 +60,7 @@ describe("sitemap.xml", () => {
     const body = await res.text();
     expect(body).toContain(`<loc>${APP_BASE}/</loc>`);
     expect(body).toContain(`<loc>${APP_BASE}/browse</loc>`);
+    expect(body).toContain(`<loc>${APP_BASE}/calendar</loc>`);
   });
 
   it("anchors the /browse entry to the site origin even when the first <loc> is a deep path", async () => {

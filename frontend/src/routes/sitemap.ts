@@ -1,7 +1,7 @@
 import type { Route } from "./+types/sitemap";
 import { cloudflareContext } from "@/lib/load-context";
 
-export function injectBrowseUrl(xml: string): string {
+export function injectFeRoutes(xml: string, routes: string[]): string {
   const locMatch = xml.match(/<loc>([\s\S]*?)<\/loc>/);
   if (!locMatch) return xml;
   // Derive the site root from the first <loc>'s origin — robust even if that entry is a deep
@@ -12,11 +12,11 @@ export function injectBrowseUrl(xml: string): string {
   } catch {
     return xml;
   }
-  const browseEntry = `<url><loc>${base}/browse</loc></url>`;
+  const entries = routes.map((route) => `<url><loc>${base}${route}</loc></url>`).join("");
   const closeTag = "</urlset>";
   const closeIndex = xml.lastIndexOf(closeTag);
   if (closeIndex === -1) return xml;
-  return xml.slice(0, closeIndex) + browseEntry + xml.slice(closeIndex);
+  return xml.slice(0, closeIndex) + entries + xml.slice(closeIndex);
 }
 
 export async function loader({ context }: Route.LoaderArgs) {
@@ -30,7 +30,7 @@ export async function loader({ context }: Route.LoaderArgs) {
       headers: { "Content-Type": "application/xml; charset=utf-8" },
     });
   }
-  const body = injectBrowseUrl(await upstream.text());
+  const body = injectFeRoutes(await upstream.text(), ["/browse", "/calendar"]);
   return new Response(body, {
     status: upstream.status,
     headers: {

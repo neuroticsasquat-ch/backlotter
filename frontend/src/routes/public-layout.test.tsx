@@ -36,13 +36,11 @@ describe("PublicLayout", () => {
       "/search",
     );
 
-    // 3. Disabled nav seats — present but not links (no route yet → would 404)
-    for (const label of [/^calendar$/i]) {
-      expect(within(primaryNav).queryByRole("link", { name: label })).toBeNull();
-      const seat = within(primaryNav).getByText(label);
-      expect(seat).toHaveAttribute("aria-disabled", "true");
-      expect(seat.tagName).not.toBe("A");
-    }
+    // 3. Calendar is now a live link
+    expect(within(primaryNav).getByRole("link", { name: /^calendar$/i })).toHaveAttribute(
+      "href",
+      "/calendar",
+    );
 
     // 4. Footer — wordmark text in copyright line
     const footer = screen.getByRole("contentinfo");

@@ -1,8 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
 import { PrimaryNav } from "@/components/layout/PrimaryNav";
+
+// Pin a stable fixture that always includes one disabled item so the disabled-seat
+// tests run real assertions even when all production NAV_ITEMS are enabled.
+vi.mock("@/components/layout/nav-items", () => ({
+  NAV_ITEMS: [
+    { label: "Home", href: "/", enabled: true },
+    { label: "Browse", href: "/browse", enabled: true },
+    { label: "Search", href: "/search", enabled: true },
+    { label: "Calendar", href: "/calendar", enabled: true },
+    { label: "Upcoming", href: "/upcoming", enabled: false },
+  ] as const,
+}));
 
 function renderPrimaryNav(initialPath = "/") {
   return render(

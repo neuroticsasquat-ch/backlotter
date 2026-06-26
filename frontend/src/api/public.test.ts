@@ -1,8 +1,15 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
-import { getFeedGrouped, getFilm, getFilmSearch, getFilms, PAGE_SIZE } from "@/api/public";
-import type { FeedDayResponse, FilmDetail, FilmIndexResponse } from "@/api/types";
+import {
+  getCalendar,
+  getFeedGrouped,
+  getFilm,
+  getFilmSearch,
+  getFilms,
+  PAGE_SIZE,
+} from "@/api/public";
+import type { CalendarResponse, FeedDayResponse, FilmDetail, FilmIndexResponse } from "@/api/types";
 
 const BACKEND = "https://api.upmovies.localhost";
 
@@ -85,6 +92,59 @@ describe("getFeedGrouped", () => {
   it("throws on a 500", async () => {
     server.use(http.get(`${BACKEND}/feed/grouped`, () => new HttpResponse(null, { status: 500 })));
     await expect(getFeedGrouped(BACKEND)).rejects.toThrow(/failed: 500/);
+  });
+});
+
+const sampleCalendar: CalendarResponse = {
+  items: [
+    {
+      film_slug: "the-odyssey-2026",
+      film_title: "The Odyssey",
+      poster_path: "/poster.jpg",
+      release_date: "2026-07-17",
+      release_type: "wide",
+    },
+  ],
+  total: 1,
+  limit: 100,
+  offset: 0,
+};
+
+describe("getCalendar", () => {
+  it("returns the typed response on 200 and sends default limit=100 and offset=0", async () => {
+    let captured: URL | undefined;
+    server.use(
+      http.get(`${BACKEND}/calendar`, ({ request }) => {
+        captured = new URL(request.url);
+        return HttpResponse.json(sampleCalendar);
+      }),
+    );
+    const calendar = await getCalendar(BACKEND);
+    expect(calendar.total).toBe(1);
+    expect(calendar.items[0].film_slug).toBe("the-odyssey-2026");
+    expect(calendar.items[0].release_type).toBe("wide");
+    expect(captured?.searchParams.get("limit")).toBe("100");
+    expect(captured?.searchParams.get("offset")).toBe("0");
+  });
+
+  it("sends explicit limit and offset when provided", async () => {
+    let captured: URL | undefined;
+    server.use(
+      http.get(`${BACKEND}/calendar`, ({ request }) => {
+        captured = new URL(request.url);
+        return HttpResponse.json({ ...sampleCalendar, limit: 50, offset: 10 });
+      }),
+    );
+    const calendar = await getCalendar(BACKEND, { limit: 50, offset: 10 });
+    expect(calendar.limit).toBe(50);
+    expect(calendar.offset).toBe(10);
+    expect(captured?.searchParams.get("limit")).toBe("50");
+    expect(captured?.searchParams.get("offset")).toBe("10");
+  });
+
+  it("throws on a 500", async () => {
+    server.use(http.get(`${BACKEND}/calendar`, () => new HttpResponse(null, { status: 500 })));
+    await expect(getCalendar(BACKEND)).rejects.toThrow(/failed: 5\d\d/);
   });
 });
 

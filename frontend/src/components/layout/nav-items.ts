@@ -8,5 +8,5 @@ export const NAV_ITEMS = [
   { label: "Home", href: "/", enabled: true },
   { label: "Browse", href: "/browse", enabled: true },
   { label: "Search", href: "/search", enabled: true },
-  { label: "Calendar", href: "/calendar", enabled: false },
+  { label: "Calendar", href: "/calendar", enabled: true },
 ] as const;

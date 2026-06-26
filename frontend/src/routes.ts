@@ -6,6 +6,7 @@ export default [
 
   layout("routes/public-layout.tsx", [
     index("routes/feed.tsx"),
+    route("calendar", "routes/calendar.tsx"),
     route("browse", "routes/browse.tsx"),
     route("search", "routes/search.tsx"),
     route("film/:slug", "routes/film.tsx"),
