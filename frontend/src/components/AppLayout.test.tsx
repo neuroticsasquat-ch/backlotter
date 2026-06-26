@@ -38,4 +38,10 @@ describe("AppLayout", () => {
     await screen.findByRole("button", { name: /log out/i });
     expect(screen.queryByRole("link", { name: /admin/i })).not.toBeInTheDocument();
   });
+
+  it("shows the BackLotter brand wordmark in the header", async () => {
+    server.use(meHandler({ is_admin: false }));
+    renderLayout();
+    expect(await screen.findByRole("link", { name: /backlotter/i })).toBeInTheDocument();
+  });
 });

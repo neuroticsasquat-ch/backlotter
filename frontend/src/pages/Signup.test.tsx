@@ -114,4 +114,12 @@ describe("Signup", () => {
     await userEvent.click(screen.getByRole("button", { name: /sign up/i }));
     expect(screen.queryByText("app home")).not.toBeInTheDocument();
   });
+
+  it("shows the BackLotter brand in the heading and invite copy", () => {
+    renderAt("/signup");
+    expect(
+      screen.getByRole("heading", { name: /create your backlotter account/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/backlotter is invite-only during beta/i)).toBeInTheDocument();
+  });
 });

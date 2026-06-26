@@ -97,4 +97,9 @@ describe("Login", () => {
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
     await waitFor(() => expect(screen.getByText(/incorrect/i)).toBeInTheDocument());
   });
+
+  it("shows the BackLotter brand in the heading", () => {
+    renderAt("/login");
+    expect(screen.getByRole("heading", { name: /log in to backlotter/i })).toBeInTheDocument();
+  });
 });

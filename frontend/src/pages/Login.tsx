@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "@/components/AuthContext";
 import { ApiError } from "@/api/client";
+import { SITE_NAME } from "@/lib/seo";
 
 export function Login() {
   const { login } = useAuth();
@@ -33,7 +34,7 @@ export function Login() {
 
   return (
     <div className="mx-auto max-w-sm py-12">
-      <h1 className="text-2xl font-semibold mb-6">Log in to Upcoming Movies</h1>
+      <h1 className="text-2xl font-semibold mb-6">Log in to {SITE_NAME}</h1>
       <form onSubmit={onSubmit} className="space-y-4">
         <div>
           <label htmlFor="email" className="block text-sm">

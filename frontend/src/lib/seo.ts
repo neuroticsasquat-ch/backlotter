@@ -1,7 +1,7 @@
 import type { MetaDescriptor } from "react-router";
 import { env } from "@/env";
 
-const SITE_NAME = "BackLotter";
+export const SITE_NAME = "BackLotter";
 const DEFAULT_DESCRIPTION =
   "Track upcoming movies: release dates, casting, trailers, and a chronological update log for every film.";
 

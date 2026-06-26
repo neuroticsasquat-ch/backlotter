@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from "react-router";
 import { useAuth } from "./AuthContext";
+import { SITE_NAME } from "@/lib/seo";
 
 /** Authenticated app shell: a header with nav (admin entry shown only to admins) and
  * the routed page below. */
@@ -10,7 +11,7 @@ export function AppLayout() {
       <header className="border-b">
         <nav className="mx-auto flex max-w-4xl items-center gap-4 p-4">
           <Link to="/app" className="font-semibold">
-            Upcoming Movies
+            {SITE_NAME}
           </Link>
           <div className="flex-1" />
           {user?.is_admin && (

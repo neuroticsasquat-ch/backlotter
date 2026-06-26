@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { ApiError } from "@/api/client";
 import { useAuth } from "@/components/AuthContext";
+import { SITE_NAME } from "@/lib/seo";
 
 export function Signup() {
   const { signup } = useAuth();
@@ -47,7 +48,7 @@ export function Signup() {
 
   return (
     <div className="mx-auto max-w-sm py-12">
-      <h1 className="text-2xl font-semibold mb-6">Create your Upcoming Movies account</h1>
+      <h1 className="text-2xl font-semibold mb-6">Create your {SITE_NAME} account</h1>
       <form onSubmit={onSubmit} className="space-y-4">
         <div>
           <label htmlFor="invite_code" className="block text-sm">
@@ -62,7 +63,7 @@ export function Signup() {
             className="mt-1 w-full rounded border px-3 py-2"
             autoComplete="off"
           />
-          <p className="text-xs text-gray-500 mt-1">Upcoming Movies is invite-only during beta.</p>
+          <p className="text-xs text-gray-500 mt-1">{SITE_NAME} is invite-only during beta.</p>
         </div>
         <div>
           <label htmlFor="email" className="block text-sm">
