@@ -9,15 +9,15 @@ describe("buildMeta", () => {
       pathname: "/film/the-odyssey-2026",
     });
 
-    expect(tags).toContainEqual({ title: "The Odyssey · Upcoming Movies Tracker" });
+    expect(tags).toContainEqual({ title: "The Odyssey · BackLotter" });
     expect(tags).toContainEqual({ name: "description", content: "Epic seafaring." });
     expect(tags).toContainEqual({
       property: "og:title",
-      content: "The Odyssey · Upcoming Movies Tracker",
+      content: "The Odyssey · BackLotter",
     });
     expect(tags).toContainEqual({ property: "og:description", content: "Epic seafaring." });
     expect(tags).toContainEqual({ property: "og:type", content: "website" });
-    expect(tags).toContainEqual({ property: "og:site_name", content: "Upcoming Movies Tracker" });
+    expect(tags).toContainEqual({ property: "og:site_name", content: "BackLotter" });
     expect(tags).toContainEqual({ name: "twitter:card", content: "summary" });
 
     const canonical = tags.find((t) => "tagName" in t && t.tagName === "link") as
@@ -29,7 +29,7 @@ describe("buildMeta", () => {
 
   it("falls back to the site name and default description when omitted", () => {
     const tags = buildMeta({ pathname: "/" });
-    expect(tags).toContainEqual({ title: "Upcoming Movies Tracker" });
+    expect(tags).toContainEqual({ title: "BackLotter" });
     expect(tags.some((t) => "name" in t && t.name === "description")).toBe(true);
     expect(tags.find((t) => "property" in t && t.property === "og:image")).toBeUndefined();
   });

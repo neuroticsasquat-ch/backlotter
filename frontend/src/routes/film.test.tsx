@@ -69,7 +69,7 @@ describe("film route meta", () => {
       loaderData: { film },
       location: { pathname: "/film/the-odyssey-2026" },
     } as unknown as Parameters<typeof meta>[0]);
-    expect(tags).toContainEqual({ title: "The Odyssey (2026) · Upcoming Movies Tracker" });
+    expect(tags).toContainEqual({ title: "The Odyssey (2026) · BackLotter" });
     expect(tags.some((t) => "property" in t && t.property === "og:image")).toBe(true);
     expect(tags.some((t) => "tagName" in t && t.tagName === "link" && t.rel === "canonical")).toBe(
       true,
