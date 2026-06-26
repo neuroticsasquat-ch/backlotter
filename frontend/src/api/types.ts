@@ -58,7 +58,7 @@ export interface FilmSource {
 export interface FilmEvent {
   event_type: string;
   confidence: string; // "confirmed" | "rumored" (backend free text; rendered via a map)
-  occurred_at: string;
+  created_at: string;
   summary: string;
   sources: FilmSource[];
 }

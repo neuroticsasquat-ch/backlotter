@@ -7,7 +7,7 @@ function makeEvent(overrides: Partial<FilmEvent>): FilmEvent {
   return {
     event_type: "casting",
     confidence: "confirmed",
-    occurred_at: "2025-01-01T00:00:00Z",
+    created_at: "2025-01-01T00:00:00Z",
     summary: "Summary.",
     sources: [],
     ...overrides,
@@ -25,11 +25,11 @@ describe("EventTimeline", () => {
     render(
       <EventTimeline
         events={[
-          makeEvent({ summary: "Casting announced.", occurred_at: "2025-01-01T00:00:00Z" }),
+          makeEvent({ summary: "Casting announced.", created_at: "2025-01-01T00:00:00Z" }),
           makeEvent({
             summary: "Trailer dropped.",
             event_type: "trailer",
-            occurred_at: "2026-06-01T00:00:00Z",
+            created_at: "2026-06-01T00:00:00Z",
           }),
         ]}
       />,
@@ -42,11 +42,11 @@ describe("EventTimeline", () => {
     render(
       <EventTimeline
         events={[
-          makeEvent({ summary: "Casting announced.", occurred_at: "2025-01-01T00:00:00Z" }),
+          makeEvent({ summary: "Casting announced.", created_at: "2025-01-01T00:00:00Z" }),
           makeEvent({
             summary: "Trailer dropped.",
             event_type: "trailer",
-            occurred_at: "2026-06-01T00:00:00Z",
+            created_at: "2026-06-01T00:00:00Z",
           }),
         ]}
       />,
@@ -59,8 +59,8 @@ describe("EventTimeline", () => {
     render(
       <EventTimeline
         events={[
-          makeEvent({ summary: "Earlier today.", occurred_at: "2026-06-01T08:00:00Z" }),
-          makeEvent({ summary: "Later today.", occurred_at: "2026-06-01T20:00:00Z" }),
+          makeEvent({ summary: "Earlier today.", created_at: "2026-06-01T08:00:00Z" }),
+          makeEvent({ summary: "Later today.", created_at: "2026-06-01T20:00:00Z" }),
         ]}
       />,
     );

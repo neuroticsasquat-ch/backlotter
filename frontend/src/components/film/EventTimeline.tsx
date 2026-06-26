@@ -17,7 +17,7 @@ export function EventTimeline({ events }: { events: FilmEvent[] }) {
           </h2>
           <ol className="mt-2 space-y-4">
             {group.events.map((event, i) => (
-              <li key={`${event.event_type}-${event.occurred_at}-${i}`}>
+              <li key={`${event.event_type}-${event.created_at}-${i}`}>
                 <EventCard event={event} />
               </li>
             ))}

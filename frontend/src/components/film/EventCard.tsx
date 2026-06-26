@@ -29,8 +29,8 @@ export function EventCard({ event }: { event: FilmEvent }) {
           {eventTypeLabel(event.event_type)}
         </span>
         <ConfidenceBadge confidence={event.confidence} />
-        <time dateTime={event.occurred_at} className="ml-auto text-gray-400">
-          {formatEventDate(event.occurred_at)}
+        <time dateTime={event.created_at} className="ml-auto text-gray-400">
+          {formatEventDate(event.created_at)}
         </time>
       </div>
       <p className="mt-2 text-sm leading-relaxed">{event.summary}</p>

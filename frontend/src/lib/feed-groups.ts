@@ -39,14 +39,14 @@ export interface EventDayGroup {
 
 /**
  * Bucket a film's events into per-day sections, newest day first and newest event first within a
- * day. Input must be ascending by `occurred_at` (the order `GET /films/{slug}` returns); we reverse
+ * day. Input must be ascending by `created_at` (the order `GET /films/{slug}` returns); we reverse
  * a copy — deterministic, no `Date.now()`, so SSR and client output match — then bucket adjacent
- * events sharing a UTC day key derived from `occurred_at`.
+ * events sharing a UTC day key derived from `created_at`.
  */
 export function groupEventsByDay(events: FilmEvent[]): EventDayGroup[] {
   const groups: EventDayGroup[] = [];
   for (const event of [...events].reverse()) {
-    const key = dayKey(event.occurred_at);
+    const key = dayKey(event.created_at);
     const last = groups[groups.length - 1];
     if (last && last.dayKey === key) {
       last.events.push(event);

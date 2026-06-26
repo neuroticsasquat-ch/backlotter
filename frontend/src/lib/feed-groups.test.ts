@@ -38,8 +38,8 @@ describe("groupByDay", () => {
   });
 });
 
-function event(occurred_at: string, summary: string): FilmEvent {
-  return { event_type: "casting", confidence: "confirmed", occurred_at, summary, sources: [] };
+function event(created_at: string, summary: string): FilmEvent {
+  return { event_type: "casting", confidence: "confirmed", created_at, summary, sources: [] };
 }
 
 describe("groupEventsByDay", () => {
@@ -48,7 +48,7 @@ describe("groupEventsByDay", () => {
   });
 
   it("orders days newest-first and events newest-first within a day", () => {
-    // Input is ascending by occurred_at, as the backend returns it.
+    // Input is ascending by created_at, as the backend returns it.
     const groups = groupEventsByDay([
       event("2026-06-22T08:00:00Z", "older day"),
       event("2026-06-23T08:00:00Z", "same day, earlier"),
@@ -62,7 +62,7 @@ describe("groupEventsByDay", () => {
     expect(groups[1].events.map((e) => e.summary)).toEqual(["older day"]);
   });
 
-  it("derives the UTC day key and human heading from occurred_at", () => {
+  it("derives the UTC day key and human heading from created_at", () => {
     const groups = groupEventsByDay([event("2026-06-23T23:30:00Z", "late evening UTC")]);
     expect(groups[0].dayKey).toBe("2026-06-23");
     expect(groups[0].heading).toContain("June 23, 2026");

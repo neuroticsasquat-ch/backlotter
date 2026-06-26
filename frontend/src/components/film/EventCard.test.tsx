@@ -6,7 +6,7 @@ import type { FilmEvent } from "@/api/types";
 const event: FilmEvent = {
   event_type: "release_date",
   confidence: "confirmed",
-  occurred_at: "2026-03-14T00:00:00Z",
+  created_at: "2026-03-14T00:00:00Z",
   summary: "Studio sets a July 17 theatrical release.",
   sources: [{ url: "https://thr.com/a", source: "THR", title: "Dated", published_at: null }],
 };
