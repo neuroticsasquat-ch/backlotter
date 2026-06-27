@@ -1,4 +1,4 @@
-name: Rebase dependency branch
+name: Merge main into dependency branch
 
 on:
   schedule:
@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  rebase:
+  merge:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -20,13 +20,6 @@ jobs:
       - name: Skip if updates/dependencies is already up to date
         id: check
         run: |
-      - name: Rebase updates/dependencies from main
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout updates/dependencies || git checkout -b updates/dependencies
-          git rebase origin/main
-          git push --force-with-lease origin updates/dependencies
           git fetch origin main updates/dependencies
           if git merge-base --is-ancestor origin/main origin/updates/dependencies; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
