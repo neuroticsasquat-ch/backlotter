@@ -11,10 +11,18 @@ const requestHandler = createRequestHandler(
 // Proxy a browser Sentry envelope on to the ingest endpoint (the `tunnel` target set in
 // entry.client.tsx). Same-origin so ad blockers don't drop it; validated against our own
 // DSN so it can't be used as an open relay.
+//
+// Work in raw bytes, not text: replay envelopes carry a binary (compressed) recording
+// item, and a UTF-8 round-trip via request.text() would corrupt it (Sentry then rejects
+// the envelope with "missing newline after payload"). We decode only the header line
+// (ASCII JSON, up to the first newline) for validation and forward the bytes untouched.
 async function handleSentryTunnel(request: Request, dsn: string): Promise<Response> {
-  const body = await request.text();
-  const newline = body.indexOf("\n");
-  const envelopeHeader = newline === -1 ? body : body.slice(0, newline);
+  const body = await request.arrayBuffer();
+  const bytes = new Uint8Array(body);
+  const newline = bytes.indexOf(0x0a); // first "\n" — end of the envelope header
+  const envelopeHeader = new TextDecoder().decode(
+    newline === -1 ? bytes : bytes.subarray(0, newline),
+  );
   const upstream = sentryTunnelUpstream(dsn, envelopeHeader);
   if (!upstream) return new Response("invalid envelope", { status: 400 });
   return fetch(upstream, {
