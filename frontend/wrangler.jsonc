@@ -8,9 +8,9 @@
   "vars": {
     "API_BASE_URL": "https://api.backlotter.com",
     // SSR (server-side) Sentry DSN — public client key, safe to commit. Empty → SSR
-    // Sentry is disabled. Set to the backlotter-frontend DSN (here or as a CF dashboard
-    // Worker var) to capture public-page loader/render errors.
-    "SENTRY_DSN": "",
+    // Sentry is disabled. This is the backlotter-frontend DSN; captures public-page
+    // loader/render errors. Can also be overridden via a CF dashboard Worker var.
+    "SENTRY_DSN": "https://661cd3047ac9824d9202e4747e983fa8@o4511310598897664.ingest.us.sentry.io/4511638455844864",
   },
   "routes": [{ "pattern": "backlotter.com", "custom_domain": true }],
 }
