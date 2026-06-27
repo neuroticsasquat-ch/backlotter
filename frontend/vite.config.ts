@@ -22,6 +22,10 @@ export default defineConfig({
             project: process.env.SENTRY_PROJECT ?? "backlotter-frontend",
             authToken: sentryAuthToken,
             release: { name: process.env.VITE_GIT_SHA },
+            // Upload maps to Sentry, then delete them from the build output so they
+            // aren't served publicly on backlotter.com. Stack-trace resolution still
+            // works via the debug IDs embedded in the JS.
+            sourcemaps: { filesToDeleteAfterUpload: ["./dist/**/*.map"] },
           }),
         ]
       : []),
