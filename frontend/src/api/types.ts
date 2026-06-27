@@ -81,6 +81,12 @@ export interface CastMember {
   profile_path: string | null; // raw TMDB path; FE builds the URL via profileUrl()
 }
 
+export interface CrewMember {
+  name: string;
+  job: string | null;
+  department: string | null;
+}
+
 export interface FilmDetail {
   slug: string;
   title: string;
@@ -102,7 +108,7 @@ export interface FilmDetail {
   release_dates: ReleaseDate[];
   alternative_titles: string[];
   cast: CastMember[];
-  directors: string[];
+  crew: CrewMember[];
 }
 
 export interface FeedDayItem {

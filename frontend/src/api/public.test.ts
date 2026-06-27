@@ -27,7 +27,7 @@ const sample: FilmDetail = {
   release_dates: [],
   alternative_titles: [],
   cast: [],
-  directors: [],
+  crew: [],
 };
 
 describe("getFilm", () => {

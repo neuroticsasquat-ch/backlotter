@@ -11,6 +11,20 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
   const runtime = film.runtime != null && film.runtime > 0 ? formatRuntime(film.runtime) : null;
   const rating = pickRating(film.release_dates);
 
+  const billing: [string, string[]][] = (
+    [
+      ["Director", "Director"],
+      ["Screenplay", "Screenplay"],
+      ["Writer", "Writer"],
+      ["Story", "Story"],
+    ] as const
+  )
+    .map(
+      ([label, job]) =>
+        [label, film.crew.filter((c) => c.job === job).map((c) => c.name)] as [string, string[]],
+    )
+    .filter(([, names]) => names.length > 0);
+
   return (
     <header>
       <div className="flex flex-wrap items-baseline gap-x-2">
@@ -36,12 +50,16 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
       </div>
 
       <dl className="mt-5 grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-2 text-sm text-foreground">
-        {film.directors.length > 0 && (
-          <>
-            <dt className="text-muted-foreground">Director</dt>
-            <dd>{film.directors.join(", ")}</dd>
-          </>
-        )}
+        {billing.map(([label, names]) => (
+          <div key={label} className="contents">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd>
+              {names.map((name, i) => (
+                <div key={`${name}-${i}`}>{name}</div>
+              ))}
+            </dd>
+          </div>
+        ))}
         {runtime && (
           <>
             <dt className="text-muted-foreground">Runtime</dt>
