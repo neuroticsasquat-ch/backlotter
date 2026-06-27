@@ -26,7 +26,10 @@ describe("PublicLayout", () => {
 
     // 2. Inline primary nav: Updates (home) + Calendar (Search is the box, Browse is gone)
     const primaryNav = screen.getByRole("navigation", { name: /primary navigation/i });
-    expect(within(primaryNav).getByRole("link", { name: /^updates$/i })).toHaveAttribute("href", "/");
+    expect(within(primaryNav).getByRole("link", { name: /^updates$/i })).toHaveAttribute(
+      "href",
+      "/",
+    );
     expect(within(primaryNav).getByRole("link", { name: /^calendar$/i })).toHaveAttribute(
       "href",
       "/calendar",

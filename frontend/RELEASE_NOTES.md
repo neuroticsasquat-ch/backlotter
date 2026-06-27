@@ -1,3 +1,35 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [0.1.1] - 2026-06-27
+
+### Features
+
+- Activate Sentry monitoring across client and SSR (NEU-416)
+- Tunnel Sentry events through same-origin to bypass ad blockers (NEU-418)
+- Add crew block and director/writer billing (NEU-431)
+- Add IMDb and TMDB links to film header (NEU-432) ([#36](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/36))
+- Add collapsed plot summary to film page (NEU-412) ([#37](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/37))
+- Group release calendar by year, month, and day (NEU-410) ([#38](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/38))
+
+### Bug Fixes
+
+- Delete Sentry source maps after upload so they aren't served publicly (NEU-417)
+- Use hidden source maps so wrangler deploy doesn't read deleted maps (NEU-419)
+- Forward raw bytes through Sentry tunnel so replay envelopes aren't corrupted (NEU-420)
+
+### CI
+
+- Add weekly merge-main-into-dependencies workflow
+- Fix merge-main-into-dependencies workflow (open+merge PR instead of no-op)
+
+### Miscellaneous
+
+- Set backlotter-frontend SSR Sentry DSN (NEU-416)
+
 ## [0.1.0] - 2026-06-27
 
 ### 🚀 Features

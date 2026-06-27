@@ -27,7 +27,9 @@ const sample: FilmDetail = {
   release_dates: [],
   alternative_titles: [],
   cast: [],
-  directors: [],
+  crew: [],
+  tmdb_id: 12345,
+  imdb_id: null,
 };
 
 describe("getFilm", () => {

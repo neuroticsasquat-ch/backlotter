@@ -32,7 +32,13 @@ const film: FilmDetail = {
   ],
   alternative_titles: [],
   cast: [],
-  directors: ["Christopher Nolan"],
+  crew: [
+    { name: "Christopher Nolan", job: "Director", department: "Directing" },
+    { name: "Christopher Nolan", job: "Screenplay", department: "Writing" },
+    { name: "Jonathan Nolan", job: "Story", department: "Writing" },
+  ],
+  tmdb_id: 603,
+  imdb_id: "tt0133093",
 };
 
 describe("FilmHeader", () => {
@@ -71,10 +77,19 @@ describe("FilmHeader", () => {
     expect(screen.getByText("GB")).toBeInTheDocument();
   });
 
-  it("renders the director with a 'Director' label and the director name", () => {
+  it("renders Director / Screenplay / Story as separate labels from crew", () => {
     render(<FilmHeader film={film} />);
     expect(screen.getByText("Director")).toBeInTheDocument();
-    expect(screen.getByText(/Christopher Nolan/)).toBeInTheDocument();
+    expect(screen.getByText("Screenplay")).toBeInTheDocument();
+    expect(screen.getByText("Story")).toBeInTheDocument();
+    // Director name appears (Christopher Nolan is both Director and Screenplay → listed in each)
+    expect(screen.getAllByText("Christopher Nolan").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Jonathan Nolan")).toBeInTheDocument();
+  });
+
+  it("omits a billing label with no people (no Writer credit here)", () => {
+    render(<FilmHeader film={film} />);
+    expect(screen.queryByText("Writer")).not.toBeInTheDocument();
   });
 
   it("renders each genre as its own capsule", () => {
@@ -97,5 +112,11 @@ describe("FilmHeader", () => {
   it("omits the year when release_year is null", () => {
     render(<FilmHeader film={{ ...film, release_year: null }} />);
     expect(screen.queryByText("(2026)")).toBeNull();
+  });
+
+  it("renders the IMDb and TMDB links in the header", () => {
+    render(<FilmHeader film={film} />);
+    expect(screen.getByRole("link", { name: /imdb/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /tmdb/i })).toBeInTheDocument();
   });
 });

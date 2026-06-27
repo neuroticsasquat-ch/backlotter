@@ -50,7 +50,9 @@ const film: FilmDetail = {
     { name: "Timothée Chalamet", character: "Telemachus", profile_path: "/tchalamet.jpg" },
     { name: "Cate Blanchett", character: null, profile_path: null },
   ],
-  directors: ["Christopher Nolan"],
+  crew: [{ name: "Christopher Nolan", job: "Director", department: "Directing" }],
+  tmdb_id: 603,
+  imdb_id: "tt0133093",
 };
 
 function contextWithEnv() {
@@ -211,7 +213,7 @@ describe("film route render", () => {
     ]);
     render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
-    expect(screen.getByText(/Christopher Nolan/)).toBeInTheDocument(); // director now in FilmHeader
+    expect(screen.getAllByText("Christopher Nolan").length).toBeGreaterThanOrEqual(2); // director now in FilmHeader + FilmCrew
     expect(screen.getByRole("heading", { name: "Cast" })).toBeInTheDocument();
     expect(screen.getByText("Timothée Chalamet")).toBeInTheDocument();
     expect(screen.getByText(/Telemachus/)).toBeInTheDocument();
@@ -222,7 +224,7 @@ describe("film route render", () => {
       {
         path: "/film/:slug",
         Component: FilmPage,
-        loader: () => ({ film: { ...film, cast: [], directors: [] } }),
+        loader: () => ({ film: { ...film, cast: [], crew: [] } }),
       },
     ]);
     render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupByReleaseDate } from "@/lib/calendar-groups";
+import { groupByReleaseDate, nestByYearMonth } from "@/lib/calendar-groups";
 import type { CalendarItem } from "@/api/types";
 
 function item(film_slug: string, release_date: string, release_type: string): CalendarItem {
@@ -82,5 +82,26 @@ describe("groupByReleaseDate", () => {
     expect(groups[1].buckets).toHaveLength(1);
     expect(groups[1].buckets[0].bucket).toBe("limited");
     expect(groups[1].buckets[0].films).toHaveLength(2);
+  });
+});
+
+describe("nestByYearMonth", () => {
+  it("returns an empty array for no date groups", () => {
+    expect(nestByYearMonth([])).toEqual([]);
+  });
+
+  it("nests day groups under month (named) and year, preserving order", () => {
+    const dayGroups = groupByReleaseDate([
+      item("a", "2026-06-12", "wide"),
+      item("b", "2026-06-17", "wide"),
+      item("c", "2026-07-01", "wide"),
+      item("d", "2027-01-05", "wide"),
+    ]);
+    const years = nestByYearMonth(dayGroups);
+    expect(years.map((y) => y.year)).toEqual(["2026", "2027"]);
+    expect(years[0].months.map((m) => m.heading)).toEqual(["June", "July"]);
+    expect(years[0].months[0].days.map((d) => d.dateKey)).toEqual(["2026-06-12", "2026-06-17"]);
+    expect(years[1].months[0].heading).toBe("January");
+    expect(years[1].months[0].monthKey).toBe("2027-01");
   });
 });
