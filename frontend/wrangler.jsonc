@@ -6,6 +6,7 @@
   "main": "./workers/app.ts",
   "observability": { "enabled": true },
   "vars": {
-    "API_BASE_URL": "https://api.upmovies.localhost"
-  }
+    "API_BASE_URL": "https://api.backlotter.com"
+  },
+  "routes": [{ "pattern": "backlotter.com", "custom_domain": true }]
 }

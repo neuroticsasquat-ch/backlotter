@@ -13,7 +13,8 @@
     "test:ui": "vitest --ui",
     "lint": "eslint src --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
-    "typecheck": "react-router typegen && tsc -b"
+    "typecheck": "react-router typegen && tsc -b",
+    "deploy": "pnpm build && wrangler deploy"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
