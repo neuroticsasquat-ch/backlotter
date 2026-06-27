@@ -6,6 +6,7 @@ import {
   Scripts,
   ScrollRestoration,
 } from "react-router";
+import * as Sentry from "@sentry/react";
 import "./styles/globals.css";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -42,6 +43,14 @@ export function ErrorBoundary({ error }: { error: unknown }) {
   if (isRouteErrorResponse(error)) {
     title = `${error.status} ${error.statusText}`;
     detail = error.status === 404 ? "Page not found." : detail;
+    // Report unexpected server responses, but not ordinary client errors (e.g. 404).
+    if (error.status >= 500) {
+      Sentry.captureException(error);
+    }
+  } else {
+    // Unexpected runtime error from a loader or render — report it. This is the
+    // app-wide catch-all (public + SPA routes); the SPA subtree has its own boundary.
+    Sentry.captureException(error);
   }
   return (
     <main className="mx-auto max-w-4xl p-8">
