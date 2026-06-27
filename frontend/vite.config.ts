@@ -10,7 +10,10 @@ import path from "node:path";
 const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
 
 export default defineConfig({
-  build: { sourcemap: Boolean(sentryAuthToken) },
+  // "hidden" emits source maps (so the Sentry plugin can upload them) but omits the
+  // //# sourceMappingURL= comment — otherwise `wrangler deploy` fails reading a map that
+  // filesToDeleteAfterUpload has already removed. Sentry still resolves via debug IDs.
+  build: { sourcemap: sentryAuthToken ? "hidden" : false },
   plugins: [
     cloudflare({ viteEnvironment: { name: "ssr" } }),
     tailwindcss(),
