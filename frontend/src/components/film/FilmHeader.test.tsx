@@ -37,6 +37,8 @@ const film: FilmDetail = {
     { name: "Christopher Nolan", job: "Screenplay", department: "Writing" },
     { name: "Jonathan Nolan", job: "Story", department: "Writing" },
   ],
+  tmdb_id: 603,
+  imdb_id: "tt0133093",
 };
 
 describe("FilmHeader", () => {
@@ -110,5 +112,11 @@ describe("FilmHeader", () => {
   it("omits the year when release_year is null", () => {
     render(<FilmHeader film={{ ...film, release_year: null }} />);
     expect(screen.queryByText("(2026)")).toBeNull();
+  });
+
+  it("renders the IMDb and TMDB links in the header", () => {
+    render(<FilmHeader film={film} />);
+    expect(screen.getByRole("link", { name: /imdb/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /tmdb/i })).toBeInTheDocument();
   });
 });

@@ -28,6 +28,8 @@ const sample: FilmDetail = {
   alternative_titles: [],
   cast: [],
   crew: [],
+  tmdb_id: 12345,
+  imdb_id: null,
 };
 
 describe("getFilm", () => {

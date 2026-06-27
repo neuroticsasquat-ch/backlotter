@@ -90,6 +90,8 @@ export interface CrewMember {
 export interface FilmDetail {
   slug: string;
   title: string;
+  tmdb_id: number;
+  imdb_id: string | null;
   release_date: string | null;
   release_year: number | null;
   poster_path: string | null;

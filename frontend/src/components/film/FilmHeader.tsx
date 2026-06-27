@@ -2,6 +2,7 @@ import type { FilmDetail } from "@/api/types";
 import { formatRuntime, pickRating } from "@/lib/format";
 import { posterUrl } from "@/lib/poster";
 import { ArcStepper } from "./ArcStepper";
+import { ExternalLinks } from "./ExternalLinks";
 
 /** Title + parenthetical year, then the poster beside the production-status arc
  *  (left-aligned), with a labeled spec sheet (director, runtime, rating, genres)
@@ -97,6 +98,9 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
           </>
         )}
       </dl>
+      <div className="mt-4">
+        <ExternalLinks tmdbId={film.tmdb_id} imdbId={film.imdb_id} />
+      </div>
     </header>
   );
 }

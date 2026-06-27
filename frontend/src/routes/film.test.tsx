@@ -51,6 +51,8 @@ const film: FilmDetail = {
     { name: "Cate Blanchett", character: null, profile_path: null },
   ],
   crew: [{ name: "Christopher Nolan", job: "Director", department: "Directing" }],
+  tmdb_id: 603,
+  imdb_id: "tt0133093",
 };
 
 function contextWithEnv() {
