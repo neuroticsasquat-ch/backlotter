@@ -60,3 +60,56 @@ export function groupByReleaseDate(items: CalendarItem[]): CalendarDateGroup[] {
 
   return dateGroups;
 }
+
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+export interface CalendarMonthGroup {
+  monthKey: string; // "YYYY-MM" — stable React key
+  heading: string; // month name, e.g. "June"
+  days: CalendarDateGroup[];
+}
+
+export interface CalendarYearGroup {
+  year: string; // "YYYY" — heading + stable React key
+  months: CalendarMonthGroup[];
+}
+
+/**
+ * Nest already-ordered per-date groups (from groupByReleaseDate) under month and year via an
+ * adjacency walk. Year/month are parsed straight off the "YYYY-MM-DD" dateKey string (no Date),
+ * so SSR and client output match. Order is preserved (soonest-first).
+ */
+export function nestByYearMonth(dateGroups: CalendarDateGroup[]): CalendarYearGroup[] {
+  const years: CalendarYearGroup[] = [];
+  for (const day of dateGroups) {
+    const year = day.dateKey.slice(0, 4);
+    const monthKey = day.dateKey.slice(0, 7);
+    const monthIdx = Number(day.dateKey.slice(5, 7)) - 1;
+
+    let lastYear = years[years.length - 1];
+    if (!lastYear || lastYear.year !== year) {
+      lastYear = { year, months: [] };
+      years.push(lastYear);
+    }
+    let lastMonth = lastYear.months[lastYear.months.length - 1];
+    if (!lastMonth || lastMonth.monthKey !== monthKey) {
+      lastMonth = { monthKey, heading: MONTH_NAMES[monthIdx], days: [] };
+      lastYear.months.push(lastMonth);
+    }
+    lastMonth.days.push(day);
+  }
+  return years;
+}

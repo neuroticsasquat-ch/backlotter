@@ -6,7 +6,7 @@ import { getCalendar } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
 import { env } from "@/env";
 import { buildMeta } from "@/lib/seo";
-import { groupByReleaseDate } from "@/lib/calendar-groups";
+import { groupByReleaseDate, nestByYearMonth } from "@/lib/calendar-groups";
 import { CalendarFilmRow } from "@/components/calendar/CalendarFilmRow";
 
 // How many release dates the calendar shows per page. "View more" fetches the next page
@@ -32,8 +32,9 @@ export function meta({ location }: Route.MetaArgs): Route.MetaDescriptors {
 export default function CalendarPage({ loaderData }: Route.ComponentProps) {
   const [items, setItems] = useState(loaderData.calendar.items);
   const [loading, setLoading] = useState(false);
-  const groups = groupByReleaseDate(items);
-  const hasMore = groups.length < loaderData.calendar.total;
+  const dayGroups = groupByReleaseDate(items);
+  const years = nestByYearMonth(dayGroups);
+  const hasMore = dayGroups.length < loaderData.calendar.total;
 
   async function loadMore() {
     if (loading) return;
@@ -41,7 +42,7 @@ export default function CalendarPage({ loaderData }: Route.ComponentProps) {
     try {
       const next = await getCalendar(env.apiBaseUrl, {
         limit: DATES_PER_PAGE,
-        offset: groups.length,
+        offset: dayGroups.length,
       });
       setItems((prev) => [...prev, ...next.items]);
     } finally {
@@ -52,32 +53,45 @@ export default function CalendarPage({ loaderData }: Route.ComponentProps) {
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-2xl font-semibold">Release Calendar</h1>
-      {groups.length === 0 ? (
+      {dayGroups.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">
           No upcoming releases yet — check back soon.
         </p>
       ) : (
         <>
-          {groups.map((group) => (
-            <section key={group.dateKey} className="mt-8">
-              <h2 className="text-sm font-medium text-muted-foreground">
-                <time dateTime={group.dateKey}>{group.heading}</time>
+          {years.map((year) => (
+            <section key={year.year} className="mt-8">
+              <h2 className="sticky top-0 z-20 bg-background py-1 text-xl font-bold">
+                {year.year}
               </h2>
-              {/* Single rail for the whole date; wide group first, then limited. */}
-              <div className="mt-2 space-y-3 border-l-2 border-border pl-3">
-                {group.buckets.map((bucket) => (
-                  <div key={bucket.bucket}>
-                    <h3 className="mb-1 text-xs font-medium text-muted-foreground">
-                      {bucket.label}
-                    </h3>
-                    <div>
-                      {bucket.films.map((f) => (
-                        <CalendarFilmRow item={f} key={f.film_slug} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {year.months.map((month) => (
+                <div key={month.monthKey} className="mt-4">
+                  <h3 className="sticky top-8 z-10 bg-background py-1 text-sm font-semibold text-muted-foreground">
+                    {month.heading}
+                  </h3>
+                  {month.days.map((group) => (
+                    <section key={group.dateKey} className="mt-4">
+                      <h4 className="text-sm font-medium text-muted-foreground">
+                        <time dateTime={group.dateKey}>{group.heading}</time>
+                      </h4>
+                      <div className="mt-2 space-y-3 border-l-2 border-border pl-3">
+                        {group.buckets.map((bucket) => (
+                          <div key={bucket.bucket}>
+                            <h5 className="mb-1 text-xs font-medium text-muted-foreground">
+                              {bucket.label}
+                            </h5>
+                            <div>
+                              {bucket.films.map((f) => (
+                                <CalendarFilmRow item={f} key={f.film_slug} />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ))}
             </section>
           ))}
           {hasMore && (

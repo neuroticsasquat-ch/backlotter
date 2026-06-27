@@ -156,6 +156,43 @@ describe("calendar route render", () => {
     expect(await screen.findByText(/no upcoming releases yet/i)).toBeInTheDocument();
   });
 
+  it("renders year and month headings for multi-month data", async () => {
+    const multiMonth: CalendarResponse = {
+      items: [
+        {
+          film_slug: "film-june",
+          film_title: "June Film",
+          release_year: 2026,
+          poster_path: null,
+          release_date: "2026-06-20",
+          release_type: "wide",
+        },
+        {
+          film_slug: "film-july",
+          film_title: "July Film",
+          release_year: 2026,
+          poster_path: null,
+          release_date: "2026-07-04",
+          release_type: "wide",
+        },
+      ],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    };
+    const Stub = createRoutesStub([
+      {
+        path: "/calendar",
+        Component: CalendarPage,
+        loader: () => ({ calendar: multiMonth }),
+      },
+      { path: "/film/:slug", Component: () => null },
+    ]);
+    render(<Stub initialEntries={["/calendar"]} />);
+    expect(await screen.findByRole("heading", { name: "2026" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "June" })).toBeInTheDocument();
+  });
+
   it("error boundary renders neutral copy and a link home", async () => {
     const Stub = createRoutesStub([
       {
