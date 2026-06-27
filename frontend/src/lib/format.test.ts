@@ -6,8 +6,21 @@ import {
   formatLanguage,
   formatRuntime,
   formatUsd,
+  pickRating,
   truncate,
 } from "@/lib/format";
+import type { ReleaseDate } from "@/api/types";
+
+function rd(over: Partial<ReleaseDate> = {}): ReleaseDate {
+  return {
+    country: "US",
+    release_type: 3,
+    type_label: "Theatrical (limited)",
+    date: "2026-01-01T00:00:00Z",
+    certification: "PG-13",
+    ...over,
+  };
+}
 
 describe("formatEventDate", () => {
   it("formats an ISO timestamp as 'Mon D, YYYY'", () => {
@@ -108,5 +121,44 @@ describe("formatLanguage", () => {
 
   it("falls back to uppercased code for unknown codes", () => {
     expect(formatLanguage("xx")).toBe("XX");
+  });
+});
+
+describe("pickRating", () => {
+  it("returns null when there are no release dates", () => {
+    expect(pickRating([])).toBeNull();
+  });
+
+  it("returns null when no entry carries a certification", () => {
+    expect(
+      pickRating([rd({ certification: null }), rd({ country: "GB", certification: "" })]),
+    ).toBeNull();
+  });
+
+  it("prefers the US rating", () => {
+    expect(
+      pickRating([
+        rd({ country: "GB", certification: "15" }),
+        rd({ country: "US", certification: "R" }),
+      ]),
+    ).toEqual({ certification: "R", country: "US" });
+  });
+
+  it("falls back to the first non-empty rating when no US entry", () => {
+    expect(
+      pickRating([
+        rd({ country: "FR", certification: null }),
+        rd({ country: "GB", certification: "15" }),
+      ]),
+    ).toEqual({ certification: "15", country: "GB" });
+  });
+
+  it("treats an empty-string certification as absent", () => {
+    expect(
+      pickRating([
+        rd({ country: "US", certification: "" }),
+        rd({ country: "GB", certification: "12A" }),
+      ]),
+    ).toEqual({ certification: "12A", country: "GB" });
   });
 });

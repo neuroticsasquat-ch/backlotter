@@ -2,11 +2,10 @@ import { SITE_NAME } from "@/lib/seo";
 
 export const WORDMARK = SITE_NAME;
 
-// `enabled` gates whether an item renders as a real link. Keep an item disabled until
-// its route exists in routes.ts, or the link 404s wherever it appears (header + footer).
+// Nav destinations. "Updates" is the home feed; Search is the separate header search box
+// and account links (Log in) render alongside, so those aren't listed here. `enabled`
+// gates whether an item renders as a real link. The "/" item uses an exact (end) match.
 export const NAV_ITEMS = [
-  { label: "Home", href: "/", enabled: true },
-  { label: "Browse", href: "/browse", enabled: true },
-  { label: "Search", href: "/search", enabled: true },
+  { label: "Updates", href: "/", enabled: true },
   { label: "Calendar", href: "/calendar", enabled: true },
 ] as const;

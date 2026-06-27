@@ -1,7 +1,9 @@
+// Only the theatrical arc is surfaced — wide + limited. Premiere/festival (TMDB type 1) is
+// excluded backend-side, so it never reaches the calendar. Short "Wide" / "Limited" group
+// labels (the date heading above already provides the "release" context).
 export const RELEASE_BUCKET_LABELS: Record<string, string> = {
-  premiere: "Premiere",
-  limited: "Limited release",
-  wide: "Wide release",
+  limited: "Limited",
+  wide: "Wide",
 };
 
 /**

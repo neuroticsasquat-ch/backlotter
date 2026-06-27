@@ -15,21 +15,6 @@ export async function getFilm(baseUrl: string, slug: string): Promise<FilmDetail
   return (await res.json()) as FilmDetail;
 }
 
-/** Grid-friendly page size for the /browse index; within the backend's 1..100 limit bound. */
-export const PAGE_SIZE = 36;
-
-export async function getFilms(
-  baseUrl: string,
-  { limit = PAGE_SIZE, offset = 0 }: { limit?: number; offset?: number } = {},
-): Promise<FilmIndexResponse> {
-  const url = new URL("/films", baseUrl);
-  url.searchParams.set("limit", String(limit));
-  url.searchParams.set("offset", String(offset));
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`GET /films failed: ${res.status}`);
-  return (await res.json()) as FilmIndexResponse;
-}
-
 export async function getFilmSearch(
   baseUrl: string,
   q: string,

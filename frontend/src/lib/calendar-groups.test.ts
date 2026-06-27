@@ -6,6 +6,7 @@ function item(film_slug: string, release_date: string, release_type: string): Ca
   return {
     film_slug,
     film_title: film_slug.toUpperCase(),
+    release_year: 2026,
     poster_path: null,
     release_date,
     release_type,
@@ -64,7 +65,7 @@ describe("groupByReleaseDate", () => {
     expect(bucket).toHaveProperty("bucket", "limited");
     expect(bucket).toHaveProperty("label");
     expect(bucket).toHaveProperty("films");
-    expect(bucket.label).toBe("Limited release");
+    expect(bucket.label).toBe("Limited");
     expect(bucket.films).toHaveLength(1);
     expect(bucket.films[0].film_slug).toBe("film_a");
   });

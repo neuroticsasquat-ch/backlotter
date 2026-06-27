@@ -1,3 +1,5 @@
+import type { ReleaseDate } from "@/api/types";
+
 const DATE_FMT = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
   month: "short",
@@ -78,4 +80,24 @@ export function formatLanguage(code: string): string {
   } catch {
     return code.toUpperCase();
   }
+}
+
+export interface Rating {
+  certification: string; // e.g. "PG-13"
+  country: string; // ISO 3166-1 of the rating body, e.g. "US" (MPAA)
+}
+
+/**
+ * Pick a single content rating (certification + its country) from a film's release
+ * dates. Prefers the US/MPAA rating; otherwise the first entry carrying a non-empty
+ * certification. Empty-string certifications are treated as absent. Returns null when none.
+ */
+export function pickRating(dates: ReleaseDate[]): Rating | null {
+  const withCert = dates.flatMap((d) =>
+    d.certification && d.certification.trim() !== ""
+      ? [{ certification: d.certification, country: d.country }]
+      : [],
+  );
+  if (withCert.length === 0) return null;
+  return withCert.find((r) => r.country === "US") ?? withCert[0];
 }

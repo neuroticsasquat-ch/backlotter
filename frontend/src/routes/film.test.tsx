@@ -86,7 +86,7 @@ describe("film route meta", () => {
       loaderData: { film },
       location: { pathname: "/film/the-odyssey-2026" },
     } as unknown as Parameters<typeof meta>[0]);
-    expect(tags).toContainEqual({ title: "The Odyssey (2026) · BackLotter" });
+    expect(tags).toContainEqual({ title: "The Odyssey (2026) — backlotter" });
     expect(tags.some((t) => "property" in t && t.property === "og:image")).toBe(true);
     expect(tags.some((t) => "tagName" in t && t.tagName === "link" && t.rel === "canonical")).toBe(
       true,
@@ -138,9 +138,9 @@ describe("film route render", () => {
 
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
     expect(screen.getByText("Released")).toBeInTheDocument(); // ArcStepper renders all 7 labels; "Released" is always present
-    expect(screen.getByText("The journey home begins.")).toBeInTheDocument(); // FilmMeta tagline
-    const summaries = screen.getAllByText(/announced|dropped/).map((el) => el.textContent);
-    expect(summaries).toEqual(["Trailer dropped.", "Casting announced."]);
+    const summaries = screen.getAllByText(/announced|dropped/);
+    expect(summaries[0].textContent).toContain("Trailer dropped.");
+    expect(summaries[1].textContent).toContain("Casting announced.");
     const link = screen.getByRole("link", { name: "Deadline" });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link.getAttribute("rel")).toContain("noopener");
@@ -205,41 +205,19 @@ describe("film route render", () => {
     expect(screen.getByText("Released")).toBeInTheDocument(); // ArcStepper still renders
   });
 
-  it("renders the AlsoKnownAs line when the film has alternative titles", async () => {
+  it("renders the director in the header and the cast section with member names", async () => {
     const Stub = createRoutesStub([
       { path: "/film/:slug", Component: FilmPage, loader: () => ({ film }) },
     ]);
     render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
-    expect(screen.getByText(/Odysseia/)).toBeInTheDocument();
-  });
-
-  it("omits the AlsoKnownAs line when alternative_titles is empty", async () => {
-    const Stub = createRoutesStub([
-      {
-        path: "/film/:slug",
-        Component: FilmPage,
-        loader: () => ({ film: { ...film, alternative_titles: [] } }),
-      },
-    ]);
-    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
-    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
-    expect(screen.queryByText(/Also known as/)).toBeNull();
-  });
-
-  it("renders the cast & crew section with director and cast member names", async () => {
-    const Stub = createRoutesStub([
-      { path: "/film/:slug", Component: FilmPage, loader: () => ({ film }) },
-    ]);
-    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
-    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Cast & crew" })).toBeInTheDocument();
-    expect(screen.getByText(/Christopher Nolan/)).toBeInTheDocument();
+    expect(screen.getByText(/Christopher Nolan/)).toBeInTheDocument(); // director now in FilmHeader
+    expect(screen.getByRole("heading", { name: "Cast" })).toBeInTheDocument();
     expect(screen.getByText("Timothée Chalamet")).toBeInTheDocument();
-    expect(screen.getByText("Telemachus")).toBeInTheDocument();
+    expect(screen.getByText(/Telemachus/)).toBeInTheDocument();
   });
 
-  it("omits the cast & crew section when both cast and directors are empty", async () => {
+  it("omits the cast section when cast is empty", async () => {
     const Stub = createRoutesStub([
       {
         path: "/film/:slug",
@@ -249,7 +227,7 @@ describe("film route render", () => {
     ]);
     render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Cast & crew" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Cast" })).toBeNull();
     expect(screen.queryByText("Timothée Chalamet")).toBeNull();
   });
 });

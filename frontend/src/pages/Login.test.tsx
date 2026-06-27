@@ -17,7 +17,7 @@ function renderAt(path: string) {
         <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/app" element={<div>app home</div>} />
+            <Route path="/" element={<div>home feed</div>} />
           </Routes>
         </MemoryRouter>
       </AuthProvider>
@@ -26,7 +26,7 @@ function renderAt(path: string) {
 }
 
 describe("Login", () => {
-  it("logs in and redirects to /app", async () => {
+  it("logs in and redirects to the home feed", async () => {
     server.use(
       http.get(`${env.apiBaseUrl}/me`, () =>
         HttpResponse.json({ detail: "auth_required" }, { status: 401 }),
@@ -45,7 +45,7 @@ describe("Login", () => {
     await userEvent.type(screen.getByLabelText(/email/i), "a@b.com");
     await userEvent.type(screen.getByLabelText(/password/i), "hunter2hunter2");
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
-    await waitFor(() => expect(screen.getByText("app home")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("home feed")).toBeInTheDocument());
   });
 
   it("honours the ?next= redirect parameter", async () => {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "@/components/AuthContext";
+import { Input } from "@/components/ui/input";
 import { ApiError } from "@/api/client";
 import { SITE_NAME } from "@/lib/seo";
 
@@ -19,7 +20,7 @@ export function Login() {
     setSubmitting(true);
     try {
       await login(email, password);
-      const next = params.get("next") || "/app";
+      const next = params.get("next") || "/";
       navigate(next);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -40,26 +41,26 @@ export function Login() {
           <label htmlFor="email" className="block text-sm">
             Email
           </label>
-          <input
+          <Input
             id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="mt-1 w-full rounded border px-3 py-2"
+            className="mt-1"
           />
         </div>
         <div>
           <label htmlFor="password" className="block text-sm">
             Password
           </label>
-          <input
+          <Input
             id="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="mt-1 w-full rounded border px-3 py-2"
+            className="mt-1"
           />
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}

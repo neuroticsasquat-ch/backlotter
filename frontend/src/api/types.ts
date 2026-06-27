@@ -108,6 +108,7 @@ export interface FilmDetail {
 export interface FeedDayItem {
   film_slug: string;
   film_title: string;
+  release_year: number | null;
   poster_path: string | null;
   day: string; // "YYYY-MM-DD" (UTC); one row per film per day
   top_event_type: string; // raw event_type, rendered via eventTypeLabel
@@ -126,7 +127,7 @@ export interface FilmIndexItem {
   title: string;
   release_year: number | null;
   poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()
-  arc_stage: ArcStage; // mirrors the backend; not rendered on /browse yet (reserved for a future badge)
+  arc_stage: ArcStage; // mirrors the backend; not rendered in search results yet (reserved for a future badge)
 }
 
 export interface FilmIndexResponse {
@@ -139,6 +140,7 @@ export interface FilmIndexResponse {
 export interface CalendarItem {
   film_slug: string;
   film_title: string;
+  release_year: number | null;
   poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()
   release_date: string; // "YYYY-MM-DD" (US date)
   release_type: string; // bucket: "premiere" | "limited" | "wide" — rendered via releaseBucketLabel

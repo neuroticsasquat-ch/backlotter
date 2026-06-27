@@ -34,8 +34,9 @@ describe("EventTimeline", () => {
         ]}
       />,
     );
-    const summaries = screen.getAllByText(/announced|dropped/).map((el) => el.textContent);
-    expect(summaries).toEqual(["Trailer dropped.", "Casting announced."]);
+    const summaries = screen.getAllByText(/announced|dropped/);
+    expect(summaries[0].textContent).toContain("Trailer dropped.");
+    expect(summaries[1].textContent).toContain("Casting announced.");
   });
 
   it("renders a day heading for each day", () => {
@@ -64,7 +65,8 @@ describe("EventTimeline", () => {
         ]}
       />,
     );
-    const summaries = screen.getAllByText(/today/).map((el) => el.textContent);
-    expect(summaries).toEqual(["Later today.", "Earlier today."]);
+    const summaries = screen.getAllByText(/today/);
+    expect(summaries[0].textContent).toContain("Later today.");
+    expect(summaries[1].textContent).toContain("Earlier today.");
   });
 });

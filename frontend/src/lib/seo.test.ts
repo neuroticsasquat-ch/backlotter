@@ -9,11 +9,11 @@ describe("buildMeta", () => {
       pathname: "/film/the-odyssey-2026",
     });
 
-    expect(tags).toContainEqual({ title: "The Odyssey · BackLotter" });
+    expect(tags).toContainEqual({ title: "The Odyssey — backlotter" });
     expect(tags).toContainEqual({ name: "description", content: "Epic seafaring." });
     expect(tags).toContainEqual({
       property: "og:title",
-      content: "The Odyssey · BackLotter",
+      content: "The Odyssey — backlotter",
     });
     expect(tags).toContainEqual({ property: "og:description", content: "Epic seafaring." });
     expect(tags).toContainEqual({ property: "og:type", content: "website" });
@@ -28,21 +28,21 @@ describe("buildMeta", () => {
   });
 
   it("folds the search query into the canonical and og:url so paginated pages self-canonicalize", () => {
-    const tags = buildMeta({ title: "Browse", pathname: "/browse", search: "?page=2" });
+    const tags = buildMeta({ title: "Search", pathname: "/search", search: "?page=2" });
     const canonical = tags.find((t) => "tagName" in t && t.tagName === "link") as
       | { tagName: "link"; rel: string; href: string }
       | undefined;
     expect(canonical?.rel).toBe("canonical");
-    expect(canonical?.href).toMatch(/\/browse\?page=2$/);
+    expect(canonical?.href).toMatch(/\/search\?page=2$/);
     const ogUrl = tags.find((t) => "property" in t && t.property === "og:url") as
       | { content: string }
       | undefined;
-    expect(ogUrl?.content).toMatch(/\/browse\?page=2$/);
+    expect(ogUrl?.content).toMatch(/\/search\?page=2$/);
   });
 
   it("falls back to the site name and default description when omitted", () => {
     const tags = buildMeta({ pathname: "/" });
-    expect(tags).toContainEqual({ title: "BackLotter" });
+    expect(tags).toContainEqual({ title: "backlotter — production log" });
     expect(tags.some((t) => "name" in t && t.name === "description")).toBe(true);
     expect(tags.find((t) => "property" in t && t.property === "og:image")).toBeUndefined();
   });

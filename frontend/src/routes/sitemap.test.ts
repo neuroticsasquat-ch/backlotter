@@ -34,7 +34,7 @@ describe("sitemap.xml", () => {
     expect(await res.text()).toBe(xml);
   });
 
-  it("injects /browse and /calendar url entries and preserves the root entry", async () => {
+  it("injects the /calendar url entry and preserves the root entry", async () => {
     const APP_BASE = "https://app.upmovies.localhost";
     const xml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
@@ -59,11 +59,10 @@ describe("sitemap.xml", () => {
 
     const body = await res.text();
     expect(body).toContain(`<loc>${APP_BASE}/</loc>`);
-    expect(body).toContain(`<loc>${APP_BASE}/browse</loc>`);
     expect(body).toContain(`<loc>${APP_BASE}/calendar</loc>`);
   });
 
-  it("anchors the /browse entry to the site origin even when the first <loc> is a deep path", async () => {
+  it("anchors the injected entry to the site origin even when the first <loc> is a deep path", async () => {
     const APP_BASE = "https://app.upmovies.localhost";
     const xml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
@@ -84,8 +83,8 @@ describe("sitemap.xml", () => {
     } as unknown as Route.LoaderArgs);
 
     const body = await res.text();
-    expect(body).toContain(`<loc>${APP_BASE}/browse</loc>`);
-    expect(body).not.toContain("/film/the-odyssey-2026/browse");
+    expect(body).toContain(`<loc>${APP_BASE}/calendar</loc>`);
+    expect(body).not.toContain("/film/the-odyssey-2026/calendar");
   });
 
   it("returns 503 with an empty sitemap when the backend is unreachable", async () => {

@@ -1,7 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { env } from "@/env";
 import { useDebouncedSearch } from "./useDebouncedSearch";
 import { SearchResultItem } from "./SearchResultItem";
@@ -36,8 +35,8 @@ export function SearchBox() {
     setActiveIndex(-1);
   }, [location.key]);
 
-  // Options list for keyboard nav: film results + "see-all" sentinel when results exist
-  const options = [...(results ?? []), ...(results && results.length > 0 ? ["see-all"] : [])];
+  // Options list for keyboard nav: just the film results (no dedicated results page).
+  const options = results ?? [];
 
   const showDropdown =
     mounted && (results !== null || status === "loading") && !dismissed && status !== "error";
@@ -61,13 +60,19 @@ export function SearchBox() {
     setActiveIndex(-1);
   }
 
+  // Clear the query and close the dropdown — the reset shared by Escape and click-away.
+  function resetSearch() {
+    setInputValue("");
+    setDismissed(true);
+    setActiveIndex(-1);
+  }
+
   function handleBlur(e: React.FocusEvent<HTMLDivElement>) {
-    // Close when focus moves entirely outside the search box (tab/click away).
     // Focus moving to an option link stays within currentTarget, so selecting a
-    // result doesn't trip this — navigation closes the dropdown instead.
+    // result doesn't trip this — navigation closes the dropdown instead. Clicking
+    // anywhere else clears the query and closes the box, like pressing Escape.
     if (!e.currentTarget.contains(e.relatedTarget)) {
-      setDismissed(true);
-      setActiveIndex(-1);
+      resetSearch();
     }
   }
 
@@ -82,47 +87,40 @@ export function SearchBox() {
         setActiveIndex((i) => Math.max(i - 1, 0));
         break;
       case "Escape":
-        setDismissed(true);
-        setActiveIndex(-1);
+        // Defocus and reset the input (the blur handler also runs resetSearch).
+        resetSearch();
+        e.currentTarget.blur();
         break;
-      case "Enter":
-        if (activeIndex >= 0 && results && activeIndex < results.length) {
-          e.preventDefault();
-          void navigate(`/film/${results[activeIndex].slug}`);
-        }
+      case "Enter": {
+        // No results page: Enter goes to the highlighted result, or the top match.
+        if (!results || results.length === 0) break;
+        e.preventDefault();
+        const idx = activeIndex >= 0 && activeIndex < results.length ? activeIndex : 0;
+        void navigate(`/film/${results[idx].slug}`);
         break;
+      }
     }
   }
 
   return (
-    <div
-      role="search"
-      aria-label="Film search"
-      className="relative flex-1 max-w-xs"
-      onBlur={handleBlur}
-    >
-      <form action="/search" method="get" className="flex items-center gap-2">
-        <label htmlFor="search-q" className="sr-only">
-          Search films
-        </label>
-        <Input
-          id="search-q"
-          type="search"
-          name="q"
-          placeholder="Search films…"
-          value={inputValue}
-          onChange={handleInputChange}
-          className="flex-1"
-          role={mounted ? "combobox" : undefined}
-          aria-expanded={mounted ? showDropdown : undefined}
-          aria-controls={mounted ? "search-listbox" : undefined}
-          aria-activedescendant={activeDescendant}
-          onKeyDown={mounted ? handleKeyDown : undefined}
-        />
-        <Button type="submit" size="sm">
-          Search
-        </Button>
-      </form>
+    <div role="search" aria-label="Film search" className="relative w-full" onBlur={handleBlur}>
+      <label htmlFor="search-q" className="sr-only">
+        Search films
+      </label>
+      <Input
+        id="search-q"
+        type="search"
+        name="q"
+        placeholder="Search films…"
+        value={inputValue}
+        onChange={handleInputChange}
+        className="w-full"
+        role={mounted ? "combobox" : undefined}
+        aria-expanded={mounted ? showDropdown : undefined}
+        aria-controls={mounted ? "search-listbox" : undefined}
+        aria-activedescendant={activeDescendant}
+        onKeyDown={mounted ? handleKeyDown : undefined}
+      />
       {/* Persistent (post-hydration) live region so result-count / no-results
           announcements fire when its text changes, not when it first mounts. */}
       {mounted && (
@@ -150,21 +148,6 @@ export function SearchBox() {
             // screen readers are served by the aria-live region above.
             <li role="presentation" className="px-3 py-2 text-sm text-muted-foreground">
               No films match &quot;{inputValue}&quot;
-            </li>
-          )}
-          {results && results.length > 0 && (
-            <li
-              role="option"
-              aria-selected={activeIndex === results.length}
-              id={`search-opt-${results.length}`}
-              className={activeIndex === results.length ? "bg-accent" : ""}
-            >
-              <Link
-                to={`/search?q=${encodeURIComponent(inputValue)}`}
-                className="block px-3 py-2 text-sm font-medium hover:bg-accent"
-              >
-                See all results for &quot;{inputValue}&quot;
-              </Link>
             </li>
           )}
         </ul>

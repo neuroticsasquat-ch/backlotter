@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -30,19 +30,13 @@ describe("HeaderAccount", () => {
   // tests below are order-independent.
   afterEach(() => accountQueryClient.clear());
 
-  it("shows Login and Sign up links when unauthenticated", async () => {
+  it("renders no account UI when unauthenticated (no public Log in until a paid tier)", async () => {
     server.use(unauthMeHandler());
-    renderAccountArea();
-    expect(await screen.findByRole("link", { name: /log in/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /sign up/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /log out/i })).not.toBeInTheDocument();
-  });
-
-  it("renders Login link on first synchronous paint (no hydration mismatch)", () => {
-    server.use(unauthMeHandler());
-    renderAccountArea();
-    // Synchronous assertion — cache is cold so user is null → logged-out default is already rendered
-    expect(screen.getByRole("link", { name: /log in/i })).toBeInTheDocument();
+    const { container } = renderAccountArea();
+    // Cold cache → user is null → renders nothing, synchronously (no hydration mismatch).
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole("link", { name: /log in/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /sign up/i })).not.toBeInTheDocument();
   });
 
   it("shows account menu when signed in as a non-admin", async () => {
@@ -60,7 +54,7 @@ describe("HeaderAccount", () => {
     expect(adminLink).toHaveAttribute("href", "/admin/ingest");
   });
 
-  it("reverts to logged-out default after logout", async () => {
+  it("clears the account UI after logout", async () => {
     server.use(
       meHandler({ is_admin: false }),
       http.post(`${env.apiBaseUrl}/auth/logout`, () => new HttpResponse(null, { status: 204 })),
@@ -68,41 +62,34 @@ describe("HeaderAccount", () => {
     renderAccountArea();
     const logoutButton = await screen.findByRole("button", { name: /log out/i });
     await userEvent.click(logoutButton);
-    expect(await screen.findByRole("link", { name: /log in/i })).toBeInTheDocument();
-  });
-
-  it("island smoke test: default export renders Login link without explicit providers", () => {
-    render(
-      <MemoryRouter>
-        <HeaderAccount />
-      </MemoryRouter>,
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /log out/i })).not.toBeInTheDocument(),
     );
-    // Synchronous — module-level client is cache cold, so user is null → logged-out default
-    expect(screen.getByRole("link", { name: /log in/i })).toBeInTheDocument();
   });
 
-  it("refetches /me on remount so the header reflects a session established elsewhere", async () => {
-    // First mount (public route, logged out): caches me=null in the singleton client.
+  it("island smoke test: default export renders nothing when logged out, without explicit providers", () => {
     server.use(unauthMeHandler());
-    const { unmount } = render(
+    const { container } = render(
       <MemoryRouter>
         <HeaderAccount />
       </MemoryRouter>,
     );
-    await screen.findByRole("link", { name: /log in/i });
-    unmount();
+    // Cold cache → user null → renders nothing (no public Log in link).
+    expect(container).toBeEmptyDOMElement();
+  });
 
-    // User logs in via the SPA shell (a separate QueryClient) — the singleton's cached
-    // me=null is still within staleTime. The session now exists server-side.
+  it("refetches /me on mount, overriding a stale cached logout state", async () => {
+    // Simulate the singleton holding a still-fresh me=null (e.g. from an earlier public
+    // visit) after the admin logs in via the SPA shell.
+    accountQueryClient.setQueryData(["me"], null);
     server.use(meHandler({ is_admin: false }));
     render(
       <MemoryRouter>
         <HeaderAccount />
       </MemoryRouter>,
     );
-
-    // refetchOnMount:"always" forces a fresh /me despite the still-fresh cached null,
-    // so the header updates to the authed state instead of remaining "Log in".
+    // refetchOnMount:"always" forces a fresh /me despite the cached null, so the header
+    // reflects the authed session instead of staying empty.
     expect(await screen.findByRole("button", { name: /log out/i })).toBeInTheDocument();
   });
 });

@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { ApiError } from "@/api/client";
 import { useAuth } from "@/components/AuthContext";
+import { Input } from "@/components/ui/input";
 import { SITE_NAME } from "@/lib/seo";
 
 export function Signup() {
@@ -30,7 +31,7 @@ export function Signup() {
     setSubmitting(true);
     try {
       await signup(email, password, displayName, inviteCode.trim());
-      navigate("/app");
+      navigate("/");
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
         setError("Invite code is invalid, already used, or doesn't match this email.");
@@ -54,13 +55,13 @@ export function Signup() {
           <label htmlFor="invite_code" className="block text-sm">
             Invite code
           </label>
-          <input
+          <Input
             id="invite_code"
             type="text"
             required
             value={inviteCode}
             onChange={(e) => setInviteCode(e.target.value)}
-            className="mt-1 w-full rounded border px-3 py-2"
+            className="mt-1"
             autoComplete="off"
           />
           <p className="text-xs text-gray-500 mt-1">{SITE_NAME} is invite-only during beta.</p>
@@ -69,14 +70,14 @@ export function Signup() {
           <label htmlFor="email" className="block text-sm">
             Email
           </label>
-          <input
+          <Input
             id="email"
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             aria-describedby="email-help"
-            className="mt-1 w-full rounded border px-3 py-2"
+            className="mt-1"
           />
           <p id="email-help" className="text-xs text-gray-500 mt-1">
             Your email won't be shown to other users.
@@ -86,7 +87,7 @@ export function Signup() {
           <label htmlFor="display_name" className="block text-sm">
             Username
           </label>
-          <input
+          <Input
             id="display_name"
             type="text"
             required
@@ -94,7 +95,7 @@ export function Signup() {
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             aria-describedby="display-name-help"
-            className="mt-1 w-full rounded border px-3 py-2"
+            className="mt-1"
           />
           <p id="display-name-help" className="text-xs text-gray-500 mt-1">
             This is the name other users will see on the site.
@@ -104,14 +105,14 @@ export function Signup() {
           <label htmlFor="password" className="block text-sm">
             Password
           </label>
-          <input
+          <Input
             id="password"
             type="password"
             required
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded border px-3 py-2"
+            className="mt-1"
           />
           <p className="text-xs text-gray-500 mt-1">At least 8 characters.</p>
         </div>

@@ -32,28 +32,15 @@ describe("SearchBox", () => {
     expect(screen.getByRole("search")).toBeInTheDocument();
   });
 
-  it("form has action=/search and method=get", () => {
-    const { container } = renderSearchBox();
-    const form = container.querySelector("form");
-    expect(form).not.toBeNull();
-    expect(form).toHaveAttribute("action", "/search");
-    expect(form).toHaveAttribute("method", "get");
-  });
-
-  it("input has name=q", () => {
-    renderSearchBox();
-    const input = screen.getByRole("combobox");
-    expect(input).toHaveAttribute("name", "q");
-  });
-
   it("input is accessibly labeled", () => {
     renderSearchBox();
     expect(screen.getByRole("combobox", { name: /search/i })).toBeInTheDocument();
   });
 
-  it("renders a submit button", () => {
-    renderSearchBox();
-    expect(screen.getByRole("button", { name: /search/i })).toBeInTheDocument();
+  it("has no submit button and no form (search is type-ahead only)", () => {
+    const { container } = renderSearchBox();
+    expect(container.querySelector("form")).toBeNull();
+    expect(screen.queryByRole("button", { name: /search/i })).toBeNull();
   });
 });
 
@@ -67,7 +54,7 @@ describe("SearchBox dropdown", () => {
     await screen.findByRole("listbox");
   });
 
-  it("renders role=option rows with film titles and a See all results row", async () => {
+  it("renders role=option rows with film titles (no see-all row — no results page)", async () => {
     server.use(filmsSearchHandler({ items: [sampleItem] }));
     renderSearchBox();
     const user = userEvent.setup();
@@ -75,10 +62,22 @@ describe("SearchBox dropdown", () => {
     await user.type(input, "od");
     await screen.findByRole("listbox");
     expect(screen.getByRole("option", { name: /The Odyssey/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /see all results/i })).toHaveAttribute(
-      "href",
-      "/search?q=od",
-    );
+    expect(screen.queryByRole("link", { name: /see all results/i })).toBeNull();
+  });
+
+  it("pressing Enter with no active option navigates to the top result", async () => {
+    server.use(filmsSearchHandler({ items: [sampleItem] }));
+    const Stub = createRoutesStub([
+      { path: "/", Component: () => <SearchBox /> },
+      { path: "/film/:slug", Component: () => <div>film-page</div> },
+    ]);
+    render(<Stub initialEntries={["/"]} />);
+    const user = userEvent.setup();
+    const input = screen.getByRole("combobox");
+    await user.type(input, "od");
+    await screen.findByRole("listbox");
+    await user.keyboard("{Enter}");
+    expect(await screen.findByText("film-page")).toBeInTheDocument();
   });
 
   it("debounce fires at most one request when typing rapidly", async () => {
@@ -113,7 +112,7 @@ describe("SearchBox dropdown", () => {
     expect(input).toHaveAttribute("aria-activedescendant", "search-opt-0");
   });
 
-  it("Escape closes the dropdown", async () => {
+  it("Escape closes the dropdown, clears the query, and blurs the input", async () => {
     server.use(filmsSearchHandler({ items: [sampleItem] }));
     renderSearchBox();
     const user = userEvent.setup();
@@ -122,6 +121,8 @@ describe("SearchBox dropdown", () => {
     await screen.findByRole("listbox");
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("listbox")).toBeNull();
+    expect(input).toHaveValue("");
+    expect(input).not.toHaveFocus();
   });
 
   it("pressing Enter on the active option navigates to the film page", async () => {
@@ -173,7 +174,7 @@ describe("SearchBox dropdown", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/no films found/i);
   });
 
-  it("closes the dropdown gracefully on a 500 error but keeps the form", async () => {
+  it("closes the dropdown gracefully on a 500 error but keeps the search box", async () => {
     server.use(filmsSearchHandler({ status: 500 }));
     renderSearchBox();
     const user = userEvent.setup({ delay: null });
@@ -218,7 +219,7 @@ describe("SearchBox dropdown", () => {
     expect(screen.getByRole("search")).toBeInTheDocument();
   });
 
-  it("closes the dropdown when focus leaves the search box", async () => {
+  it("clears the query and closes the dropdown when focus leaves the search box", async () => {
     server.use(filmsSearchHandler({ items: [sampleItem] }));
     render(
       <MemoryRouter>
@@ -232,5 +233,6 @@ describe("SearchBox dropdown", () => {
     await screen.findByRole("listbox");
     await user.click(screen.getByRole("button", { name: "outside" }));
     expect(screen.queryByRole("listbox")).toBeNull();
+    expect(input).toHaveValue("");
   });
 });

@@ -1,65 +1,24 @@
 import type { CastMember } from "@/api/types";
-import { profileUrl } from "@/lib/poster";
+import { CollapsibleSection } from "./CollapsibleSection";
 
-/** Returns the first letter of up to two words in a name, uppercased. */
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return parts
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
-interface FilmCreditsProps {
-  directors: string[];
-  cast: CastMember[];
-}
-
-/** Cast & crew section: director line + scrollable cast card list. */
-export function FilmCredits({ directors, cast }: FilmCreditsProps) {
-  if (directors.length === 0 && cast.length === 0) return null;
+/** Cast section: a collapsed disclosure (closed by default) that expands to a
+ *  vertical list of cast members, each a single line with the actor name and the
+ *  character they play. */
+export function FilmCredits({ cast }: { cast: CastMember[] }) {
+  if (cast.length === 0) return null;
 
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold">Cast &amp; crew</h2>
-
-      {directors.length > 0 && (
-        <p className="mt-2 text-sm text-gray-600">
-          <span className="font-medium">Directed by</span> {directors.join(", ")}
-        </p>
-      )}
-
-      {cast.length > 0 && (
-        <ul className="mt-4 flex flex-wrap gap-4">
-          {cast.map((member, i) => {
-            const img = profileUrl(member.profile_path);
-            return (
-              <li key={`${member.name}-${i}`} className="flex flex-col items-center w-24">
-                {img ? (
-                  <img
-                    src={img}
-                    alt={member.name}
-                    width={64}
-                    height={96}
-                    className="rounded-md object-cover"
-                  />
-                ) : (
-                  <div
-                    data-testid="cast-avatar-placeholder"
-                    className="flex h-24 w-16 items-center justify-center rounded-md bg-gray-200 text-sm font-medium text-gray-600"
-                  >
-                    {initials(member.name)}
-                  </div>
-                )}
-                <p className="mt-1 text-center text-xs font-medium">{member.name}</p>
-                {member.character && (
-                  <p className="text-center text-xs text-gray-500">{member.character}</p>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
+    <CollapsibleSection title="Cast" count={cast.length}>
+      <ul>
+        {cast.map((member, i) => (
+          <li key={`${member.name}-${i}`} className="rounded px-2 py-0.5 text-sm odd:bg-muted/40">
+            <span className="font-medium">{member.name}</span>
+            {member.character && (
+              <span className="text-muted-foreground"> · {member.character}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </CollapsibleSection>
   );
 }

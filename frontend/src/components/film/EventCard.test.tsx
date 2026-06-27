@@ -12,23 +12,17 @@ const event: FilmEvent = {
 };
 
 describe("EventCard", () => {
-  it("shows the beat, confidence, date, summary, and sources", () => {
+  it("shows the beat, summary, and source links", () => {
     render(<EventCard event={event} />);
     expect(screen.getByText("Release date")).toBeInTheDocument();
-    expect(screen.getByText("Confirmed")).toBeInTheDocument();
-    expect(screen.getByText("Mar 14, 2026")).toBeInTheDocument();
     expect(screen.getByText(/July 17 theatrical release/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "THR" })).toHaveAttribute("href", "https://thr.com/a");
-    expect(document.querySelector("time")).toHaveAttribute("dateTime", "2026-03-14T00:00:00Z");
   });
 
-  it("renders rumored confidence", () => {
-    render(<EventCard event={{ ...event, confidence: "rumored" }} />);
-    expect(screen.getByText("Rumored")).toBeInTheDocument();
-  });
-
-  it("renders unknown confidence as-is", () => {
-    render(<EventCard event={{ ...event, confidence: "tbc" }} />);
-    expect(screen.getByText("tbc")).toBeInTheDocument();
+  it("omits the per-event date and confidence (the day heading carries the date)", () => {
+    render(<EventCard event={event} />);
+    expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mar 14, 2026")).not.toBeInTheDocument();
+    expect(document.querySelector("time")).toBeNull();
   });
 });

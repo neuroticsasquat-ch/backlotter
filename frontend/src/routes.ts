@@ -7,8 +7,6 @@ export default [
   layout("routes/public-layout.tsx", [
     index("routes/feed.tsx"),
     route("calendar", "routes/calendar.tsx"),
-    route("browse", "routes/browse.tsx"),
-    route("search", "routes/search.tsx"),
     route("film/:slug", "routes/film.tsx"),
   ]),
 
@@ -16,10 +14,7 @@ export default [
     route("login", "pages/Login.tsx"),
     route("signup", "pages/Signup.tsx"),
     layout("components/RequireAuth.tsx", [
-      layout("components/AppLayout.tsx", [
-        route("app", "pages/Home.tsx"),
-        layout("components/RequireAdmin.tsx", [route("admin/ingest", "pages/AdminIngest.tsx")]),
-      ]),
+      layout("components/RequireAdmin.tsx", [route("admin/ingest", "pages/AdminIngest.tsx")]),
     ]),
   ]),
 ] satisfies RouteConfig;

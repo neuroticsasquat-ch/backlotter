@@ -79,13 +79,9 @@ describe("ReleaseDates", () => {
       expect(timeEl?.textContent).toBe("Jun 25, 2026");
     });
 
-    it("shows certification when non-empty, hides it when null or empty string", () => {
+    it("does not render the certification on release-date rows", () => {
       render(<ReleaseDates dates={multiCountryDates} />);
-      // US Theatrical row: certification "PG-13" — must be visible
-      expect(screen.getByText("PG-13")).toBeInTheDocument();
-      // Only one cert chip should appear — the US Digital ("") and GB (null) rows are suppressed
-      const certChips = document.querySelectorAll('[class*="bg-gray-100"]');
-      expect(certChips).toHaveLength(1);
+      expect(screen.queryByText("PG-13")).not.toBeInTheDocument();
     });
 
     it("shows country tag for each row when multiple distinct countries", () => {

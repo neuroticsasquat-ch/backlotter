@@ -23,17 +23,29 @@ describe("GlobalHeader", () => {
     expect(wordmark).toHaveAttribute("href", "/");
   });
 
-  it("composes the primary navigation", () => {
+  it("does not render the search box (it lives in its own bar below the header)", () => {
     server.use(unauthMeHandler());
     renderHeader();
-    const primaryNav = screen.getByRole("navigation", { name: /primary navigation/i });
-    expect(within(primaryNav).getByRole("link", { name: /^home$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("search")).toBeNull();
   });
 
-  it("mounts the account island (logged-out by default)", async () => {
+  it("renders Updates + Calendar in the inline primary navigation (no Browse/Search)", () => {
     server.use(unauthMeHandler());
     renderHeader();
-    expect(await screen.findByRole("link", { name: /log in/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /sign up/i })).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: /primary navigation/i });
+    expect(within(nav).getByRole("link", { name: /^updates$/i })).toHaveAttribute("href", "/");
+    expect(within(nav).getByRole("link", { name: /^calendar$/i })).toHaveAttribute(
+      "href",
+      "/calendar",
+    );
+    expect(within(nav).queryByRole("link", { name: /^browse$/i })).toBeNull();
+    expect(within(nav).queryByRole("link", { name: /^search$/i })).toBeNull();
+  });
+
+  it("shows no account links when logged out (no public Log in / Sign up)", () => {
+    server.use(unauthMeHandler());
+    renderHeader();
+    expect(screen.queryByRole("link", { name: /log in/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /sign up/i })).toBeNull();
   });
 });

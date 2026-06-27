@@ -1,5 +1,6 @@
 import { RouterContextProvider, createRoutesStub } from "react-router";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
@@ -14,27 +15,30 @@ const calendarTwoDates: CalendarResponse = {
     {
       film_slug: "the-odyssey-2026",
       film_title: "The Odyssey",
+      release_year: 2026,
       poster_path: "/odyssey.jpg",
-      release_date: "2026-07-04",
-      release_type: "premiere",
-    },
-    {
-      film_slug: "dune-3-2026",
-      film_title: "Dune Part Three",
-      poster_path: null,
       release_date: "2026-07-04",
       release_type: "wide",
     },
     {
+      film_slug: "dune-3-2026",
+      film_title: "Dune Part Three",
+      release_year: 2026,
+      poster_path: null,
+      release_date: "2026-07-04",
+      release_type: "limited",
+    },
+    {
       film_slug: "avatar-3-2026",
       film_title: "Avatar 3",
+      release_year: 2025,
       poster_path: "/avatar3.jpg",
       release_date: "2026-07-11",
       release_type: "wide",
     },
   ],
-  total: 3,
-  limit: 100,
+  total: 2, // two distinct dates (pagination counts dates, not film rows)
+  limit: 20,
   offset: 0,
 };
 
@@ -56,7 +60,7 @@ describe("calendar route loader", () => {
   it("fetches the calendar from the backend", async () => {
     server.use(http.get(`${BACKEND}/calendar`, () => HttpResponse.json(calendarTwoDates)));
     const data = await callLoader();
-    expect(data.calendar.total).toBe(3);
+    expect(data.calendar.total).toBe(2);
     expect(data.calendar.items[0].film_slug).toBe("the-odyssey-2026");
   });
 });
@@ -75,7 +79,7 @@ describe("calendar route meta", () => {
 });
 
 describe("calendar route render", () => {
-  it("groups films by date (soonest-first) then by release type, and links each card to its film page", async () => {
+  it("renders title(year) rows grouped by date then release type, linking each to its film page", async () => {
     const Stub = createRoutesStub([
       {
         path: "/calendar",
@@ -90,22 +94,53 @@ describe("calendar route render", () => {
     expect(await screen.findByText(/July 4, 2026/)).toBeInTheDocument();
     expect(screen.getByText(/July 11, 2026/)).toBeInTheDocument();
 
-    // Per-type labels render (from the July 4 date which has premiere + wide)
-    expect(screen.getByText("Premiere")).toBeInTheDocument();
-    expect(screen.getAllByText("Wide release").length).toBeGreaterThanOrEqual(1);
+    // Short release-type group titles
+    expect(screen.getAllByText("Wide").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Limited")).toBeInTheDocument();
 
-    // Films link to /film/{slug}
+    // Title(year) rows link to /film/{slug} — no poster images in the list format
     const odyssey = screen.getByRole("link", { name: /The Odyssey/ });
     expect(odyssey).toHaveAttribute("href", "/film/the-odyssey-2026");
-    const dune = screen.getByRole("link", { name: /Dune Part Three/ });
-    expect(dune).toHaveAttribute("href", "/film/dune-3-2026");
-    const avatar = screen.getByRole("link", { name: /Avatar 3/ });
-    expect(avatar).toHaveAttribute("href", "/film/avatar-3-2026");
+    expect(odyssey.textContent).toContain("(2026)");
+    expect(screen.getByRole("link", { name: /Dune Part Three/ })).toHaveAttribute(
+      "href",
+      "/film/dune-3-2026",
+    );
+    expect(screen.getByRole("link", { name: /Avatar 3/ })).toHaveAttribute(
+      "href",
+      "/film/avatar-3-2026",
+    );
+    expect(screen.queryByRole("img")).toBeNull();
 
     // Soonest-first DOM order: July 4 heading appears before July 11 heading
     const timeEls = container.querySelectorAll("time");
     expect(timeEls[0].textContent).toMatch(/July 4, 2026/);
     expect(timeEls[timeEls.length - 1].textContent).toMatch(/July 11, 2026/);
+  });
+
+  it("loads the next page of dates when 'View more' is clicked (no autoload)", async () => {
+    // Page 1 shows one date but total=2, so 'View more' appears; clicking fetches page 2.
+    const page1: CalendarResponse = {
+      items: [calendarTwoDates.items[0]],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    };
+    server.use(
+      http.get(`${BACKEND}/calendar`, () =>
+        HttpResponse.json({ items: [calendarTwoDates.items[2]], total: 2, limit: 20, offset: 1 }),
+      ),
+    );
+    const Stub = createRoutesStub([
+      { path: "/calendar", Component: CalendarPage, loader: () => ({ calendar: page1 }) },
+      { path: "/film/:slug", Component: () => null },
+    ]);
+    render(<Stub initialEntries={["/calendar"]} />);
+    expect(await screen.findByText(/July 4, 2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/July 11, 2026/)).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: /view more/i }));
+    expect(await screen.findByText(/July 11, 2026/)).toBeInTheDocument();
   });
 
   it("shows the empty state when there are no releases", async () => {

@@ -1,12 +1,16 @@
 import type { MetaDescriptor } from "react-router";
 import { env } from "@/env";
 
+// Brand name as shown in headings, the wordmark, and og:site_name.
 export const SITE_NAME = "BackLotter";
+// Document-title branding (the browser tab): lowercase brand + tagline, matching the wordmark.
+const TITLE_BRAND = "backlotter";
+const TITLE_TAGLINE = "production log";
 const DEFAULT_DESCRIPTION =
   "Track upcoming movies: release dates, casting, trailers, and a chronological update log for every film.";
 
 export interface SeoInput {
-  /** Page title; templated as "<title> · BackLotter". Omit for the site name alone. */
+  /** Page title; templated as "<title> — backlotter". Omit for "backlotter — production log". */
   title?: string;
   /** Meta/OG description. Omit for the site default. */
   description?: string;
@@ -26,7 +30,9 @@ export interface SeoInput {
 
 /** Build the shared SEO head descriptors for a public route's `meta()` export. */
 export function buildMeta(input: SeoInput): MetaDescriptor[] {
-  const title = input.title ? `${input.title} · ${SITE_NAME}` : SITE_NAME;
+  const title = input.title
+    ? `${input.title} — ${TITLE_BRAND}`
+    : `${TITLE_BRAND} — ${TITLE_TAGLINE}`;
   const description = input.description ?? DEFAULT_DESCRIPTION;
   const url = new URL(input.pathname + (input.search ?? ""), env.publicSiteUrl).toString();
 

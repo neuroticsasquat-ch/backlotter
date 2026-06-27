@@ -21,7 +21,7 @@ describe("ArcStepper", () => {
   it("highlights exactly the current stage", () => {
     render(<ArcStepper current="trailer" />);
     expect(document.querySelectorAll('[aria-current="step"]')).toHaveLength(1);
-    expect(screen.getByText("Trailer")).toHaveClass("text-blue-600");
-    expect(screen.getByText("Cast")).not.toHaveClass("text-blue-600");
+    expect(screen.getByText("Trailer")).toHaveClass("text-blue-400");
+    expect(screen.getByText("Cast")).not.toHaveClass("text-blue-400");
   });
 });

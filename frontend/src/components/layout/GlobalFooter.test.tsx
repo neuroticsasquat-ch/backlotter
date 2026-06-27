@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { NAV_ITEMS, WORDMARK } from "@/components/layout/nav-items";
+import { WORDMARK } from "@/components/layout/nav-items";
 import { GlobalFooter } from "@/components/layout/GlobalFooter";
 
 function renderFooter() {
@@ -13,9 +13,9 @@ function renderFooter() {
 }
 
 describe("GlobalFooter", () => {
-  it("renders the wordmark", () => {
+  it("renders the wordmark (lowercase)", () => {
     renderFooter();
-    expect(screen.getByText(new RegExp(WORDMARK))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(WORDMARK, "i"))).toBeInTheDocument();
   });
 
   it("renders a copyright line including the current year", () => {
@@ -26,18 +26,17 @@ describe("GlobalFooter", () => {
     expect(copyright.textContent).toContain(year);
   });
 
-  it("renders a link for every enabled nav item and none for disabled ones", () => {
+  it("attributes film metadata and images to TMDB with an outbound link", () => {
     renderFooter();
-    const footerNav = screen.getByRole("navigation", { name: /footer navigation/i });
-    for (const item of NAV_ITEMS) {
-      const matcher = new RegExp(`^${item.label}$`, "i");
-      if (item.enabled) {
-        const link = within(footerNav).getByRole("link", { name: matcher });
-        expect(link).toHaveAttribute("href", item.href);
-      } else {
-        // Disabled items have no route — they must not appear as footer links (would 404).
-        expect(within(footerNav).queryByRole("link", { name: matcher })).toBeNull();
-      }
-    }
+    expect(screen.getByText(/film metadata and images/i)).toBeInTheDocument();
+    const tmdb = screen.getByRole("link", { name: /the movie database \(tmdb\)/i });
+    expect(tmdb).toHaveAttribute("href", "https://www.themoviedb.org");
+    expect(tmdb).toHaveAttribute("target", "_blank");
+    expect(tmdb.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("no longer renders a footer navigation menu", () => {
+    renderFooter();
+    expect(screen.queryByRole("navigation", { name: /footer navigation/i })).toBeNull();
   });
 });

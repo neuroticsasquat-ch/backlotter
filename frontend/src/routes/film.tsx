@@ -7,9 +7,8 @@ import { buildMeta } from "@/lib/seo";
 import { posterUrl } from "@/lib/poster";
 import { truncate } from "@/lib/format";
 import { FilmHeader } from "@/components/film/FilmHeader";
-import { FilmMeta } from "@/components/film/FilmMeta";
 import { FilmCredits } from "@/components/film/FilmCredits";
-import { AlsoKnownAs } from "@/components/film/AlsoKnownAs";
+import { ProductionCompanies } from "@/components/film/ProductionCompanies";
 import { ReleaseDates } from "@/components/film/ReleaseDates";
 import { EventTimeline } from "@/components/film/EventTimeline";
 
@@ -51,11 +50,12 @@ export default function FilmPage({ loaderData }: Route.ComponentProps) {
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <FilmHeader film={film} />
-      <ReleaseDates dates={film.release_dates} />
-      <FilmMeta film={film} />
-      <AlsoKnownAs titles={film.alternative_titles} />
-      <FilmCredits cast={film.cast} directors={film.directors} />
-      <EventTimeline events={film.events} />
+      <div className="mt-6">
+        <ReleaseDates dates={film.release_dates} />
+        <FilmCredits cast={film.cast} />
+        <ProductionCompanies companies={film.production_companies} />
+        <EventTimeline events={film.events} />
+      </div>
     </main>
   );
 }
@@ -67,7 +67,7 @@ export function ErrorBoundary({ error }: { error: unknown }) {
       <h1 className="text-2xl font-semibold">
         {isNotFound ? "Film not found" : "Something went wrong"}
       </h1>
-      <p className="mt-2 text-sm text-gray-500">
+      <p className="mt-2 text-sm text-muted-foreground">
         {isNotFound
           ? "We couldn't find that film. It may have moved or never existed."
           : "Please try again in a moment."}

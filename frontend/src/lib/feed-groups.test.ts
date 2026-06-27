@@ -6,6 +6,7 @@ function item(day: string, film_slug: string, event_count = 1): FeedDayItem {
   return {
     film_slug,
     film_title: film_slug.toUpperCase(),
+    release_year: 2026,
     poster_path: null,
     day,
     top_event_type: "casting",

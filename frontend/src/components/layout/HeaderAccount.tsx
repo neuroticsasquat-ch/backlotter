@@ -37,31 +37,41 @@ export const accountQueryClient = new QueryClient({
  * Renders the logged-out default (`!user`) synchronously — no loading skeleton —
  * so the first client paint matches the SSR default (no hydration mismatch).
  */
-export function AccountArea() {
+export function AccountArea({ variant = "menu" }: { variant?: "menu" | "inline" }) {
   const { user, logout } = useAuth();
+  // "menu" = stacked rows for the mobile hamburger; "inline" = compact text links for
+  // the wide-viewport header row.
+  const itemClass =
+    variant === "inline"
+      ? "text-sm text-muted-foreground transition-colors hover:text-foreground"
+      : "block rounded px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground";
 
-  if (!user) {
-    return (
-      <div className="flex items-center gap-4">
-        <Link to="/login" className="text-sm underline-offset-4 hover:underline">
-          Log in
-        </Link>
-        <Link to="/signup" className="text-sm underline-offset-4 hover:underline">
-          Sign up
-        </Link>
-      </div>
-    );
-  }
+  // No public "Log in" link until there's a paid tier — the admin reaches /login directly
+  // (and is bounced there by RequireAuth). Anonymous visitors see no account UI at all.
+  if (!user) return null;
 
   return (
-    <div className="flex items-center gap-4">
-      <span className="text-sm">{user.display_name}</span>
+    <div
+      className={
+        variant === "inline"
+          ? "flex items-center gap-4 text-sm"
+          : "mt-1 flex flex-col border-t border-border pt-1"
+      }
+    >
+      <span
+        className={variant === "inline" ? "text-foreground" : "px-3 py-2 text-sm text-foreground"}
+      >
+        {user.display_name}
+      </span>
       {user.is_admin && (
-        <Link to="/admin/ingest" className="text-sm underline-offset-4 hover:underline">
+        <Link to="/admin/ingest" className={itemClass}>
           Admin
         </Link>
       )}
-      <button onClick={() => logout()} className="text-sm underline-offset-4 hover:underline">
+      <button
+        onClick={() => logout()}
+        className={variant === "inline" ? itemClass : `${itemClass} w-full text-left`}
+      >
         Log out
       </button>
     </div>
@@ -75,11 +85,11 @@ export function AccountArea() {
  * Use this as the default export when embedding the island in a page that has
  * no existing React Query or Auth context (e.g. the public site header).
  */
-export default function HeaderAccount() {
+export default function HeaderAccount({ variant }: { variant?: "menu" | "inline" } = {}) {
   return (
     <QueryClientProvider client={accountQueryClient}>
       <AuthProvider>
-        <AccountArea />
+        <AccountArea variant={variant} />
       </AuthProvider>
     </QueryClientProvider>
   );

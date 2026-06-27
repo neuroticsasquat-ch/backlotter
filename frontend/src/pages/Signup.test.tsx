@@ -17,7 +17,7 @@ function renderAt(path: string) {
         <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route path="/signup" element={<Signup />} />
-            <Route path="/app" element={<div>app home</div>} />
+            <Route path="/" element={<div>home feed</div>} />
           </Routes>
         </MemoryRouter>
       </AuthProvider>
@@ -33,7 +33,7 @@ async function fillCommonFields(invite = "test-invite") {
 }
 
 describe("Signup", () => {
-  it("creates an account and redirects to /app", async () => {
+  it("creates an account and redirects to the home feed", async () => {
     server.use(
       http.get(`${env.apiBaseUrl}/me`, () =>
         HttpResponse.json({ detail: "auth_required" }, { status: 401 }),
@@ -54,7 +54,7 @@ describe("Signup", () => {
     renderAt("/signup");
     await fillCommonFields();
     await userEvent.click(screen.getByRole("button", { name: /sign up/i }));
-    await waitFor(() => expect(screen.getByText("app home")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("home feed")).toBeInTheDocument());
   });
 
   it("surfaces email_in_use (409)", async () => {

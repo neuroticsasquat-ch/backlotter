@@ -5,7 +5,7 @@ export function injectFeRoutes(xml: string, routes: string[]): string {
   const locMatch = xml.match(/<loc>([\s\S]*?)<\/loc>/);
   if (!locMatch) return xml;
   // Derive the site root from the first <loc>'s origin — robust even if that entry is a deep
-  // path (a trailing-slash strip would otherwise yield e.g. .../film/foo/browse).
+  // path (a trailing-slash strip would otherwise yield e.g. .../film/foo/calendar).
   let base: string;
   try {
     base = new URL(locMatch[1].trim()).origin;
@@ -30,7 +30,7 @@ export async function loader({ context }: Route.LoaderArgs) {
       headers: { "Content-Type": "application/xml; charset=utf-8" },
     });
   }
-  const body = injectFeRoutes(await upstream.text(), ["/browse", "/calendar"]);
+  const body = injectFeRoutes(await upstream.text(), ["/calendar"]);
   return new Response(body, {
     status: upstream.status,
     headers: {

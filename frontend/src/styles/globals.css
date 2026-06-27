@@ -1,60 +1,57 @@
 @import "tailwindcss";
+@import "@fontsource-variable/jetbrains-mono";
 @plugin "tailwindcss-animate";
 
+/* Single dark palette for everyone — the app ships one (dark) design regardless of the
+   user's OS color-scheme preference. Simpler QC for the MVP; no light theme to maintain. */
 @theme {
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(222 47% 11%);
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(222 47% 11%);
-  --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(222 47% 11%);
-  --color-primary: hsl(222 47% 11%);
-  --color-primary-foreground: hsl(210 40% 98%);
-  --color-secondary: hsl(210 40% 96%);
-  --color-secondary-foreground: hsl(222 47% 11%);
-  --color-muted: hsl(210 40% 96%);
-  --color-muted-foreground: hsl(215 16% 47%);
-  --color-accent: hsl(210 40% 96%);
-  --color-accent-foreground: hsl(222 47% 11%);
-  --color-destructive: hsl(0 84% 60%);
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-background: hsl(222 47% 11%);
+  --color-foreground: hsl(210 40% 98%);
+  --color-card: hsl(222 47% 11%);
+  --color-card-foreground: hsl(210 40% 98%);
+  --color-popover: hsl(222 47% 11%);
+  --color-popover-foreground: hsl(210 40% 98%);
+  --color-primary: hsl(210 40% 98%);
+  --color-primary-foreground: hsl(222 47% 11%);
+  --color-secondary: hsl(217 33% 17%);
+  --color-secondary-foreground: hsl(210 40% 98%);
+  --color-muted: hsl(217 33% 17%);
+  --color-muted-foreground: hsl(215 20% 65%);
+  --color-accent: hsl(217 33% 17%);
+  --color-accent-foreground: hsl(210 40% 98%);
+  --color-destructive: hsl(0 63% 31%);
   --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(214 32% 91%);
-  --color-input: hsl(214 32% 91%);
-  --color-ring: hsl(222 47% 11%);
+  --color-border: hsl(217 33% 17%);
+  --color-input: hsl(217 33% 17%);
+  --color-ring: hsl(213 27% 84%);
   --radius: 0.5rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-background: hsl(222 47% 11%);
-    --color-foreground: hsl(210 40% 98%);
-    --color-card: hsl(222 47% 11%);
-    --color-card-foreground: hsl(210 40% 98%);
-    --color-popover: hsl(222 47% 11%);
-    --color-popover-foreground: hsl(210 40% 98%);
-    --color-primary: hsl(210 40% 98%);
-    --color-primary-foreground: hsl(222 47% 11%);
-    --color-secondary: hsl(217 33% 17%);
-    --color-secondary-foreground: hsl(210 40% 98%);
-    --color-muted: hsl(217 33% 17%);
-    --color-muted-foreground: hsl(215 20% 65%);
-    --color-accent: hsl(217 33% 17%);
-    --color-accent-foreground: hsl(210 40% 98%);
-    --color-destructive: hsl(0 63% 31%);
-    --color-destructive-foreground: hsl(210 40% 98%);
-    --color-border: hsl(217 33% 17%);
-    --color-input: hsl(217 33% 17%);
-    --color-ring: hsl(213 27% 84%);
-  }
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  /* Tell the UA to render form controls, scrollbars, etc. dark too. */
+  color-scheme: dark;
   background: var(--color-background);
   color: var(--color-foreground);
   font-family:
     system-ui,
     -apple-system,
     sans-serif;
+}
+
+/* Headings adopt the JetBrains Mono wordmark language: all headings run lowercase
+   like "backlotter". text-transform is visual only — the underlying DOM text (and
+   thus SEO/a11y) is unchanged. */
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-mono);
+    text-transform: lowercase;
+  }
 }

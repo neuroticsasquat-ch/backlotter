@@ -24,29 +24,24 @@ describe("PublicLayout", () => {
     const wordmarkLink = screen.getByRole("link", { name: new RegExp(WORDMARK, "i") });
     expect(wordmarkLink).toHaveAttribute("href", "/");
 
-    // 2. Enabled nav links — scoped to the primary nav to avoid footer duplicates
+    // 2. Inline primary nav: Updates (home) + Calendar (Search is the box, Browse is gone)
     const primaryNav = screen.getByRole("navigation", { name: /primary navigation/i });
-    expect(within(primaryNav).getByRole("link", { name: /^home$/i })).toBeInTheDocument();
-    expect(within(primaryNav).getByRole("link", { name: /^browse$/i })).toHaveAttribute(
-      "href",
-      "/browse",
-    );
-    expect(within(primaryNav).getByRole("link", { name: /^search$/i })).toHaveAttribute(
-      "href",
-      "/search",
-    );
-
-    // 3. Calendar is now a live link
+    expect(within(primaryNav).getByRole("link", { name: /^updates$/i })).toHaveAttribute("href", "/");
     expect(within(primaryNav).getByRole("link", { name: /^calendar$/i })).toHaveAttribute(
       "href",
       "/calendar",
     );
+    expect(within(primaryNav).queryByRole("link", { name: /^browse$/i })).toBeNull();
+    expect(within(primaryNav).queryByRole("link", { name: /^search$/i })).toBeNull();
 
-    // 4. Footer — wordmark text in copyright line
+    // 4. Search box renders in its own bar (below the header, not inside it)
+    expect(screen.getByRole("search", { name: /film search/i })).toBeInTheDocument();
+
+    // 5. Footer — wordmark text in copyright line
     const footer = screen.getByRole("contentinfo");
     expect(within(footer).getByText(new RegExp(WORDMARK, "i"))).toBeInTheDocument();
 
-    // 5. Routed child renders
+    // 6. Routed child renders
     expect(screen.getByText("page body")).toBeInTheDocument();
   });
 });
