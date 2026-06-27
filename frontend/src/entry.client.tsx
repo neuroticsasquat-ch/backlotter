@@ -9,7 +9,7 @@ if (dsn) {
     dsn,
     integrations: [
       Sentry.browserTracingIntegration(),
-      Sentry.replayIntegration({ maskAllText: false, blockAllMedia: false }),
+      Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true }),
     ],
     tracesSampleRate: 0.1,
     replaysSessionSampleRate: 0.0,
