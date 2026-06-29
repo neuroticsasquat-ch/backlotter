@@ -98,7 +98,7 @@ describe("Login", () => {
     await waitFor(() => expect(screen.getByText(/incorrect/i)).toBeInTheDocument());
   });
 
-  it("shows the BackLotter brand in the heading", () => {
+  it("shows the backlotter brand in the heading", () => {
     renderAt("/login");
     expect(screen.getByRole("heading", { name: /log in to backlotter/i })).toBeInTheDocument();
   });

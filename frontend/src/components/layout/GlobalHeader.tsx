@@ -25,8 +25,8 @@ export function GlobalHeader() {
           className="flex shrink-0 flex-col font-mono leading-none transition-opacity hover:opacity-80"
         >
           <span className="text-2xl font-bold tracking-tight">
-            <span className="text-foreground">back</span>
-            <span className="font-normal text-muted-foreground">lotter</span>
+            <span className="font-normal text-muted-foreground">backlot</span>
+            <span className="text-foreground">ter</span>
           </span>
           <span aria-hidden="true" className="mt-1.5 h-px w-full bg-border" />
           <span className="mt-1.5 text-[11px] uppercase tracking-[0.25em] text-muted-foreground">

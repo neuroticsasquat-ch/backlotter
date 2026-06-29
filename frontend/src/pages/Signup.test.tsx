@@ -115,7 +115,7 @@ describe("Signup", () => {
     expect(screen.queryByText("app home")).not.toBeInTheDocument();
   });
 
-  it("shows the BackLotter brand in the heading and invite copy", () => {
+  it("shows the backlotter brand in the heading and invite copy", () => {
     renderAt("/signup");
     expect(
       screen.getByRole("heading", { name: /create your backlotter account/i }),
