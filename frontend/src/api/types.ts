@@ -152,6 +152,9 @@ export interface CalendarItem {
   poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()
   release_date: string; // "YYYY-MM-DD" (US date)
   release_type: string; // bucket: "premiere" | "limited" | "wide" — rendered via releaseBucketLabel
+  director: string | null; // credited director(s), joined with ", "
+  stars: string[]; // first 3 billed cast names
+  genres: string[]; // up to 3 genre names
 }
 
 export interface CalendarResponse {

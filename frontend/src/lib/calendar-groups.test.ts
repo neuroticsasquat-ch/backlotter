@@ -10,6 +10,9 @@ function item(film_slug: string, release_date: string, release_type: string): Ca
     poster_path: null,
     release_date,
     release_type,
+    director: null,
+    stars: [],
+    genres: [],
   };
 }
 
