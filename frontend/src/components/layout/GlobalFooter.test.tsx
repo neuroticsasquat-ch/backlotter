@@ -41,6 +41,22 @@ describe("GlobalFooter", () => {
   });
 });
 
+describe("release credit", () => {
+  it("credits neuroticsasquat.ch as the release shop with an outbound link", () => {
+    renderFooter();
+    const shop = screen.getByRole("link", { name: "neuroticsasquat.ch" });
+    expect(shop).toHaveAttribute("href", "https://neuroticsasquat.ch");
+    expect(shop).toHaveAttribute("target", "_blank");
+    expect(shop.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("shows the release credit in the copyright line", () => {
+    renderFooter();
+    const copyright = screen.getByText(/©\s*\d{4}/);
+    expect(copyright.textContent).toMatch(/A\s+neuroticsasquat\.ch\s+release\./);
+  });
+});
+
 describe("legal links", () => {
   it("links to the Terms of Service page", () => {
     renderFooter();

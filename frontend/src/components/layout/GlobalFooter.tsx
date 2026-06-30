@@ -12,7 +12,16 @@ export function GlobalFooter() {
     <footer className="border-t border-border py-8 text-sm text-muted-foreground">
       <div className="mx-auto flex max-w-4xl flex-col items-center gap-3 px-4 text-center">
         <span className="font-mono">
-          © {year} {WORDMARK.toLowerCase()}
+          © {year} {WORDMARK.toLowerCase()}. A{" "}
+          <a
+            href="https://neuroticsasquat.ch"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-4 transition-colors hover:text-foreground"
+          >
+            neuroticsasquat.ch
+          </a>{" "}
+          release.
         </span>
         <p className="max-w-prose">
           Film metadata and images are provided by{" "}
