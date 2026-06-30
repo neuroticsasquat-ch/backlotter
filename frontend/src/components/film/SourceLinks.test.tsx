@@ -1,6 +1,10 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { SourceLinks } from "@/components/film/SourceLinks";
+
+const delinkSources = [
+  { url: "https://x.test/a", source: "ScreenRant", title: "t", published_at: null },
+];
 
 describe("SourceLinks", () => {
   it("renders outbound source links", () => {
@@ -21,5 +25,17 @@ describe("SourceLinks", () => {
   it("renders nothing when there are no sources", () => {
     const { container } = render(<SourceLinks sources={[]} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("shows no delink control without admin props", () => {
+    render(<SourceLinks sources={delinkSources} />);
+    expect(screen.queryByRole("button", { name: /delink/i })).toBeNull();
+  });
+
+  it("calls onDelink with the source url when admin", () => {
+    const onDelink = vi.fn();
+    render(<SourceLinks sources={delinkSources} admin onDelink={onDelink} />);
+    fireEvent.click(screen.getByRole("button", { name: /delink ScreenRant/i }));
+    expect(onDelink).toHaveBeenCalledWith("https://x.test/a");
   });
 });
