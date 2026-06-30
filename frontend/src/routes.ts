@@ -8,6 +8,8 @@ export default [
     index("routes/feed.tsx"),
     route("calendar", "routes/calendar.tsx"),
     route("film/:slug", "routes/film.tsx"),
+    route("terms", "routes/terms.tsx"),
+    route("privacy", "routes/privacy.tsx"),
   ]),
 
   layout("routes/spa-layout.tsx", [

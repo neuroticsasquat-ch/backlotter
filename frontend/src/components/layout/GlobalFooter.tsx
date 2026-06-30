@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { WORDMARK } from "@/components/layout/nav-items";
 
 /**
@@ -25,6 +26,20 @@ export function GlobalFooter() {
           </a>
           . This product uses the TMDB API but is not endorsed or certified by TMDB.
         </p>
+        <nav aria-label="Legal" className="flex gap-4">
+          <Link
+            to="/terms"
+            className="underline underline-offset-4 transition-colors hover:text-foreground"
+          >
+            Terms
+          </Link>
+          <Link
+            to="/privacy"
+            className="underline underline-offset-4 transition-colors hover:text-foreground"
+          >
+            Privacy
+          </Link>
+        </nav>
       </div>
     </footer>
   );
