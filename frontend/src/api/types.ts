@@ -56,11 +56,18 @@ export interface FilmSource {
 }
 
 export interface FilmEvent {
+  event_id: string;
   event_type: string;
   confidence: string; // "confirmed" | "rumored" (backend free text; rendered via a map)
   created_at: string;
   summary: string;
   sources: FilmSource[];
+}
+
+export interface DelinkResponse {
+  delinked: number;
+  event_removed: boolean;
+  resummarize_queued: boolean;
 }
 
 export interface FilmCollection {

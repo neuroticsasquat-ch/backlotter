@@ -1,10 +1,17 @@
 import { render, screen, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { createRoutesStub, MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it } from "vitest";
 import { WORDMARK } from "@/components/layout/nav-items";
 import { server } from "@/test/msw/server";
 import { unauthMeHandler } from "@/test/msw/me";
 import PublicLayout from "@/routes/public-layout";
+import { useAuth } from "@/components/AuthContext";
+
+/** Calls useAuth() to verify AuthProvider is in the tree above it. */
+function AuthProbe() {
+  useAuth();
+  return <p>probe ok</p>;
+}
 
 describe("PublicLayout", () => {
   it("renders the full chrome and routed child", async () => {
@@ -47,4 +54,12 @@ describe("PublicLayout", () => {
     // 6. Routed child renders
     expect(screen.getByText("page body")).toBeInTheDocument();
   });
+});
+
+it("provides Auth + Query context to routed page content", async () => {
+  const Stub = createRoutesStub([
+    { Component: PublicLayout, children: [{ index: true, Component: AuthProbe }] },
+  ]);
+  render(<Stub />);
+  expect(await screen.findByText("probe ok")).toBeInTheDocument();
 });
