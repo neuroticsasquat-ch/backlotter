@@ -40,3 +40,15 @@ describe("GlobalFooter", () => {
     expect(screen.queryByRole("navigation", { name: /footer navigation/i })).toBeNull();
   });
 });
+
+describe("legal links", () => {
+  it("links to the Terms of Service page", () => {
+    renderFooter();
+    expect(screen.getByRole("link", { name: /terms/i })).toHaveAttribute("href", "/terms");
+  });
+
+  it("links to the Privacy Policy page", () => {
+    renderFooter();
+    expect(screen.getByRole("link", { name: /privacy/i })).toHaveAttribute("href", "/privacy");
+  });
+});
