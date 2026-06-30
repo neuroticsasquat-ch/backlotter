@@ -4,7 +4,7 @@
 
 ## 1. Acceptance of Terms
 
-By accessing or using Backlotter (the "Service"), operated by neuroticsasquat.ch ("we," "us," or "our"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the Service.
+By accessing or using Backlotter (the "Service"), operated by Tom Boone, doing business as neuroticsasquat.ch ("we," "us," or "our"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the Service.
 
 We may update these Terms from time to time. If we make material changes, we will notify you (for example, by email or an in-app notice) before they take effect. Your continued use of the Service after changes become effective constitutes acceptance of the revised Terms.
 

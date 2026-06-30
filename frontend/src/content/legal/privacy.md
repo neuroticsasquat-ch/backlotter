@@ -2,7 +2,7 @@
 
 **Last updated: 2026-06-30**
 
-This Privacy Policy explains how neuroticsasquat.ch ("we," "us," or "our") collects, uses, and shares information when you use Backlotter (the "Service"). It is incorporated into our [Terms of Service](/terms) by reference. By using the Service, you agree to the practices described here.
+This Privacy Policy explains how Tom Boone, doing business as neuroticsasquat.ch ("we," "us," or "our") collects, uses, and shares information when you use Backlotter (the "Service"). It is incorporated into our [Terms of Service](/terms) by reference. By using the Service, you agree to the practices described here.
 
 ## 1. Information We Collect
 
