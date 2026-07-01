@@ -17,7 +17,7 @@ const film: FilmDetail = {
   release_date: "2026-07-17",
   release_year: 2026,
   poster_path: "/poster.jpg",
-  arc_stage: "trailer",
+  arc_stage: "wrapped",
   events: [
     {
       event_id: "evt-1",

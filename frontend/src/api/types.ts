@@ -39,14 +39,7 @@ export interface IngestRun {
   llm_usage: LlmStageUsage[];
 }
 
-export type ArcStage =
-  | "announced"
-  | "cast"
-  | "shooting"
-  | "wrapped"
-  | "dated"
-  | "trailer"
-  | "released";
+export type ArcStage = "announced" | "shooting" | "wrapped" | "released";
 
 export interface FilmSource {
   url: string;

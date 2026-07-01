@@ -15,7 +15,7 @@ const sampleItem: FilmIndexItem = {
   title: "The Odyssey",
   release_year: 2026,
   poster_path: "/odyssey.jpg",
-  arc_stage: "trailer",
+  arc_stage: "wrapped",
 };
 
 function renderSearchBox() {

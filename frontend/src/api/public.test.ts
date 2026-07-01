@@ -12,7 +12,7 @@ const sample: FilmDetail = {
   release_date: "2026-07-17",
   release_year: 2026,
   poster_path: "/poster.jpg",
-  arc_stage: "trailer",
+  arc_stage: "wrapped",
   events: [],
   overview: null,
   tagline: null,
@@ -37,7 +37,7 @@ describe("getFilm", () => {
     server.use(http.get(`${BACKEND}/films/the-odyssey-2026`, () => HttpResponse.json(sample)));
     const film = await getFilm(BACKEND, "the-odyssey-2026");
     expect(film?.slug).toBe("the-odyssey-2026");
-    expect(film?.arc_stage).toBe("trailer");
+    expect(film?.arc_stage).toBe("wrapped");
   });
 
   it("returns null on 404", async () => {
