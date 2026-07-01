@@ -29,6 +29,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   production_wrap: "Production wrap",
   release_date: "Release date",
   trailer: "Trailer",
+  first_look: "First look",
   other: "Update",
 };
 
