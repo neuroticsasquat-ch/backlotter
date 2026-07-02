@@ -55,7 +55,8 @@ describe("AdminSources", () => {
     );
     renderPage();
     await screen.findByText("new.test");
-    expect(screen.getAllByText("unjudged")).toHaveLength(2);
+    // selector scoped to span to exclude the "unjudged" option in the tier filter <select>
+    expect(screen.getAllByText("unjudged", { selector: "span" })).toHaveLength(2);
   });
 
   it("exposes the full reason via a title attribute", async () => {
@@ -136,5 +137,65 @@ describe("AdminSources", () => {
     await userEvent.selectOptions(select, "block");
     // optimistic flip to block, then rollback to none after the error
     await waitFor(() => expect(select).toHaveValue("none"));
+  });
+
+  it("filters rows by the domain search box", async () => {
+    server.use(
+      http.get(`${base}/admin/sources`, () =>
+        HttpResponse.json([
+          makeSource({ domain: "variety.com" }),
+          makeSource({ domain: "mshale.com" }),
+        ]),
+      ),
+    );
+    renderPage();
+    await screen.findByText("variety.com");
+    await userEvent.type(screen.getByLabelText("Search domains"), "msh");
+    expect(screen.getByText("mshale.com")).toBeInTheDocument();
+    expect(screen.queryByText("variety.com")).not.toBeInTheDocument();
+  });
+
+  it("filters rows by tier", async () => {
+    server.use(
+      http.get(`${base}/admin/sources`, () =>
+        HttpResponse.json([
+          makeSource({ domain: "variety.com", llm_tier: "trusted" }),
+          makeSource({ domain: "mshale.com", llm_tier: "low" }),
+        ]),
+      ),
+    );
+    renderPage();
+    await screen.findByText("variety.com");
+    await userEvent.selectOptions(screen.getByLabelText("Filter by tier"), "low");
+    expect(screen.getByText("mshale.com")).toBeInTheDocument();
+    expect(screen.queryByText("variety.com")).not.toBeInTheDocument();
+  });
+
+  it("filters to overridden domains only", async () => {
+    server.use(
+      http.get(`${base}/admin/sources`, () =>
+        HttpResponse.json([
+          makeSource({ domain: "variety.com", admin_override: "none" }),
+          makeSource({ domain: "mshale.com", admin_override: "block" }),
+        ]),
+      ),
+    );
+    renderPage();
+    await screen.findByText("variety.com");
+    await userEvent.click(screen.getByLabelText("Overridden only"));
+    expect(screen.getByText("mshale.com")).toBeInTheDocument();
+    expect(screen.queryByText("variety.com")).not.toBeInTheDocument();
+  });
+
+  it("shows a filtered-empty message when filters exclude every row", async () => {
+    server.use(
+      http.get(`${base}/admin/sources`, () =>
+        HttpResponse.json([makeSource({ domain: "variety.com" })]),
+      ),
+    );
+    renderPage();
+    await screen.findByText("variety.com");
+    await userEvent.type(screen.getByLabelText("Search domains"), "zzz");
+    expect(screen.getByText(/no domains match your filters/i)).toBeInTheDocument();
   });
 });
