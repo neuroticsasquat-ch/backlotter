@@ -54,7 +54,9 @@ describe("sources api", () => {
       );
     });
     it("maps trust -> trusted and allow -> acceptable", () => {
-      expect(effectiveTier(makeSource({ admin_override: "trust", llm_tier: "low" }))).toBe("trusted");
+      expect(effectiveTier(makeSource({ admin_override: "trust", llm_tier: "low" }))).toBe(
+        "trusted",
+      );
       expect(effectiveTier(makeSource({ admin_override: "allow", llm_tier: "low" }))).toBe(
         "acceptable",
       );

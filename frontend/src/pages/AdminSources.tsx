@@ -70,6 +70,7 @@ export function AdminSources() {
   const [search, setSearch] = useState("");
   const [tierFilter, setTierFilter] = useState<TierFilter>("all");
   const [overriddenOnly, setOverriddenOnly] = useState(false);
+  const [hideBlocked, setHideBlocked] = useState(false);
 
   const visible = useMemo(() => {
     if (!sources) return [];
@@ -77,12 +78,14 @@ export function AdminSources() {
     return sources.filter((r) => {
       if (q && !r.domain.toLowerCase().includes(q)) return false;
       if (tierFilter !== "all") {
-        if (tierFilter === "unjudged" ? r.llm_tier !== null : r.llm_tier !== tierFilter) return false;
+        if (tierFilter === "unjudged" ? r.llm_tier !== null : r.llm_tier !== tierFilter)
+          return false;
       }
       if (overriddenOnly && r.admin_override === "none") return false;
+      if (hideBlocked && r.admin_override === "block") return false;
       return true;
     });
-  }, [sources, search, tierFilter, overriddenOnly]);
+  }, [sources, search, tierFilter, overriddenOnly, hideBlocked]);
 
   const [sort, setSort] = useState<SortState | null>(null);
 
@@ -91,7 +94,8 @@ export function AdminSources() {
     if (!sort) {
       // attention-first: low tier first, then newest updated_at
       rows.sort(
-        (a, b) => tierRank(a.llm_tier) - tierRank(b.llm_tier) || b.updated_at.localeCompare(a.updated_at),
+        (a, b) =>
+          tierRank(a.llm_tier) - tierRank(b.llm_tier) || b.updated_at.localeCompare(a.updated_at),
       );
       return rows;
     }
@@ -163,6 +167,14 @@ export function AdminSources() {
               />
               Overridden only
             </label>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={hideBlocked}
+                onChange={(e) => setHideBlocked(e.target.checked)}
+              />
+              Hide blocked
+            </label>
           </div>
 
           {visible.length === 0 ? (
@@ -172,12 +184,20 @@ export function AdminSources() {
               <thead>
                 <tr className="border-b">
                   <th className="py-2 pr-4 font-medium">
-                    <button type="button" className="font-medium" onClick={() => toggleSort("domain")}>
+                    <button
+                      type="button"
+                      className="font-medium"
+                      onClick={() => toggleSort("domain")}
+                    >
                       Domain
                     </button>
                   </th>
                   <th className="py-2 pr-4 font-medium">
-                    <button type="button" className="font-medium" onClick={() => toggleSort("llm_tier")}>
+                    <button
+                      type="button"
+                      className="font-medium"
+                      onClick={() => toggleSort("llm_tier")}
+                    >
                       LLM tier
                     </button>
                   </th>
@@ -185,7 +205,11 @@ export function AdminSources() {
                   <th className="py-2 pr-4 font-medium">Reason</th>
                   <th className="py-2 pr-4 font-medium">Override</th>
                   <th className="py-2 font-medium">
-                    <button type="button" className="font-medium" onClick={() => toggleSort("updated_at")}>
+                    <button
+                      type="button"
+                      className="font-medium"
+                      onClick={() => toggleSort("updated_at")}
+                    >
                       Updated
                     </button>
                   </th>
