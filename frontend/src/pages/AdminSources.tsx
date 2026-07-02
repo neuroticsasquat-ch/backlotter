@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import { effectiveTier, useSetSourceOverride, useSources, type EffectiveTier } from "@/api/sources";
-import type { SourceDomain, SourceOverride } from "@/api/types";
+import type { SourceDomain, SourceOverride, SourceTier } from "@/api/types";
+
+type SortColumn = "domain" | "llm_tier" | "updated_at";
+type SortState = { column: SortColumn; dir: "asc" | "desc" };
+
+const TIER_RANK: Record<string, number> = { low: 0, acceptable: 1, trusted: 2 };
+function tierRank(tier: SourceTier | null): number {
+  return tier === null ? 3 : TIER_RANK[tier];
+}
 
 const TIER_LABELS: Record<string, string> = {
   trusted: "trusted",
@@ -76,6 +84,38 @@ export function AdminSources() {
     });
   }, [sources, search, tierFilter, overriddenOnly]);
 
+  const [sort, setSort] = useState<SortState | null>(null);
+
+  const sorted = useMemo(() => {
+    const rows = [...visible];
+    if (!sort) {
+      // attention-first: low tier first, then newest updated_at
+      rows.sort(
+        (a, b) => tierRank(a.llm_tier) - tierRank(b.llm_tier) || b.updated_at.localeCompare(a.updated_at),
+      );
+      return rows;
+    }
+    const dir = sort.dir === "asc" ? 1 : -1;
+    rows.sort((a, b) => {
+      const cmp =
+        sort.column === "domain"
+          ? a.domain.localeCompare(b.domain)
+          : sort.column === "llm_tier"
+            ? tierRank(a.llm_tier) - tierRank(b.llm_tier)
+            : a.updated_at.localeCompare(b.updated_at);
+      return cmp * dir;
+    });
+    return rows;
+  }, [visible, sort]);
+
+  function toggleSort(column: SortColumn) {
+    setSort((prev) =>
+      prev?.column === column
+        ? { column, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { column, dir: "asc" },
+    );
+  }
+
   return (
     <div className="mx-auto max-w-5xl p-8">
       <h1 className="text-2xl font-semibold">Sources</h1>
@@ -131,16 +171,28 @@ export function AdminSources() {
             <table className="mt-4 w-full text-left text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="py-2 pr-4 font-medium">Domain</th>
-                  <th className="py-2 pr-4 font-medium">LLM tier</th>
+                  <th className="py-2 pr-4 font-medium">
+                    <button type="button" className="font-medium" onClick={() => toggleSort("domain")}>
+                      Domain
+                    </button>
+                  </th>
+                  <th className="py-2 pr-4 font-medium">
+                    <button type="button" className="font-medium" onClick={() => toggleSort("llm_tier")}>
+                      LLM tier
+                    </button>
+                  </th>
                   <th className="py-2 pr-4 font-medium">Effective</th>
                   <th className="py-2 pr-4 font-medium">Reason</th>
                   <th className="py-2 pr-4 font-medium">Override</th>
-                  <th className="py-2 font-medium">Updated</th>
+                  <th className="py-2 font-medium">
+                    <button type="button" className="font-medium" onClick={() => toggleSort("updated_at")}>
+                      Updated
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {visible.map((row) => (
+                {sorted.map((row) => (
                   <tr key={row.domain} className="border-b align-top">
                     <td className="py-2 pr-4 font-medium">{row.domain}</td>
                     <td className="py-2 pr-4">

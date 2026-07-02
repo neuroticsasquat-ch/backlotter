@@ -198,4 +198,35 @@ describe("AdminSources", () => {
     await userEvent.type(screen.getByLabelText("Search domains"), "zzz");
     expect(screen.getByText(/no domains match your filters/i)).toBeInTheDocument();
   });
+
+  it("sorts low-tier domains first by default", async () => {
+    server.use(
+      http.get(`${base}/admin/sources`, () =>
+        HttpResponse.json([
+          makeSource({ domain: "trusted.test", llm_tier: "trusted", updated_at: "2026-07-01T00:00:00Z" }),
+          makeSource({ domain: "low.test", llm_tier: "low", updated_at: "2026-06-01T00:00:00Z" }),
+        ]),
+      ),
+    );
+    renderPage();
+    await screen.findByText("low.test");
+    const rows = screen.getAllByRole("row").slice(1); // drop the header row
+    expect(rows[0]).toHaveTextContent("low.test");
+  });
+
+  it("sorts alphabetically by domain when the Domain header is clicked", async () => {
+    server.use(
+      http.get(`${base}/admin/sources`, () =>
+        HttpResponse.json([
+          makeSource({ domain: "zeta.test", llm_tier: "low" }),
+          makeSource({ domain: "alpha.test", llm_tier: "trusted" }),
+        ]),
+      ),
+    );
+    renderPage();
+    await screen.findByText("alpha.test");
+    await userEvent.click(screen.getByRole("button", { name: /^domain/i }));
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows[0]).toHaveTextContent("alpha.test");
+  });
 });
