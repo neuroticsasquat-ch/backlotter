@@ -51,6 +51,9 @@ export function useSetSourceOverride() {
       return { previous };
     },
     onError: (err, _vars, context) => {
+      // Rolls back to the snapshot taken in onMutate. If two rows are mutating
+      // concurrently, a failure on one will temporarily revert the other's optimistic
+      // patch until that row's own onSuccess/onError fires.
       if (context?.previous) qc.setQueryData(["admin-sources"], context.previous);
       toast.error(err instanceof Error ? err.message : "Failed to update override");
     },

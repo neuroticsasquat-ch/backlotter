@@ -171,6 +171,25 @@ describe("AdminSources", () => {
     expect(screen.queryByText("variety.com")).not.toBeInTheDocument();
   });
 
+  it("ANDs domain search and tier filter together", async () => {
+    server.use(
+      http.get(`${base}/admin/sources`, () =>
+        HttpResponse.json([
+          makeSource({ domain: "variety.com", llm_tier: "trusted" }),
+          makeSource({ domain: "variety.co.uk", llm_tier: "low" }),
+          makeSource({ domain: "mshale.com", llm_tier: "trusted" }),
+        ]),
+      ),
+    );
+    renderPage();
+    await screen.findByText("variety.com");
+    await userEvent.type(screen.getByLabelText("Search domains"), "variety");
+    await userEvent.selectOptions(screen.getByLabelText("Filter by tier"), "low");
+    expect(screen.getByText("variety.co.uk")).toBeInTheDocument();
+    expect(screen.queryByText("variety.com")).not.toBeInTheDocument();
+    expect(screen.queryByText("mshale.com")).not.toBeInTheDocument();
+  });
+
   it("filters to overridden domains only", async () => {
     server.use(
       http.get(`${base}/admin/sources`, () =>
