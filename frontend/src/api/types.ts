@@ -163,3 +163,17 @@ export interface CalendarResponse {
   limit: number;
   offset: number;
 }
+
+export type SourceTier = "trusted" | "acceptable" | "low";
+export type SourceOverride = "none" | "block" | "allow" | "trust";
+
+/** One resolved publisher domain in the source-quality gate (NEU-454). `llm_tier` is the
+ *  cached LLM verdict (null until judged); `admin_override` is the human lever that wins
+ *  over it. Mirrors the backend `SourceDomainOut`. */
+export interface SourceDomain {
+  domain: string;
+  llm_tier: SourceTier | null;
+  llm_reason: string | null;
+  admin_override: SourceOverride;
+  updated_at: string;
+}
