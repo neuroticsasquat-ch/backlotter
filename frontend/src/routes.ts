@@ -16,7 +16,12 @@ export default [
     route("login", "pages/Login.tsx"),
     route("signup", "pages/Signup.tsx"),
     layout("components/RequireAuth.tsx", [
-      layout("components/RequireAdmin.tsx", [route("admin/ingest", "pages/AdminIngest.tsx")]),
+      layout("components/RequireAdmin.tsx", [
+        layout("components/layout/AdminLayout.tsx", [
+          route("admin/ingest", "pages/AdminIngest.tsx"),
+          route("admin/sources", "pages/AdminSources.tsx"),
+        ]),
+      ]),
     ]),
   ]),
 ] satisfies RouteConfig;

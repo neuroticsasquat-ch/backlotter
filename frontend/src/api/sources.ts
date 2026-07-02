@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "./client";
 import type { SourceDomain, SourceOverride, SourceTier } from "./types";
 
@@ -24,4 +25,10 @@ export function effectiveTier(row: SourceDomain): EffectiveTier {
     case "none":
       return row.llm_tier;
   }
+}
+
+/** All known source domains for the admin Sources page. Near-static data — no polling
+ *  (unlike useRuns); it only changes via this page's own override mutations. */
+export function useSources() {
+  return useQuery({ queryKey: ["admin-sources"], queryFn: fetchSources });
 }
