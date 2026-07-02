@@ -50,7 +50,9 @@ describe("AdminSources", () => {
   it("renders 'unjudged' in both tier columns for an unjudged domain", async () => {
     server.use(
       http.get(`${base}/admin/sources`, () =>
-        HttpResponse.json([makeSource({ domain: "new.test", llm_tier: null, admin_override: "none" })]),
+        HttpResponse.json([
+          makeSource({ domain: "new.test", llm_tier: null, admin_override: "none" }),
+        ]),
       ),
     );
     renderPage();
@@ -62,7 +64,9 @@ describe("AdminSources", () => {
   it("exposes the full reason via a title attribute", async () => {
     server.use(
       http.get(`${base}/admin/sources`, () =>
-        HttpResponse.json([makeSource({ domain: "x.test", llm_reason: "Aggregator of wire copy." })]),
+        HttpResponse.json([
+          makeSource({ domain: "x.test", llm_reason: "Aggregator of wire copy." }),
+        ]),
       ),
     );
     renderPage();
@@ -100,7 +104,9 @@ describe("AdminSources", () => {
     let body: unknown = null;
     server.use(
       http.get(`${base}/admin/sources`, () =>
-        HttpResponse.json([makeSource({ domain: "mshale.com", llm_tier: "low", admin_override: "none" })]),
+        HttpResponse.json([
+          makeSource({ domain: "mshale.com", llm_tier: "low", admin_override: "none" }),
+        ]),
       ),
       http.post(`${base}/admin/sources/mshale.com/override`, async ({ request }) => {
         body = await request.json();
@@ -126,7 +132,9 @@ describe("AdminSources", () => {
   it("reverts the override when the POST fails", async () => {
     server.use(
       http.get(`${base}/admin/sources`, () =>
-        HttpResponse.json([makeSource({ domain: "mshale.com", llm_tier: "low", admin_override: "none" })]),
+        HttpResponse.json([
+          makeSource({ domain: "mshale.com", llm_tier: "low", admin_override: "none" }),
+        ]),
       ),
       http.post(`${base}/admin/sources/mshale.com/override`, () =>
         HttpResponse.json({ detail: "boom" }, { status: 500 }),
@@ -206,6 +214,25 @@ describe("AdminSources", () => {
     expect(screen.queryByText("variety.com")).not.toBeInTheDocument();
   });
 
+  it("hides admin-blocked domains when 'Hide blocked' is checked", async () => {
+    server.use(
+      http.get(`${base}/admin/sources`, () =>
+        HttpResponse.json([
+          makeSource({ domain: "variety.com", admin_override: "none" }),
+          makeSource({ domain: "spam.example", admin_override: "block" }),
+          makeSource({ domain: "trusted.example", admin_override: "trust" }),
+        ]),
+      ),
+    );
+    renderPage();
+    await screen.findByText("variety.com");
+    await userEvent.click(screen.getByLabelText("Hide blocked"));
+    // Only the blocked domain disappears; other overrides stay.
+    expect(screen.queryByText("spam.example")).not.toBeInTheDocument();
+    expect(screen.getByText("variety.com")).toBeInTheDocument();
+    expect(screen.getByText("trusted.example")).toBeInTheDocument();
+  });
+
   it("shows a filtered-empty message when filters exclude every row", async () => {
     server.use(
       http.get(`${base}/admin/sources`, () =>
@@ -222,7 +249,11 @@ describe("AdminSources", () => {
     server.use(
       http.get(`${base}/admin/sources`, () =>
         HttpResponse.json([
-          makeSource({ domain: "trusted.test", llm_tier: "trusted", updated_at: "2026-07-01T00:00:00Z" }),
+          makeSource({
+            domain: "trusted.test",
+            llm_tier: "trusted",
+            updated_at: "2026-07-01T00:00:00Z",
+          }),
           makeSource({ domain: "low.test", llm_tier: "low", updated_at: "2026-06-01T00:00:00Z" }),
         ]),
       ),
