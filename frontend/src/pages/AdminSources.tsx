@@ -1,4 +1,4 @@
-import { effectiveTier, useSources, type EffectiveTier } from "@/api/sources";
+import { effectiveTier, useSetSourceOverride, useSources, type EffectiveTier } from "@/api/sources";
 import type { SourceDomain, SourceOverride } from "@/api/types";
 
 const TIER_LABELS: Record<string, string> = {
@@ -29,13 +29,16 @@ function TierBadge({ tier }: { tier: EffectiveTier }) {
 const OVERRIDE_OPTIONS: SourceOverride[] = ["none", "block", "allow", "trust"];
 
 function OverrideSelect({ row }: { row: SourceDomain }) {
-  // Interactivity is wired in Task 3; for now this reflects the current value only.
+  const mutation = useSetSourceOverride();
   return (
     <select
       aria-label={`Override for ${row.domain}`}
       value={row.admin_override}
-      disabled
-      className="rounded border px-2 py-1 text-sm disabled:opacity-70"
+      disabled={mutation.isPending}
+      onChange={(e) =>
+        mutation.mutate({ domain: row.domain, override: e.target.value as SourceOverride })
+      }
+      className="rounded border px-2 py-1 text-sm disabled:opacity-50"
     >
       {OVERRIDE_OPTIONS.map((o) => (
         <option key={o} value={o}>

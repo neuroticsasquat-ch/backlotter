@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { server } from "@/test/msw/server";
@@ -92,5 +93,48 @@ describe("AdminSources", () => {
     );
     renderPage();
     expect(await screen.findByText(/failed to load sources/i)).toBeInTheDocument();
+  });
+
+  it("sets an override optimistically and persists it via POST", async () => {
+    let body: unknown = null;
+    server.use(
+      http.get(`${base}/admin/sources`, () =>
+        HttpResponse.json([makeSource({ domain: "mshale.com", llm_tier: "low", admin_override: "none" })]),
+      ),
+      http.post(`${base}/admin/sources/mshale.com/override`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(
+          makeSource({
+            domain: "mshale.com",
+            llm_tier: "low",
+            admin_override: "block",
+            updated_at: "2026-07-02T00:00:00Z",
+          }),
+        );
+      }),
+    );
+    renderPage();
+    const select = await screen.findByLabelText("Override for mshale.com");
+    await userEvent.selectOptions(select, "block");
+    await waitFor(() => expect(select).toHaveValue("block"));
+    expect(body).toEqual({ override: "block" });
+    // effective tier recomputes to blocked
+    expect(screen.getByText("blocked")).toBeInTheDocument();
+  });
+
+  it("reverts the override when the POST fails", async () => {
+    server.use(
+      http.get(`${base}/admin/sources`, () =>
+        HttpResponse.json([makeSource({ domain: "mshale.com", llm_tier: "low", admin_override: "none" })]),
+      ),
+      http.post(`${base}/admin/sources/mshale.com/override`, () =>
+        HttpResponse.json({ detail: "boom" }, { status: 500 }),
+      ),
+    );
+    renderPage();
+    const select = await screen.findByLabelText("Override for mshale.com");
+    await userEvent.selectOptions(select, "block");
+    // optimistic flip to block, then rollback to none after the error
+    await waitFor(() => expect(select).toHaveValue("none"));
   });
 });
