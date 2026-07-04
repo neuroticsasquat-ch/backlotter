@@ -2,7 +2,7 @@ import type { ArcStage } from "@/api/types";
 import { cn } from "@/lib/cn";
 import { ARC_STAGES, ARC_STAGE_LABELS } from "./labels";
 
-/** The 7-stage status arc as a vertical timeline: dots connected by a rail, with the
+/** The 4-stage status arc as a vertical timeline: dots connected by a rail, with the
  *  completed portion filled (brand blue) and the rest hollow/muted. Dots sit on the
  *  left edge nearest the poster; the current stage is emphasised. */
 export function ArcStepper({ current }: { current: ArcStage }) {

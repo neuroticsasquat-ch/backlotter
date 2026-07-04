@@ -8,13 +8,20 @@ export default [
     index("routes/feed.tsx"),
     route("calendar", "routes/calendar.tsx"),
     route("film/:slug", "routes/film.tsx"),
+    route("terms", "routes/terms.tsx"),
+    route("privacy", "routes/privacy.tsx"),
   ]),
 
   layout("routes/spa-layout.tsx", [
     route("login", "pages/Login.tsx"),
     route("signup", "pages/Signup.tsx"),
     layout("components/RequireAuth.tsx", [
-      layout("components/RequireAdmin.tsx", [route("admin/ingest", "pages/AdminIngest.tsx")]),
+      layout("components/RequireAdmin.tsx", [
+        layout("components/layout/AdminLayout.tsx", [
+          route("admin/ingest", "pages/AdminIngest.tsx"),
+          route("admin/sources", "pages/AdminSources.tsx"),
+        ]),
+      ]),
     ]),
   ]),
 ] satisfies RouteConfig;

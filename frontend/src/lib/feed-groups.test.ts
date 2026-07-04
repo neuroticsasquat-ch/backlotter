@@ -40,7 +40,14 @@ describe("groupByDay", () => {
 });
 
 function event(created_at: string, summary: string): FilmEvent {
-  return { event_type: "casting", confidence: "confirmed", created_at, summary, sources: [] };
+  return {
+    event_id: "evt-default",
+    event_type: "casting",
+    confidence: "confirmed",
+    created_at,
+    summary,
+    sources: [],
+  };
 }
 
 describe("groupEventsByDay", () => {

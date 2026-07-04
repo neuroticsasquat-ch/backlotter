@@ -2,6 +2,8 @@ import { RouterContextProvider, createRoutesStub } from "react-router";
 import { render, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider } from "@/components/AuthContext";
 import { server } from "@/test/msw/server";
 import { cloudflareContext } from "@/lib/load-context";
 import FilmPage, { ErrorBoundary, loader, meta } from "@/routes/film";
@@ -15,9 +17,10 @@ const film: FilmDetail = {
   release_date: "2026-07-17",
   release_year: 2026,
   poster_path: "/poster.jpg",
-  arc_stage: "trailer",
+  arc_stage: "wrapped",
   events: [
     {
+      event_id: "evt-1",
       event_type: "casting",
       confidence: "confirmed",
       created_at: "2025-01-01T00:00:00Z",
@@ -27,6 +30,7 @@ const film: FilmDetail = {
       ],
     },
     {
+      event_id: "evt-2",
       event_type: "trailer",
       confidence: "rumored",
       created_at: "2026-06-01T00:00:00Z",
@@ -50,7 +54,9 @@ const film: FilmDetail = {
     { name: "Timothée Chalamet", character: "Telemachus", profile_path: "/tchalamet.jpg" },
     { name: "Cate Blanchett", character: null, profile_path: null },
   ],
-  directors: ["Christopher Nolan"],
+  crew: [{ name: "Christopher Nolan", job: "Director", department: "Directing" }],
+  tmdb_id: 603,
+  imdb_id: "tt0133093",
 };
 
 function contextWithEnv() {
@@ -106,6 +112,7 @@ describe("film route meta", () => {
       ...film,
       events: [
         {
+          event_id: "evt-3",
           event_type: "trailer",
           confidence: "confirmed",
           created_at: "2026-06-01T00:00:00Z",
@@ -113,6 +120,7 @@ describe("film route meta", () => {
           sources: [],
         },
         {
+          event_id: "evt-4",
           event_type: "casting",
           confidence: "confirmed",
           created_at: "2025-01-01T00:00:00Z",
@@ -129,12 +137,27 @@ describe("film route meta", () => {
   });
 });
 
+/** Wraps a Stub (from createRoutesStub) with the providers EventCard needs
+ *  (QueryClientProvider + AuthProvider). The Stub already provides data-router context,
+ *  so useRevalidator resolves; useAuth resolves via the AuthProvider + QueryClient.
+ *  Default MSW /me returns 401 → user=null → isAdmin=false, so admin controls stay hidden. */
+function renderStub(Stub: React.ComponentType<{ initialEntries: string[] }>, path: string) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={qc}>
+      <AuthProvider>
+        <Stub initialEntries={[path]} />
+      </AuthProvider>
+    </QueryClientProvider>,
+  );
+}
+
 describe("film route render", () => {
   it("renders the arc, the timeline newest-first, and outbound source links", async () => {
     const Stub = createRoutesStub([
       { path: "/film/:slug", Component: FilmPage, loader: () => ({ film }) },
     ]);
-    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    renderStub(Stub, "/film/the-odyssey-2026");
 
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
     expect(screen.getByText("Released")).toBeInTheDocument(); // ArcStepper renders all 7 labels; "Released" is always present
@@ -154,7 +177,7 @@ describe("film route render", () => {
         loader: () => ({ film: { ...film, events: [] } }),
       },
     ]);
-    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    renderStub(Stub, "/film/the-odyssey-2026");
     expect(await screen.findByText(/no updates yet/i)).toBeInTheDocument();
   });
 
@@ -169,7 +192,7 @@ describe("film route render", () => {
         },
       },
     ]);
-    render(<Stub initialEntries={["/film/missing"]} />);
+    renderStub(Stub, "/film/missing");
     expect(await screen.findByText(/film not found/i)).toBeInTheDocument();
   });
 
@@ -189,7 +212,7 @@ describe("film route render", () => {
     const Stub = createRoutesStub([
       { path: "/film/:slug", Component: FilmPage, loader: () => ({ film: filmWithDates }) },
     ]);
-    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    renderStub(Stub, "/film/the-odyssey-2026");
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
     expect(screen.getByText("Theatrical (limited)")).toBeInTheDocument();
     expect(screen.getByText("Jun 25, 2026")).toBeInTheDocument();
@@ -199,7 +222,7 @@ describe("film route render", () => {
     const Stub = createRoutesStub([
       { path: "/film/:slug", Component: FilmPage, loader: () => ({ film }) },
     ]);
-    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    renderStub(Stub, "/film/the-odyssey-2026");
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /release dates/i })).toBeNull();
     expect(screen.getByText("Released")).toBeInTheDocument(); // ArcStepper still renders
@@ -209,9 +232,9 @@ describe("film route render", () => {
     const Stub = createRoutesStub([
       { path: "/film/:slug", Component: FilmPage, loader: () => ({ film }) },
     ]);
-    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    renderStub(Stub, "/film/the-odyssey-2026");
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
-    expect(screen.getByText(/Christopher Nolan/)).toBeInTheDocument(); // director now in FilmHeader
+    expect(screen.getAllByText("Christopher Nolan").length).toBeGreaterThanOrEqual(2); // director now in FilmHeader + FilmCrew
     expect(screen.getByRole("heading", { name: "Cast" })).toBeInTheDocument();
     expect(screen.getByText("Timothée Chalamet")).toBeInTheDocument();
     expect(screen.getByText(/Telemachus/)).toBeInTheDocument();
@@ -222,10 +245,10 @@ describe("film route render", () => {
       {
         path: "/film/:slug",
         Component: FilmPage,
-        loader: () => ({ film: { ...film, cast: [], directors: [] } }),
+        loader: () => ({ film: { ...film, cast: [], crew: [] } }),
       },
     ]);
-    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+    renderStub(Stub, "/film/the-odyssey-2026");
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Cast" })).toBeNull();
     expect(screen.queryByText("Timothée Chalamet")).toBeNull();

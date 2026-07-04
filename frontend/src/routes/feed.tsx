@@ -20,7 +20,7 @@ export async function loader({ context }: Route.LoaderArgs) {
 }
 
 export function meta({ location }: Route.MetaArgs): Route.MetaDescriptors {
-  // No page title → the tab reads the brand lockup "backlotter — production log".
+  // No page title → the tab reads "production log — backlotter".
   return buildMeta({
     description:
       "The latest casting, trailers, release dates, and production updates across every movie we track.",

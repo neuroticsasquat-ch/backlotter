@@ -17,7 +17,7 @@ describe("buildMeta", () => {
     });
     expect(tags).toContainEqual({ property: "og:description", content: "Epic seafaring." });
     expect(tags).toContainEqual({ property: "og:type", content: "website" });
-    expect(tags).toContainEqual({ property: "og:site_name", content: "BackLotter" });
+    expect(tags).toContainEqual({ property: "og:site_name", content: "backlotter" });
     expect(tags).toContainEqual({ name: "twitter:card", content: "summary" });
 
     const canonical = tags.find((t) => "tagName" in t && t.tagName === "link") as
@@ -42,7 +42,7 @@ describe("buildMeta", () => {
 
   it("falls back to the site name and default description when omitted", () => {
     const tags = buildMeta({ pathname: "/" });
-    expect(tags).toContainEqual({ title: "backlotter — production log" });
+    expect(tags).toContainEqual({ title: "production log — backlotter" });
     expect(tags.some((t) => "name" in t && t.name === "description")).toBe(true);
     expect(tags.find((t) => "property" in t && t.property === "og:image")).toBeUndefined();
   });

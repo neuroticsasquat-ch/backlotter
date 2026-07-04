@@ -19,6 +19,9 @@ const calendarTwoDates: CalendarResponse = {
       poster_path: "/odyssey.jpg",
       release_date: "2026-07-04",
       release_type: "wide",
+      director: null,
+      stars: [],
+      genres: [],
     },
     {
       film_slug: "dune-3-2026",
@@ -27,6 +30,9 @@ const calendarTwoDates: CalendarResponse = {
       poster_path: null,
       release_date: "2026-07-04",
       release_type: "limited",
+      director: null,
+      stars: [],
+      genres: [],
     },
     {
       film_slug: "avatar-3-2026",
@@ -35,6 +41,9 @@ const calendarTwoDates: CalendarResponse = {
       poster_path: "/avatar3.jpg",
       release_date: "2026-07-11",
       release_type: "wide",
+      director: null,
+      stars: [],
+      genres: [],
     },
   ],
   total: 2, // two distinct dates (pagination counts dates, not film rows)
@@ -98,7 +107,7 @@ describe("calendar route render", () => {
     expect(screen.getAllByText("Wide").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Limited")).toBeInTheDocument();
 
-    // Title(year) rows link to /film/{slug} — no poster images in the list format
+    // Title(year) rows link to /film/{slug}; rows with a poster_path render a thumbnail
     const odyssey = screen.getByRole("link", { name: /The Odyssey/ });
     expect(odyssey).toHaveAttribute("href", "/film/the-odyssey-2026");
     expect(odyssey.textContent).toContain("(2026)");
@@ -110,7 +119,8 @@ describe("calendar route render", () => {
       "href",
       "/film/avatar-3-2026",
     );
-    expect(screen.queryByRole("img")).toBeNull();
+    // Two of the three rows have poster_path set — expect two thumbnail images
+    expect(screen.getAllByRole("img")).toHaveLength(2);
 
     // Soonest-first DOM order: July 4 heading appears before July 11 heading
     const timeEls = container.querySelectorAll("time");
@@ -154,6 +164,49 @@ describe("calendar route render", () => {
     ]);
     render(<Stub initialEntries={["/calendar"]} />);
     expect(await screen.findByText(/no upcoming releases yet/i)).toBeInTheDocument();
+  });
+
+  it("renders year and month headings for multi-month data", async () => {
+    const multiMonth: CalendarResponse = {
+      items: [
+        {
+          film_slug: "film-june",
+          film_title: "June Film",
+          release_year: 2026,
+          poster_path: null,
+          release_date: "2026-06-20",
+          release_type: "wide",
+          director: null,
+          stars: [],
+          genres: [],
+        },
+        {
+          film_slug: "film-july",
+          film_title: "July Film",
+          release_year: 2026,
+          poster_path: null,
+          release_date: "2026-07-04",
+          release_type: "wide",
+          director: null,
+          stars: [],
+          genres: [],
+        },
+      ],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    };
+    const Stub = createRoutesStub([
+      {
+        path: "/calendar",
+        Component: CalendarPage,
+        loader: () => ({ calendar: multiMonth }),
+      },
+      { path: "/film/:slug", Component: () => null },
+    ]);
+    render(<Stub initialEntries={["/calendar"]} />);
+    expect(await screen.findByRole("heading", { name: "2026" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "June" })).toBeInTheDocument();
   });
 
   it("error boundary renders neutral copy and a link home", async () => {

@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@fontsource-variable/jetbrains-mono";
 @plugin "tailwindcss-animate";
+@plugin "@tailwindcss/typography";
 
 /* Single dark palette for everyone — the app ships one (dark) design regardless of the
    user's OS color-scheme preference. Simpler QC for the MVP; no light theme to maintain. */

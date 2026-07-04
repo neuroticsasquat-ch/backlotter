@@ -39,14 +39,7 @@ export interface IngestRun {
   llm_usage: LlmStageUsage[];
 }
 
-export type ArcStage =
-  | "announced"
-  | "cast"
-  | "shooting"
-  | "wrapped"
-  | "dated"
-  | "trailer"
-  | "released";
+export type ArcStage = "announced" | "shooting" | "wrapped" | "released";
 
 export interface FilmSource {
   url: string;
@@ -56,11 +49,18 @@ export interface FilmSource {
 }
 
 export interface FilmEvent {
+  event_id: string;
   event_type: string;
   confidence: string; // "confirmed" | "rumored" (backend free text; rendered via a map)
   created_at: string;
   summary: string;
   sources: FilmSource[];
+}
+
+export interface DelinkResponse {
+  delinked: number;
+  event_removed: boolean;
+  resummarize_queued: boolean;
 }
 
 export interface FilmCollection {
@@ -81,9 +81,17 @@ export interface CastMember {
   profile_path: string | null; // raw TMDB path; FE builds the URL via profileUrl()
 }
 
+export interface CrewMember {
+  name: string;
+  job: string | null;
+  department: string | null;
+}
+
 export interface FilmDetail {
   slug: string;
   title: string;
+  tmdb_id: number;
+  imdb_id: string | null;
   release_date: string | null;
   release_year: number | null;
   poster_path: string | null;
@@ -102,7 +110,7 @@ export interface FilmDetail {
   release_dates: ReleaseDate[];
   alternative_titles: string[];
   cast: CastMember[];
-  directors: string[];
+  crew: CrewMember[];
 }
 
 export interface FeedDayItem {
@@ -144,6 +152,9 @@ export interface CalendarItem {
   poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()
   release_date: string; // "YYYY-MM-DD" (US date)
   release_type: string; // bucket: "premiere" | "limited" | "wide" — rendered via releaseBucketLabel
+  director: string | null; // credited director(s), joined with ", "
+  stars: string[]; // first 3 billed cast names
+  genres: string[]; // up to 3 genre names
 }
 
 export interface CalendarResponse {
@@ -151,4 +162,18 @@ export interface CalendarResponse {
   total: number;
   limit: number;
   offset: number;
+}
+
+export type SourceTier = "trusted" | "acceptable" | "low";
+export type SourceOverride = "none" | "block" | "allow" | "trust";
+
+/** One resolved publisher domain in the source-quality gate (NEU-454). `llm_tier` is the
+ *  cached LLM verdict (null until judged); `admin_override` is the human lever that wins
+ *  over it. Mirrors the backend `SourceDomainOut`. */
+export interface SourceDomain {
+  domain: string;
+  llm_tier: SourceTier | null;
+  llm_reason: string | null;
+  admin_override: SourceOverride;
+  updated_at: string;
 }

@@ -8,6 +8,8 @@ import { posterUrl } from "@/lib/poster";
 import { truncate } from "@/lib/format";
 import { FilmHeader } from "@/components/film/FilmHeader";
 import { FilmCredits } from "@/components/film/FilmCredits";
+import { FilmCrew } from "@/components/film/FilmCrew";
+import { FilmPlot } from "@/components/film/FilmPlot";
 import { ProductionCompanies } from "@/components/film/ProductionCompanies";
 import { ReleaseDates } from "@/components/film/ReleaseDates";
 import { EventTimeline } from "@/components/film/EventTimeline";
@@ -52,7 +54,9 @@ export default function FilmPage({ loaderData }: Route.ComponentProps) {
       <FilmHeader film={film} />
       <div className="mt-6">
         <ReleaseDates dates={film.release_dates} />
+        <FilmPlot overview={film.overview} />
         <FilmCredits cast={film.cast} />
+        <FilmCrew crew={film.crew} />
         <ProductionCompanies companies={film.production_companies} />
         <EventTimeline events={film.events} />
       </div>
