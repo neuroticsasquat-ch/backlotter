@@ -54,6 +54,7 @@ export interface FilmEvent {
   confidence: string; // "confirmed" | "rumored" (backend free text; rendered via a map)
   created_at: string;
   summary: string;
+  summary_edited: boolean;
   sources: FilmSource[];
 }
 
@@ -61,6 +62,12 @@ export interface DelinkResponse {
   delinked: number;
   event_removed: boolean;
   resummarize_queued: boolean;
+}
+
+export interface EditSummaryResponse {
+  summary: string;
+  edited: boolean;
+  edited_at: string | null;
 }
 
 export interface FilmCollection {
