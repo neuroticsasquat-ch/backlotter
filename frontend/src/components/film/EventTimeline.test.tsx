@@ -13,6 +13,7 @@ function makeEvent(overrides: Partial<FilmEvent>): FilmEvent {
     confidence: "confirmed",
     created_at: "2025-01-01T00:00:00Z",
     summary: "Summary.",
+    summary_edited: false,
     sources: [],
     ...overrides,
   };

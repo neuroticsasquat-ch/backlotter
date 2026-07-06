@@ -46,6 +46,7 @@ function event(created_at: string, summary: string): FilmEvent {
     confidence: "confirmed",
     created_at,
     summary,
+    summary_edited: false,
     sources: [],
   };
 }

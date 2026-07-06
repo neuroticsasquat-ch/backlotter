@@ -25,6 +25,7 @@ const film: FilmDetail = {
       confidence: "confirmed",
       created_at: "2025-01-01T00:00:00Z",
       summary: "Casting announced.",
+      summary_edited: false,
       sources: [
         { url: "https://deadline.com/a", source: "Deadline", title: "Cast", published_at: null },
       ],
@@ -35,6 +36,7 @@ const film: FilmDetail = {
       confidence: "rumored",
       created_at: "2026-06-01T00:00:00Z",
       summary: "Trailer dropped.",
+      summary_edited: false,
       sources: [],
     },
   ],
@@ -117,6 +119,7 @@ describe("film route meta", () => {
           confidence: "confirmed",
           created_at: "2026-06-01T00:00:00Z",
           summary: "Newest: trailer dropped.",
+          summary_edited: false,
           sources: [],
         },
         {
@@ -125,6 +128,7 @@ describe("film route meta", () => {
           confidence: "confirmed",
           created_at: "2025-01-01T00:00:00Z",
           summary: "Oldest: casting announced.",
+          summary_edited: false,
           sources: [],
         },
       ],
