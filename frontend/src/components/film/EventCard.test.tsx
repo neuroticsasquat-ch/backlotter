@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createMemoryRouter } from "react-router";
@@ -17,12 +17,14 @@ const event: FilmEvent = {
   confidence: "confirmed",
   created_at: "2026-06-30T00:00:00Z",
   summary: "Bogus recast.",
+  summary_edited: false,
   sources: [{ url: "https://x.test/a", source: "ScreenRant", title: "t", published_at: null }],
 };
 
-function renderCard() {
+function renderCard(overrides: Partial<FilmEvent> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const router = createMemoryRouter([{ path: "/", element: <EventCard event={event} /> }]);
+  const cardEvent = { ...event, ...overrides };
+  const router = createMemoryRouter([{ path: "/", element: <EventCard event={cardEvent} /> }]);
   render(
     <QueryClientProvider client={qc}>
       <AuthProvider>
@@ -61,5 +63,72 @@ it("delinks a source and revalidates for an admin", async () => {
   renderCard();
   const btn = await screen.findByRole("button", { name: /delink ScreenRant/i });
   await userEvent.click(btn);
+  await waitFor(() => expect(called).toBe(true));
+});
+
+it("hides edit and reset controls for non-admins (edited badge still shows)", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard({ summary_edited: true });
+  await waitFor(() => expect(screen.getByText("Bogus recast.")).toBeInTheDocument());
+  expect(screen.queryByRole("button", { name: /^edit$/i })).toBeNull();
+  expect(screen.queryByRole("button", { name: /reset to ai/i })).toBeNull();
+  expect(screen.getByText("edited")).toBeInTheDocument();
+});
+
+it("shows the edited badge and Reset to AI only when summary_edited is true", async () => {
+  server.use(meHandler({ is_admin: true }));
+  renderCard({ summary_edited: true });
+  await screen.findByText("Bogus recast.");
+  expect(screen.getByText("edited")).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: /reset to ai/i })).toBeInTheDocument();
+});
+
+it("hides Reset to AI when the summary has never been edited", async () => {
+  server.use(meHandler({ is_admin: true }));
+  renderCard({ summary_edited: false });
+  await screen.findByText("Bogus recast.");
+  expect(screen.queryByText("edited")).toBeNull();
+  expect(screen.queryByRole("button", { name: /reset to ai/i })).toBeNull();
+});
+
+it("edits the summary and shows the new text and edited badge", async () => {
+  server.use(meHandler({ is_admin: true }));
+  let receivedBody: unknown = null;
+  server.use(
+    http.patch(`${env.apiBaseUrl}/admin/events/evt-1/summary`, async ({ request }) => {
+      receivedBody = await request.json();
+      return HttpResponse.json({
+        summary: "Updated summary.",
+        edited: true,
+        edited_at: "2026-07-06T00:00:00Z",
+      });
+    }),
+  );
+  renderCard();
+  await screen.findByText("Bogus recast.");
+  await userEvent.click(await screen.findByRole("button", { name: /^edit$/i }));
+  const textarea = await screen.findByRole("textbox");
+  await userEvent.clear(textarea);
+  await userEvent.type(textarea, "Updated summary.");
+  await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
+  expect(receivedBody).toEqual({ summary: "Updated summary." });
+  await waitFor(() => expect(screen.getByText("Updated summary.")).toBeInTheDocument());
+  expect(screen.getByText("edited")).toBeInTheDocument();
+});
+
+it("resets the summary to AI after confirmation", async () => {
+  server.use(meHandler({ is_admin: true }));
+  let called = false;
+  server.use(
+    http.delete(`${env.apiBaseUrl}/admin/events/evt-1/summary`, () => {
+      called = true;
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+  renderCard({ summary_edited: true });
+  await screen.findByText("Bogus recast.");
+  await userEvent.click(await screen.findByRole("button", { name: /reset to ai/i }));
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: /reset to ai/i }));
   await waitFor(() => expect(called).toBe(true));
 });

@@ -53,3 +53,17 @@ Before claiming work done, `task test`, `task lint`, `task typecheck` must be gr
 ## Commits / PRs
 
 Conventional commits with the Linear ID as a trailing parenthetical: `feat: add X (NEU-123)`. Keep the `🤖 Generated with Claude Code` footer; **no** `Co-Authored-By`. The GitHub↔Linear connector moves ticket status automatically — don't touch it. Branch per ticket (Linear gives the branch name).
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live in **Linear** (team Neuroticsasquatch, initiative "Upcoming Movies Tracker", `NEU-###` tickets) via the Linear MCP; a GitHub↔Linear connector moves workflow state automatically. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles map to same-named **Linear labels** (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), applied on top of workflow state. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+**Single-context**: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
