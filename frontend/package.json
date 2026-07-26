@@ -48,7 +48,7 @@
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4",
     "@testing-library/dom": "^10.4.0",
-    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
     "@types/dompurify": "^3.2.0",
