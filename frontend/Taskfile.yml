@@ -58,7 +58,7 @@ tasks:
       - "{{.COMPOSE}} exec {{.SVC}} pnpm test:watch {{.CLI_ARGS}}"
 
   lint:
-    desc: Run eslint
+    desc: Run oxlint
     cmds:
       - "{{.EXEC}} pnpm lint"
 
