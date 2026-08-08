@@ -4,6 +4,65 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [0.2.0] - 2026-08-08
+
+### Features
+
+- **calendar:** Show poster and metadata in calendar film rows (NEU-437)
+- Add Terms of Service and Privacy Policy pages
+- Add neuroticsasquat.ch release credit to footer
+- Add admin delink controls to the film page (NEU-441)
+- **labels:** Add First look label for first_look event type (NEU-447)
+- **film:** Trim ArcStepper to 4 reachable stages (NEU-458)
+- Add source-domain types and admin API client (NEU-456)
+- Add admin Sources page with layout tabs (NEU-456)
+- Wire optimistic source override mutation (NEU-456)
+- Add search and tier/override filters to Sources page (NEU-456)
+- Add default and column sorting to Sources page (NEU-456)
+- Add 'Hide blocked' filter to admin Sources page
+- Inline admin edit + reset-to-AI for event summaries (NEU-540)
+- **feed:** Lead each day with its top film's poster ([#79](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/79))
+
+### Bug Fixes
+
+- Swap default title order to production log — backlotter for iMessage previews
+- Correct wordmark split — backlot foreground, ter muted
+
+### Documentation
+
+- Name sole proprietor on first reference in legal docs
+
+### Styling
+
+- Lowercase SITE_NAME to backlotter and shift wordmark highlight to backlot
+
+### Testing
+
+- Add combined-filter test and document mutation rollback caveat (NEU-456)
+
+### Build System
+
+- **deps:** Bump the minor-and-patch group with 26 updates
+- **deps-dev:** Bump @cloudflare/workers-types
+- **deps:** Bump the minor-and-patch group with 21 updates ([#59](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/59))
+- **deps:** Bump the minor-and-patch group with 11 updates
+- **deps:** Bump the minor-and-patch group with 23 updates ([#66](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/66))
+- **deps-dev:** Bump @testing-library/jest-dom from 6.9.1 to 7.0.0 ([#68](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/68))
+- **deps-dev:** Bump @cloudflare/workers-types ([#67](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/67))
+- **deps:** Bump the minor-and-patch group with 7 updates ([#71](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/71))
+- **deps-dev:** Bump jsdom from 29.1.1 to 30.0.1 ([#72](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/72))
+- **deps:** Bump the minor-and-patch group with 12 updates
+
+### CI
+
+- **deps:** Bump actions/checkout from 6 to 7
+- **deps:** Bump actions/setup-node from 6 to 7
+
+### Miscellaneous
+
+- Scaffold agent-skills config (Linear tracker, triage labels, domain docs)
+- Replace eslint with oxlint ([#74](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/74))
+
 ## [0.1.1] - 2026-06-27
 
 ### Features
