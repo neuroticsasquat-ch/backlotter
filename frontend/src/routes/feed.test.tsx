@@ -77,7 +77,9 @@ describe("feed route render", () => {
     const Stub = createRoutesStub([{ path: "/", Component: FeedPage, loader: () => ({ feed }) }]);
     render(<Stub initialEntries={["/"]} />);
 
-    expect(await screen.findByRole("heading", { name: "Latest Updates" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Latest Updates for Upcoming Movies" }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
     expect(screen.getByText(/June 22, 2026/)).toBeInTheDocument();
 
@@ -85,6 +87,16 @@ describe("feed route render", () => {
     expect(odyssey).toHaveAttribute("href", "/film/the-odyssey-2026");
     const dune = screen.getByRole("link", { name: /Dune Part Three/ });
     expect(dune).toHaveAttribute("href", "/film/dune-3-2026");
+  });
+
+  it("leads each day with the poster of its first film that has one", async () => {
+    const Stub = createRoutesStub([{ path: "/", Component: FeedPage, loader: () => ({ feed }) }]);
+    render(<Stub initialEntries={["/"]} />);
+
+    // June 23 leads with The Odyssey's poster; June 22's only film has none, so no image.
+    const posters = await screen.findAllByRole("img");
+    expect(posters).toHaveLength(1);
+    expect(posters[0].getAttribute("src")).toContain("/w92/odyssey.jpg");
   });
 
   it("shows the empty state when there are no updates", async () => {

@@ -8,6 +8,7 @@ import { env } from "@/env";
 import { buildMeta } from "@/lib/seo";
 import { groupByDay } from "@/lib/feed-groups";
 import { FeedDayCard } from "@/components/feed/FeedDayCard";
+import { FeedDayPoster } from "@/components/feed/FeedDayPoster";
 
 // How many days the feed shows per page. "View more" fetches the next page of days
 // (manual — never auto-loads — so the footer stays reachable).
@@ -57,7 +58,7 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-semibold">Latest Updates</h1>
+      <h1 className="text-2xl font-semibold">Latest Updates for Upcoming Movies</h1>
       {groups.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">No updates yet — check back soon.</p>
       ) : (
@@ -71,39 +72,42 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
                   <h2 className="text-sm font-medium text-muted-foreground">
                     <time dateTime={group.dayKey}>{group.heading}</time>
                   </h2>
-                  <div className="mt-2 border-l-2 border-border pl-3">
-                    <div>
-                      {visible.map((item) => (
-                        <FeedDayCard key={item.film_slug} item={item} />
-                      ))}
+                  <div className="mt-2 flex gap-3 border-l-2 border-border pl-3">
+                    <FeedDayPoster items={group.items} />
+                    <div className="min-w-0 flex-1">
+                      <div>
+                        {visible.map((item) => (
+                          <FeedDayCard key={item.film_slug} item={item} />
+                        ))}
+                      </div>
+                      {hidden.length > 0 && (
+                        <details className="group">
+                          <summary className="flex cursor-pointer list-none items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 [&::-webkit-details-marker]:hidden">
+                            <svg
+                              aria-hidden="true"
+                              viewBox="0 0 24 24"
+                              className="h-3.5 w-3.5 transition-transform duration-200 group-open:rotate-90"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="9 6 15 12 9 18" />
+                            </svg>
+                            <span className="group-open:hidden">
+                              Show all {group.items.length} updates
+                            </span>
+                            <span className="hidden group-open:inline">Show fewer</span>
+                          </summary>
+                          <div>
+                            {hidden.map((item) => (
+                              <FeedDayCard key={item.film_slug} item={item} />
+                            ))}
+                          </div>
+                        </details>
+                      )}
                     </div>
-                    {hidden.length > 0 && (
-                      <details className="group">
-                        <summary className="flex cursor-pointer list-none items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 [&::-webkit-details-marker]:hidden">
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 24 24"
-                            className="h-3.5 w-3.5 transition-transform duration-200 group-open:rotate-90"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="9 6 15 12 9 18" />
-                          </svg>
-                          <span className="group-open:hidden">
-                            Show all {group.items.length} updates
-                          </span>
-                          <span className="hidden group-open:inline">Show fewer</span>
-                        </summary>
-                        <div>
-                          {hidden.map((item) => (
-                            <FeedDayCard key={item.film_slug} item={item} />
-                          ))}
-                        </div>
-                      </details>
-                    )}
                   </div>
                 </section>
               );
