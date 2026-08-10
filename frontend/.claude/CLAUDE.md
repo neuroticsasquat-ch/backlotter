@@ -4,8 +4,9 @@ React + TypeScript SPA for the Upcoming Movies Tracker. Vite, react-router, TanS
 
 ## Linear
 
-- `linear_initiative`: Upcoming Movies Tracker
+- `linear_initiative`: backlotter
 - `linear_team`: Neuroticsasquatch
+- `loop_base`: release/v0.3.0
 
 ## Golden rule: everything runs in the container via `task`
 
