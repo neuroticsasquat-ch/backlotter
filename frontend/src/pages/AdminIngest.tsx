@@ -7,7 +7,19 @@ const KIND_LABELS: Record<IngestRunKind, string> = {
   feeds: "Feeds",
   link: "Link",
   synthesize: "Synthesize",
+  sweep: "Sweep",
 };
+
+/** The backend's `kind` is a bare string; `IngestRunKind` is only our local model of it, so a
+ *  deploy can serve a kind this build predates. Fall back to the raw value — a readable cell
+ *  beats the blank one an unmatched lookup would otherwise render. The `Record<IngestRunKind,
+ *  string>` above still forces every *known* kind to be given a label.
+ *
+ *  `Object.hasOwn` rather than a bare lookup: an object literal inherits `Object.prototype`, so
+ *  a kind named `constructor` or `toString` would resolve to a function and render as nothing. */
+function kindLabel(kind: string): string {
+  return Object.hasOwn(KIND_LABELS, kind) ? KIND_LABELS[kind as IngestRunKind] : kind;
+}
 
 const STATUS_STYLES: Record<IngestRunStatus, string> = {
   running: "bg-blue-100 text-blue-800",
@@ -115,7 +127,7 @@ export function AdminIngest() {
           <tbody>
             {runs.map((run) => (
               <tr key={run.id} className="border-b align-top">
-                <td className="py-2 pr-4">{KIND_LABELS[run.kind]}</td>
+                <td className="py-2 pr-4">{kindLabel(run.kind)}</td>
                 <td className="py-2 pr-4">
                   <StatusBadge status={run.status} />
                 </td>
