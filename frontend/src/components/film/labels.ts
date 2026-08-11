@@ -11,6 +11,14 @@ export const ARC_STAGE_LABELS: Record<ArcStage, string> = {
   released: "Released",
 };
 
+/** Display label for a film's arc stage, for use where a null release year would leave a
+ *  hole. Falls back to "Announced" for a stage the frontend doesn't know — the backend
+ *  derives the same default for an unmapped or absent TMDB status, and rendering nothing
+ *  here would put an empty "()" on screen. */
+export function arcStageLabel(stage: ArcStage): string {
+  return ARC_STAGE_LABELS[stage] ?? ARC_STAGE_LABELS.announced;
+}
+
 const EVENT_TYPE_LABELS: Record<string, string> = {
   announced: "Announced",
   casting: "Casting",

@@ -130,6 +130,7 @@ export interface FeedDayItem {
   film_title: string;
   release_year: number | null;
   poster_path: string | null;
+  arc_stage: ArcStage; // mirrors the backend; rendered in place of the year for an undated film
   day: string; // "YYYY-MM-DD" (UTC); one row per film per day
   top_event_type: string; // raw event_type, rendered via eventTypeLabel
   event_count: number;
@@ -147,7 +148,7 @@ export interface FilmIndexItem {
   title: string;
   release_year: number | null;
   poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()
-  arc_stage: ArcStage; // mirrors the backend; not rendered in search results yet (reserved for a future badge)
+  arc_stage: ArcStage; // mirrors the backend; rendered in place of the year for an undated film
 }
 
 export interface FilmIndexResponse {
