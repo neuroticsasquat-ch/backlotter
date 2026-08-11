@@ -58,6 +58,7 @@ const sampleGrouped: FeedDayResponse = {
       film_title: "The Odyssey",
       release_year: 2026,
       poster_path: "/poster.jpg",
+      arc_stage: "shooting",
       day: "2026-06-23",
       top_event_type: "casting",
       event_count: 2,

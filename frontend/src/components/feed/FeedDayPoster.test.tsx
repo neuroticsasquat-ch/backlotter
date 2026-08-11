@@ -9,6 +9,7 @@ function item(overrides: Partial<FeedDayItem> = {}): FeedDayItem {
     film_title: "The Odyssey",
     release_year: 2026,
     poster_path: "/odyssey.jpg",
+    arc_stage: "shooting",
     day: "2026-06-23",
     top_event_type: "trailer",
     event_count: 1,

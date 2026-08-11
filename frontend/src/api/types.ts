@@ -7,7 +7,7 @@ export interface AuthedUser {
   csrf_token: string;
 }
 
-export type IngestRunKind = "tmdb" | "feeds" | "link" | "synthesize";
+export type IngestRunKind = "tmdb" | "feeds" | "link" | "synthesize" | "sweep";
 export type IngestRunStatus = "running" | "succeeded" | "failed" | "cancelled";
 
 export type LlmStage = "link" | "cluster" | "summarize";
@@ -48,6 +48,10 @@ export interface FilmSource {
   published_at: string | null;
 }
 
+/** Where an event came from. A `catalog` event was raised by a TMDB field or credit
+ *  change with no story behind it, so its `sources` may legitimately be empty. */
+export type EventProvenance = "story" | "catalog";
+
 export interface FilmEvent {
   event_id: string;
   event_type: string;
@@ -55,6 +59,7 @@ export interface FilmEvent {
   created_at: string;
   summary: string;
   summary_edited: boolean;
+  provenance: EventProvenance;
   sources: FilmSource[];
 }
 
@@ -125,6 +130,7 @@ export interface FeedDayItem {
   film_title: string;
   release_year: number | null;
   poster_path: string | null;
+  arc_stage: ArcStage; // mirrors the backend; rendered in place of the year for an undated film
   day: string; // "YYYY-MM-DD" (UTC); one row per film per day
   top_event_type: string; // raw event_type, rendered via eventTypeLabel
   event_count: number;
@@ -142,7 +148,7 @@ export interface FilmIndexItem {
   title: string;
   release_year: number | null;
   poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()
-  arc_stage: ArcStage; // mirrors the backend; not rendered in search results yet (reserved for a future badge)
+  arc_stage: ArcStage; // mirrors the backend; rendered in place of the year for an undated film
 }
 
 export interface FilmIndexResponse {

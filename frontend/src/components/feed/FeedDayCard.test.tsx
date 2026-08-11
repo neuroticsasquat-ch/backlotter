@@ -9,6 +9,7 @@ const item: FeedDayItem = {
   film_title: "The Odyssey",
   release_year: 2026,
   poster_path: "/odyssey.jpg",
+  arc_stage: "shooting",
   day: "2026-06-23",
   top_event_type: "release_date",
   event_count: 1,
@@ -31,9 +32,16 @@ describe("FeedDayCard", () => {
     expect(screen.getByText("(2026)")).toBeInTheDocument();
   });
 
-  it("omits the year when it is null", () => {
-    renderCard({ release_year: null });
+  it("renders the arc-stage label in place of the year when the film is undated", () => {
+    renderCard({ release_year: null, arc_stage: "announced" });
     expect(screen.queryByText(/\(\d{4}\)/)).toBeNull();
+    expect(screen.getByText("(Announced)")).toBeInTheDocument();
+  });
+
+  it("keeps the year and omits the arc-stage label for a dated film", () => {
+    renderCard();
+    expect(screen.getByText("(2026)")).toBeInTheDocument();
+    expect(screen.queryByText("(Shooting)")).toBeNull();
   });
 
   it("renders no poster image", () => {

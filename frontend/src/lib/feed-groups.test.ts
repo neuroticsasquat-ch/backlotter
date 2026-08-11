@@ -8,6 +8,7 @@ function item(day: string, film_slug: string, event_count = 1): FeedDayItem {
     film_title: film_slug.toUpperCase(),
     release_year: 2026,
     poster_path: null,
+    arc_stage: "shooting",
     day,
     top_event_type: "casting",
     event_count,
@@ -47,6 +48,7 @@ function event(created_at: string, summary: string): FilmEvent {
     created_at,
     summary,
     summary_edited: false,
+    provenance: "story",
     sources: [],
   };
 }
