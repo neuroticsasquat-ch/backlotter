@@ -47,6 +47,7 @@ function event(created_at: string, summary: string): FilmEvent {
     created_at,
     summary,
     summary_edited: false,
+    provenance: "story",
     sources: [],
   };
 }

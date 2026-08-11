@@ -18,6 +18,7 @@ const event: FilmEvent = {
   created_at: "2026-06-30T00:00:00Z",
   summary: "Bogus recast.",
   summary_edited: false,
+  provenance: "story",
   sources: [{ url: "https://x.test/a", source: "ScreenRant", title: "t", published_at: null }],
 };
 
@@ -131,4 +132,27 @@ it("resets the summary to AI after confirmation", async () => {
   const dialog = await screen.findByRole("dialog");
   await userEvent.click(within(dialog).getByRole("button", { name: /reset to ai/i }));
   await waitFor(() => expect(called).toBe(true));
+});
+
+it("attributes a source-less catalog event to TMDB", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard({ event_type: "crew_attached", provenance: "catalog", sources: [] });
+  await screen.findByText("Bogus recast.");
+  expect(screen.getByText("via TMDB")).toBeInTheDocument();
+  expect(screen.getByText("Crew attached")).toBeInTheDocument();
+});
+
+it("shows the outlets, not the TMDB fallback, on a catalog event that has gained sources", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard({ provenance: "catalog" });
+  await screen.findByText("Bogus recast.");
+  expect(screen.getByRole("link", { name: "ScreenRant" })).toBeInTheDocument();
+  expect(screen.queryByText("via TMDB")).toBeNull();
+});
+
+it("leaves an ordinary story event unattributed to TMDB", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard({ sources: [] });
+  await screen.findByText("Bogus recast.");
+  expect(screen.queryByText("via TMDB")).toBeNull();
 });

@@ -48,6 +48,10 @@ export interface FilmSource {
   published_at: string | null;
 }
 
+/** Where an event came from. A `catalog` event was raised by a TMDB field or credit
+ *  change with no story behind it, so its `sources` may legitimately be empty. */
+export type EventProvenance = "story" | "catalog";
+
 export interface FilmEvent {
   event_id: string;
   event_type: string;
@@ -55,6 +59,7 @@ export interface FilmEvent {
   created_at: string;
   summary: string;
   summary_edited: boolean;
+  provenance: EventProvenance;
   sources: FilmSource[];
 }
 

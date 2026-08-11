@@ -14,6 +14,7 @@ function makeEvent(overrides: Partial<FilmEvent>): FilmEvent {
     created_at: "2025-01-01T00:00:00Z",
     summary: "Summary.",
     summary_edited: false,
+    provenance: "story",
     sources: [],
     ...overrides,
   };

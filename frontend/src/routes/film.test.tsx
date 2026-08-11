@@ -26,6 +26,7 @@ const film: FilmDetail = {
       created_at: "2025-01-01T00:00:00Z",
       summary: "Casting announced.",
       summary_edited: false,
+      provenance: "story",
       sources: [
         { url: "https://deadline.com/a", source: "Deadline", title: "Cast", published_at: null },
       ],
@@ -37,6 +38,7 @@ const film: FilmDetail = {
       created_at: "2026-06-01T00:00:00Z",
       summary: "Trailer dropped.",
       summary_edited: false,
+      provenance: "story",
       sources: [],
     },
   ],
@@ -120,6 +122,7 @@ describe("film route meta", () => {
           created_at: "2026-06-01T00:00:00Z",
           summary: "Newest: trailer dropped.",
           summary_edited: false,
+          provenance: "story",
           sources: [],
         },
         {
@@ -129,6 +132,7 @@ describe("film route meta", () => {
           created_at: "2025-01-01T00:00:00Z",
           summary: "Oldest: casting announced.",
           summary_edited: false,
+          provenance: "story",
           sources: [],
         },
       ],

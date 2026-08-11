@@ -14,6 +14,7 @@ export const ARC_STAGE_LABELS: Record<ArcStage, string> = {
 const EVENT_TYPE_LABELS: Record<string, string> = {
   announced: "Announced",
   casting: "Casting",
+  crew_attached: "Crew attached",
   production_start: "Production start",
   production_wrap: "Production wrap",
   release_date: "Release date",
