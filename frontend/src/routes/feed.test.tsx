@@ -110,20 +110,27 @@ describe("feed route render", () => {
     expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
     expect(screen.getByText(/June 22, 2026/)).toBeInTheDocument();
 
-    const odyssey = screen.getByRole("link", { name: /The Odyssey/ });
-    expect(odyssey).toHaveAttribute("href", "/film/the-odyssey-2026");
-    const dune = screen.getByRole("link", { name: /Dune Part Three/ });
-    expect(dune).toHaveAttribute("href", "/film/dune-3-2026");
+    // Reached through the title rather than by accessible name: the day's poster strip links
+    // the same film too, under "<title> poster".
+    expect(screen.getByText("The Odyssey").closest("a")).toHaveAttribute(
+      "href",
+      "/film/the-odyssey-2026",
+    );
+    expect(screen.getByText("Dune Part Three").closest("a")).toHaveAttribute(
+      "href",
+      "/film/dune-3-2026",
+    );
   });
 
-  it("leads each day with the poster of its first film that has one", async () => {
+  it("gives each day a poster strip and links every poster to its film", async () => {
     const Stub = createRoutesStub([{ path: "/", Component: FeedPage, loader: () => ({ feed }) }]);
     render(<Stub initialEntries={["/"]} />);
 
-    // June 23 leads with The Odyssey's poster; June 22's only film has none, so no image.
+    // June 23 has The Odyssey's poster; June 22's only film has none, so that day has no strip.
     const posters = await screen.findAllByRole("img");
     expect(posters).toHaveLength(1);
     expect(posters[0].getAttribute("src")).toContain("/w92/odyssey.jpg");
+    expect(posters[0].closest("a")).toHaveAttribute("href", "/film/the-odyssey-2026");
   });
 
   it("stacks the poster above the day's updates on a phone and beside them from sm up", async () => {
@@ -132,8 +139,11 @@ describe("feed route render", () => {
     const Stub = createRoutesStub([{ path: "/", Component: FeedPage, loader: () => ({ feed }) }]);
     render(<Stub initialEntries={["/"]} />);
 
-    const poster = await screen.findByRole("img");
-    const row = poster.parentElement;
+    await screen.findByRole("img");
+    const row = screen
+      .getByText(/June 23, 2026/)
+      .closest("section")
+      ?.querySelector("div");
     expect(row?.className).toContain("flex-col");
     expect(row?.className).toContain("sm:flex-row");
   });
@@ -250,7 +260,20 @@ describe("feed day sections", () => {
     expect(tuesday.querySelectorAll("h3")).toHaveLength(0);
   });
 
-  it("shows one poster for the whole day, not one per section", async () => {
+  it("opens every section with a rule and space, not just a heading", async () => {
+    // A sub-heading sits between two striped rows and reads as one of them without a break of
+    // its own. The first section needs it too — to stand off the poster strip on a phone and
+    // the dateline on desktop — but not the extra top margin, which would drop its rule below
+    // the top of the day's poster column.
+    renderFeed(oneDay(dayItem("reported", { news_backed: true }), dayItem("tmdb")));
+    const tmdb = (await screen.findByText("via TMDB")).parentElement;
+    const news = screen.getByText("In the news").parentElement;
+    expect(news?.className).toContain("border-t");
+    expect(tmdb?.className).toContain("border-t");
+    expect(news?.matches(":first-child")).toBe(true);
+  });
+
+  it("gives the day one strip covering both sections, news-backed posters first", async () => {
     renderFeed(
       oneDay(
         dayItem("tmdb", { poster_path: "/tmdb.jpg" }),
@@ -259,9 +282,12 @@ describe("feed day sections", () => {
     );
     await screen.findByText(/June 23, 2026/);
     const posters = screen.getAllByRole("img");
-    expect(posters).toHaveLength(1);
-    // The day's lead poster is the first item in backend order, regardless of section.
-    expect(posters[0].getAttribute("src")).toContain("/w92/tmdb.jpg");
+    // One strip for the whole day — but ordered news-first, so the reported film leads even
+    // though backend order (popularity) puts the TMDB-only one ahead of it.
+    expect(posters.map((p) => p.getAttribute("src"))).toEqual([
+      "https://image.tmdb.org/t/p/w92/news.jpg",
+      "https://image.tmdb.org/t/p/w92/tmdb.jpg",
+    ]);
   });
 });
 

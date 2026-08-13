@@ -8,7 +8,14 @@ import { env } from "@/env";
 import { buildMeta } from "@/lib/seo";
 import { groupByDay, splitByNewsBacked } from "@/lib/feed-groups";
 import { FeedDayCard } from "@/components/feed/FeedDayCard";
-import { FeedDayPoster } from "@/components/feed/FeedDayPoster";
+import { FeedDayPosters } from "@/components/feed/FeedDayPosters";
+
+// Every section opens with a rule and real space: the sub-heading otherwise lands between two
+// striped rows and reads as one of them, and the first one needs the break just as much — to
+// stand off the poster strip above it on a phone, and the dateline on desktop. The extra top
+// margin is only from the second section on, so the first rule stays level with the top of the
+// day's poster column rather than floating below it.
+const SECTION_BREAK = "border-t border-border pt-4 [&:not(:first-child)]:mt-5";
 
 // How many days the feed shows per page. "View more" fetches the next page of days
 // (manual — never auto-loads — so the footer stays reachable).
@@ -77,15 +84,15 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
                     <time dateTime={group.dayKey}>{group.heading}</time>
                   </h2>
                   <div className="mt-2 flex flex-col gap-3 border-l-2 border-border pl-3 sm:flex-row">
-                    {/* One poster per day, not per section — the strip anchors the date. It sits
-                        beside the list from `sm` up; on a phone the column is too narrow to give
-                        up ~90px to it, so it stacks above the day's updates instead. */}
-                    <FeedDayPoster items={group.items} />
-                    <div className="min-w-0 flex-1 space-y-2">
+                    {/* One strip per day, not per section — it anchors the date, and takes the
+                        whole day's items so its own news-first ordering applies. Beside the list
+                        from `sm` up; on a phone it stacks above the day's updates instead. */}
+                    <FeedDayPosters items={group.items} />
+                    <div className="min-w-0 flex-1">
                       {sections.map((section) => (
-                        <div key={section.key}>
+                        <div key={section.key} className={SECTION_BREAK}>
                           {section.label !== null && (
-                            <h3 className="px-2 pb-0.5 text-xs font-medium text-muted-foreground">
+                            <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
                               {section.label}
                             </h3>
                           )}
