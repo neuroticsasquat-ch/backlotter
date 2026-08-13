@@ -4,7 +4,7 @@ import { FilmHeader } from "@/components/film/FilmHeader";
 import type { FilmDetail } from "@/api/types";
 
 const film: FilmDetail = {
-  slug: "the-odyssey-2026",
+  ref: "the-odyssey-2026",
   title: "The Odyssey",
   release_date: "2026-07-17",
   release_year: 2026,

@@ -100,7 +100,9 @@ export interface CrewMember {
 }
 
 export interface FilmDetail {
-  slug: string;
+  // `<tmdb_id>-<slug-of-current-title>`, the film's canonical URL segment. Resolved on the
+  // leading id, so the trailing half is decorative and follows the current title (NEU-1143).
+  ref: string;
   title: string;
   tmdb_id: number;
   imdb_id: string | null;
@@ -126,7 +128,9 @@ export interface FilmDetail {
 }
 
 export interface FeedDayItem {
-  film_slug: string;
+  // `<tmdb_id>-<slug-of-current-title>`, the film's canonical URL segment. Resolved on the
+  // leading id, so the trailing half is decorative and follows the current title (NEU-1143).
+  film_ref: string;
   film_title: string;
   release_year: number | null;
   poster_path: string | null;
@@ -151,7 +155,9 @@ export interface FeedDayResponse {
 }
 
 export interface FilmIndexItem {
-  slug: string;
+  // `<tmdb_id>-<slug-of-current-title>`, the film's canonical URL segment. Resolved on the
+  // leading id, so the trailing half is decorative and follows the current title (NEU-1143).
+  ref: string;
   title: string;
   release_year: number | null;
   poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()
@@ -166,7 +172,9 @@ export interface FilmIndexResponse {
 }
 
 export interface CalendarItem {
-  film_slug: string;
+  // `<tmdb_id>-<slug-of-current-title>`, the film's canonical URL segment. Resolved on the
+  // leading id, so the trailing half is decorative and follows the current title (NEU-1143).
+  film_ref: string;
   film_title: string;
   release_year: number | null;
   poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()

@@ -30,8 +30,8 @@ export function FeedDayPosters({ items }: { items: FeedDayItem[] }) {
       <div className="flex gap-2 sm:absolute sm:inset-0 sm:flex-col sm:overflow-hidden sm:[mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)]">
         {leads.map((item, index) => (
           <Link
-            key={item.film_slug}
-            to={`/film/${item.film_slug}`}
+            key={item.film_ref}
+            to={`/film/${item.film_ref}`}
             className={`min-w-0 max-w-28 flex-1 sm:max-w-none sm:flex-none ${
               index >= MOBILE_POSTERS ? "hidden sm:block" : ""
             }`}

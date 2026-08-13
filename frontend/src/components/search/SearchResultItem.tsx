@@ -15,7 +15,7 @@ export function SearchResultItem({ item, isActive, id }: SearchResultItemProps) 
   return (
     <li id={id} role="option" aria-selected={isActive} className={isActive ? "bg-accent" : ""}>
       <Link
-        to={`/film/${item.slug}`}
+        to={`/film/${item.ref}`}
         tabIndex={-1}
         className="flex items-center gap-3 px-3 py-2 hover:bg-accent"
       >

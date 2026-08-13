@@ -100,7 +100,7 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
                               restarts under each sub-heading. */}
                           <div>
                             {section.items.map((item) => (
-                              <FeedDayCard key={item.film_slug} item={item} />
+                              <FeedDayCard key={item.film_ref} item={item} />
                             ))}
                           </div>
                         </div>

@@ -5,7 +5,7 @@ import { FeedDayCard } from "@/components/feed/FeedDayCard";
 import type { FeedDayItem } from "@/api/types";
 
 const item: FeedDayItem = {
-  film_slug: "the-odyssey-2026",
+  film_ref: "the-odyssey-2026",
   film_title: "The Odyssey",
   release_year: 2026,
   poster_path: "/odyssey.jpg",
