@@ -20,6 +20,7 @@ const feed: FeedDayResponse = {
       arc_stage: "shooting",
       day: "2026-06-23",
       top_event_type: "trailer",
+      event_types: ["trailer"],
       event_count: 1,
       news_backed: true,
     },
@@ -31,6 +32,7 @@ const feed: FeedDayResponse = {
       arc_stage: "shooting",
       day: "2026-06-22",
       top_event_type: "casting",
+      event_types: ["casting"],
       event_count: 3,
       news_backed: false,
     },
@@ -49,6 +51,7 @@ function dayItem(film_slug: string, overrides: Partial<FeedDayItem> = {}): FeedD
     arc_stage: "shooting",
     day: "2026-06-23",
     top_event_type: "casting",
+    event_types: ["casting"],
     event_count: 1,
     news_backed: false,
     ...overrides,
@@ -121,6 +124,18 @@ describe("feed route render", () => {
     const posters = await screen.findAllByRole("img");
     expect(posters).toHaveLength(1);
     expect(posters[0].getAttribute("src")).toContain("/w92/odyssey.jpg");
+  });
+
+  it("stacks the poster above the day's updates on a phone and beside them from sm up", async () => {
+    // A phone column is ~300px once the poster and the date rule take their share, which is
+    // not enough for the titles — so the day's row is a column until `sm`.
+    const Stub = createRoutesStub([{ path: "/", Component: FeedPage, loader: () => ({ feed }) }]);
+    render(<Stub initialEntries={["/"]} />);
+
+    const poster = await screen.findByRole("img");
+    const row = poster.parentElement;
+    expect(row?.className).toContain("flex-col");
+    expect(row?.className).toContain("sm:flex-row");
   });
 
   it("shows the empty state when there are no updates", async () => {

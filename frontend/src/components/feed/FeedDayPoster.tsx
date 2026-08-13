@@ -4,8 +4,8 @@ import type { FeedDayItem } from "@/api/types";
 /** The day's lead poster: the first film in the day's list that has one (the backend
  *  orders within-day by popularity, so that's the day's headliner). Takes the whole day's
  *  items, not one section's — the strip anchors the date, so it is chosen in backend order
- *  and may name a film that renders below the news-backed section. Fixed at roughly
- *  three feed rows tall so a one-update day gets the same visual anchor as a busy one.
+ *  and may name a film that renders below the news-backed section. Fixed height, so a
+ *  one-update day gets the same visual anchor as a busy one.
  *  w92 is the same source the calendar rows use — right-sized for this display width. */
 export function FeedDayPoster({ items }: { items: FeedDayItem[] }) {
   const lead = items.find((item) => item.poster_path);

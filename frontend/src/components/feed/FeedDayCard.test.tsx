@@ -12,6 +12,7 @@ const item: FeedDayItem = {
   arc_stage: "shooting",
   day: "2026-06-23",
   top_event_type: "release_date",
+  event_types: ["release_date"],
   event_count: 1,
   news_backed: false,
 };
@@ -58,9 +59,37 @@ describe("FeedDayCard", () => {
     expect(screen.getByRole("link").className).toContain("odd:bg-muted/40");
   });
 
-  it("does not show the beat or an event count (the home feed only signals an update exists)", () => {
-    renderCard({ event_count: 3, top_event_type: "release_date" });
-    expect(screen.queryByText("Release date")).toBeNull();
+  it("labels every beat the film saw that day, in the order the backend ranked them", () => {
+    renderCard({ event_types: ["trailer", "casting", "announced"], event_count: 5 });
+    expect(screen.getByText("Trailer")).toBeInTheDocument();
+    expect(screen.getByText("Casting")).toBeInTheDocument();
+    expect(screen.getByText("Announced")).toBeInTheDocument();
+  });
+
+  it("renders the beat labels beneath the title, not inside it", () => {
+    renderCard({ event_types: ["casting"] });
+    const title = screen.getByText("The Odyssey");
+    expect(title).not.toContainElement(screen.getByText("Casting"));
+  });
+
+  it("shows a single label for a one-beat day", () => {
+    renderCard({ event_types: ["release_date"] });
+    expect(screen.getByText("Release date")).toBeInTheDocument();
+    expect(screen.queryByText("Trailer")).toBeNull();
+  });
+
+  it("still shows no event count — the labels say what happened, not how often", () => {
+    renderCard({ event_count: 3, event_types: ["casting"] });
     expect(screen.queryByText(/^\+/)).toBeNull();
+    expect(screen.queryByText("3")).toBeNull();
+  });
+
+  it("wraps a long title instead of truncating it", () => {
+    // The mobile column is ~300px wide, so truncation hides most of a long title. The
+    // hanging indent on the wrapped lines is what keeps line two from reading as its own row.
+    renderCard({ film_title: "Untitled Shang-Chi and the Legend of the Ten Rings Sequel" });
+    const link = screen.getByRole("link");
+    expect(link.className).not.toContain("truncate");
+    expect(screen.getByText(/^Untitled Shang-Chi/).className).toContain("-indent-3");
   });
 });

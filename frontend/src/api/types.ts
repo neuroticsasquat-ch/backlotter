@@ -133,6 +133,9 @@ export interface FeedDayItem {
   arc_stage: ArcStage; // mirrors the backend; rendered in place of the year for an undated film
   day: string; // "YYYY-MM-DD" (UTC); one row per film per day
   top_event_type: string; // raw event_type, rendered via eventTypeLabel
+  // Every distinct beat the film-day carries, most-significant first (so `event_types[0]`
+  // is `top_event_type`). Raw event_types — render each via eventTypeLabel.
+  event_types: string[];
   event_count: number;
   // True when any of this film-day's events has a linked story. The backend derives it from
   // EXISTS(event_story), not from `provenance` — provenance is where an event was born and is
