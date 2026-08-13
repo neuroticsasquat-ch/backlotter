@@ -1,3 +1,7 @@
+# Release notes
+
+## 0.3.1 — 2026-08-13
+
 # Changelog
 
 All notable changes to this project are documented in this file.
