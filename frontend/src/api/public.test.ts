@@ -62,6 +62,7 @@ const sampleGrouped: FeedDayResponse = {
       day: "2026-06-23",
       top_event_type: "casting",
       event_count: 2,
+      news_backed: true,
     },
   ],
   total: 1,

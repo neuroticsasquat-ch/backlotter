@@ -13,6 +13,7 @@ function item(overrides: Partial<FeedDayItem> = {}): FeedDayItem {
     day: "2026-06-23",
     top_event_type: "trailer",
     event_count: 1,
+    news_backed: false,
     ...overrides,
   };
 }
@@ -48,6 +49,27 @@ describe("FeedDayPoster", () => {
   it("renders nothing for an empty day", () => {
     const { container } = render(<FeedDayPoster items={[]} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("leads with the day's first poster even when it belongs to a TMDB-only film", () => {
+    // The strip anchors the date, not a section: it takes the whole day's items in backend
+    // order, so its film can be one that renders below the news-backed section (NEU-1138).
+    render(
+      <FeedDayPoster
+        items={[
+          item({ film_slug: "tmdb-only", film_title: "TMDB Only", news_backed: false }),
+          item({
+            film_slug: "reported",
+            film_title: "Reported",
+            news_backed: true,
+            poster_path: "/reported.jpg",
+          }),
+        ]}
+      />,
+    );
+    const img = screen.getByRole("img");
+    expect(img.getAttribute("src")).toContain("/w92/odyssey.jpg");
+    expect(img).toHaveAccessibleName("TMDB Only poster");
   });
 
   it("keeps a three-row height even for a single-update day", () => {
