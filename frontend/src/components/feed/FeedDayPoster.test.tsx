@@ -12,6 +12,7 @@ function item(overrides: Partial<FeedDayItem> = {}): FeedDayItem {
     arc_stage: "shooting",
     day: "2026-06-23",
     top_event_type: "trailer",
+    event_types: ["trailer"],
     event_count: 1,
     news_backed: false,
     ...overrides,

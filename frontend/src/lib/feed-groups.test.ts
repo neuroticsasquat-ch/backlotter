@@ -11,6 +11,7 @@ function item(day: string, film_slug: string, overrides: Partial<FeedDayItem> = 
     arc_stage: "shooting",
     day,
     top_event_type: "casting",
+    event_types: ["casting"],
     event_count: 1,
     news_backed: false,
     ...overrides,

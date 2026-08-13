@@ -61,6 +61,7 @@ const sampleGrouped: FeedDayResponse = {
       arc_stage: "shooting",
       day: "2026-06-23",
       top_event_type: "casting",
+      event_types: ["casting"],
       event_count: 2,
       news_backed: true,
     },
