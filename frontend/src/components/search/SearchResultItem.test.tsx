@@ -5,7 +5,7 @@ import { SearchResultItem } from "@/components/search/SearchResultItem";
 import type { FilmIndexItem } from "@/api/types";
 
 const item: FilmIndexItem = {
-  slug: "the-odyssey-2026",
+  ref: "the-odyssey-2026",
   title: "The Odyssey",
   release_year: 2026,
   poster_path: "/odyssey.jpg",

@@ -12,7 +12,7 @@ import type { FilmDetail } from "@/api/types";
 const BACKEND = "https://api.upmovies.localhost";
 
 const film: FilmDetail = {
-  slug: "the-odyssey-2026",
+  ref: "12345-the-odyssey",
   title: "The Odyssey",
   release_date: "2026-07-17",
   release_year: 2026,
@@ -69,24 +69,57 @@ function contextWithEnv() {
   return context;
 }
 
-function callLoader(slug: string) {
+function callLoader(ref: string, search = "") {
   return loader({
-    request: new Request(`https://upmovies.example/film/${slug}`),
+    request: new Request(`https://upmovies.example/film/${ref}${search}`),
     context: contextWithEnv(),
-    params: { slug },
+    params: { ref },
   } as unknown as Parameters<typeof loader>[0]);
 }
 
 describe("film route loader", () => {
-  it("fetches the film detail by slug", async () => {
-    server.use(http.get(`${BACKEND}/films/the-odyssey-2026`, () => HttpResponse.json(film)));
-    const data = await callLoader("the-odyssey-2026");
-    expect(data.film.slug).toBe("the-odyssey-2026");
+  it("fetches the film detail by ref", async () => {
+    server.use(http.get(`${BACKEND}/films/12345-the-odyssey`, () => HttpResponse.json(film)));
+    const data = await callLoader("12345-the-odyssey");
+    expect(data.film.ref).toBe("12345-the-odyssey");
   });
 
-  it("throws a 404 Response for an unknown slug", async () => {
+  it("throws a 404 Response for an unknown ref", async () => {
     server.use(http.get(`${BACKEND}/films/missing`, () => new HttpResponse(null, { status: 404 })));
     await expect(callLoader("missing")).rejects.toMatchObject({ status: 404 });
+  });
+
+  // NEU-1143: a ref resolves on its leading id, so several URLs reach the same film. Each is
+  // sent to the canonical one, permanently — the old URLs are indexed, and only a 301 moves the
+  // ranking signal onto the URL we now emit.
+  it.each([
+    ["a legacy slug URL", "the-odyssey-2026"],
+    ["a bare id", "12345"],
+    ["a stale decorative half", "12345-untitled-odyssey-project"],
+  ])("301s %s to the canonical ref", async (_label, requested) => {
+    server.use(http.get(`${BACKEND}/films/${requested}`, () => HttpResponse.json(film)));
+
+    const thrown = await callLoader(requested).catch((e: unknown) => e);
+    expect(thrown).toBeInstanceOf(Response);
+    const res = thrown as Response;
+    expect(res.status).toBe(301);
+    expect(new URL(res.headers.get("Location") ?? "").pathname).toBe("/film/12345-the-odyssey");
+  });
+
+  it("does not redirect when the URL is already canonical", async () => {
+    server.use(http.get(`${BACKEND}/films/12345-the-odyssey`, () => HttpResponse.json(film)));
+    const data = await callLoader("12345-the-odyssey");
+    expect(data.film.ref).toBe("12345-the-odyssey");
+  });
+
+  it("keeps the query string when it redirects", async () => {
+    server.use(http.get(`${BACKEND}/films/12345`, () => HttpResponse.json(film)));
+    const thrown = (await callLoader("12345", "?utm_source=x").catch(
+      (e: unknown) => e,
+    )) as Response;
+    const url = new URL(thrown.headers.get("Location") ?? "");
+    expect(url.pathname).toBe("/film/12345-the-odyssey");
+    expect(url.search).toBe("?utm_source=x");
   });
 });
 

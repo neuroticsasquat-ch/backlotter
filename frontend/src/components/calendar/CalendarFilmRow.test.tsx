@@ -5,7 +5,7 @@ import { CalendarFilmRow } from "@/components/calendar/CalendarFilmRow";
 import type { CalendarItem } from "@/api/types";
 
 const item: CalendarItem = {
-  film_slug: "the-odyssey-2026",
+  film_ref: "the-odyssey-2026",
   film_title: "The Odyssey",
   release_year: 2026,
   poster_path: "/odyssey.jpg",

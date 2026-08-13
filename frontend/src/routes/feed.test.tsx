@@ -13,7 +13,7 @@ const BACKEND = "https://api.upmovies.localhost";
 const feed: FeedDayResponse = {
   items: [
     {
-      film_slug: "the-odyssey-2026",
+      film_ref: "the-odyssey-2026",
       film_title: "The Odyssey",
       release_year: 2026,
       poster_path: "/odyssey.jpg",
@@ -25,7 +25,7 @@ const feed: FeedDayResponse = {
       news_backed: true,
     },
     {
-      film_slug: "dune-3-2026",
+      film_ref: "dune-3-2026",
       film_title: "Dune Part Three",
       release_year: 2026,
       poster_path: null,
@@ -42,10 +42,10 @@ const feed: FeedDayResponse = {
   offset: 0,
 };
 
-function dayItem(film_slug: string, overrides: Partial<FeedDayItem> = {}): FeedDayItem {
+function dayItem(film_ref: string, overrides: Partial<FeedDayItem> = {}): FeedDayItem {
   return {
-    film_slug,
-    film_title: film_slug.toUpperCase(),
+    film_ref,
+    film_title: film_ref.toUpperCase(),
     release_year: 2026,
     poster_path: null,
     arc_stage: "shooting",
@@ -82,7 +82,7 @@ describe("feed route loader", () => {
     server.use(http.get(`${BACKEND}/feed/grouped`, () => HttpResponse.json(feed)));
     const data = await callLoader();
     expect(data.feed.total).toBe(2);
-    expect(data.feed.items[0].film_slug).toBe("the-odyssey-2026");
+    expect(data.feed.items[0].film_ref).toBe("the-odyssey-2026");
   });
 });
 
