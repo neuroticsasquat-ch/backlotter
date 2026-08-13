@@ -1,5 +1,15 @@
 # Release notes
 
+## 0.3.2 — 2026-08-13
+
+### General
+
+- Split each feed day into news-backed and TMDB-only sections ([NEU-1138](https://linear.app/neuroticsasquatch/issue/NEU-1138))
+- Stack the feed poster on mobile, wrap long titles, label the day's beats ([NEU-1140](https://linear.app/neuroticsasquatch/issue/NEU-1140))
+- Give each feed day a news-first poster strip with linked posters ([NEU-1141](https://linear.app/neuroticsasquatch/issue/NEU-1141))
+- Run the feed day poster strip horizontally at every width ([NEU-1142](https://linear.app/neuroticsasquatch/issue/NEU-1142))
+- Route film pages on the ref and redirect non-canonical URLs ([NEU-1144](https://linear.app/neuroticsasquatch/issue/NEU-1144))
+
 ## 0.3.1 — 2026-08-13
 
 # Changelog
