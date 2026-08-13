@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { groupByDay, groupEventsByDay } from "@/lib/feed-groups";
+import { groupByDay, groupEventsByDay, splitByNewsBacked } from "@/lib/feed-groups";
 import type { FeedDayItem, FilmEvent } from "@/api/types";
 
-function item(day: string, film_slug: string, event_count = 1): FeedDayItem {
+function item(day: string, film_slug: string, overrides: Partial<FeedDayItem> = {}): FeedDayItem {
   return {
     film_slug,
     film_title: film_slug.toUpperCase(),
@@ -11,7 +11,9 @@ function item(day: string, film_slug: string, event_count = 1): FeedDayItem {
     arc_stage: "shooting",
     day,
     top_event_type: "casting",
-    event_count,
+    event_count: 1,
+    news_backed: false,
+    ...overrides,
   };
 }
 
@@ -37,6 +39,50 @@ describe("groupByDay", () => {
     expect(groups[0].items).toHaveLength(2);
     expect(groups[1].items.map((i) => i.film_slug)).toEqual(["c"]);
     expect(groups[1].heading).toContain("June 22, 2026");
+  });
+});
+
+describe("splitByNewsBacked", () => {
+  it("returns two empty lists for no items", () => {
+    expect(splitByNewsBacked([])).toEqual({ newsBacked: [], tmdbOnly: [] });
+  });
+
+  it("partitions on news_backed, preserving the backend's within-day order in each list", () => {
+    // Interleaved on input: the split must not reorder within either bucket.
+    const { newsBacked, tmdbOnly } = splitByNewsBacked([
+      item("2026-06-23", "a", { news_backed: true }),
+      item("2026-06-23", "b"),
+      item("2026-06-23", "c", { news_backed: true }),
+      item("2026-06-23", "d"),
+    ]);
+    expect(newsBacked.map((i) => i.film_slug)).toEqual(["a", "c"]);
+    expect(tmdbOnly.map((i) => i.film_slug)).toEqual(["b", "d"]);
+  });
+
+  it("puts every item in one bucket when the day is all news-backed", () => {
+    const { newsBacked, tmdbOnly } = splitByNewsBacked([
+      item("2026-06-23", "a", { news_backed: true }),
+      item("2026-06-23", "b", { news_backed: true }),
+    ]);
+    expect(newsBacked).toHaveLength(2);
+    expect(tmdbOnly).toEqual([]);
+  });
+
+  it("puts every item in one bucket when the day is all TMDB-only", () => {
+    const { newsBacked, tmdbOnly } = splitByNewsBacked([
+      item("2026-06-23", "a"),
+      item("2026-06-23", "b"),
+    ]);
+    expect(newsBacked).toEqual([]);
+    expect(tmdbOnly).toHaveLength(2);
+  });
+
+  it("keeps every input item — the split partitions, it never drops or caps", () => {
+    const items = Array.from({ length: 74 }, (_, n) =>
+      item("2026-08-11", `film-${n}`, { news_backed: n % 3 === 0 }),
+    );
+    const { newsBacked, tmdbOnly } = splitByNewsBacked(items);
+    expect(newsBacked.length + tmdbOnly.length).toBe(74);
   });
 });
 

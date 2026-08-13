@@ -13,6 +13,7 @@ const item: FeedDayItem = {
   day: "2026-06-23",
   top_event_type: "release_date",
   event_count: 1,
+  news_backed: false,
 };
 
 function renderCard(overrides: Partial<FeedDayItem> = {}) {
@@ -47,6 +48,14 @@ describe("FeedDayCard", () => {
   it("renders no poster image", () => {
     renderCard();
     expect(screen.queryByRole("img")).toBeNull();
+  });
+
+  it("stripes via a parent-scoped odd: selector, so each feed section restarts the pattern", () => {
+    // NEU-1138 splits a day into two sibling lists. The stripe resets per section precisely
+    // because it is CSS nth-child on the card's own parent, not an index passed in — so the
+    // card takes no position prop, and adding one would silently change the day's appearance.
+    renderCard();
+    expect(screen.getByRole("link").className).toContain("odd:bg-muted/40");
   });
 
   it("does not show the beat or an event count (the home feed only signals an update exists)", () => {

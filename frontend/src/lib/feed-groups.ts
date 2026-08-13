@@ -28,6 +28,31 @@ export function groupByDay(items: FeedDayItem[]): FeedDayGroup[] {
   return groups;
 }
 
+export interface FeedDaySplit {
+  /** Items a news outlet reported — these lead the day. */
+  newsBacked: FeedDayItem[];
+  /** Items only TMDB has. */
+  tmdbOnly: FeedDayItem[];
+}
+
+/**
+ * Partition one day's items into the news-backed and TMDB-only sections the feed renders, in that
+ * order. Keys off the backend's `news_backed` flag (`EXISTS(event_story)`), never `provenance`: an
+ * event born on TMDB that a trade later covers is news-backed from then on, and must move section
+ * without moving day.
+ *
+ * A pure partition — every input item lands in exactly one bucket, relative order preserved within
+ * each, no `Date.now()` — so SSR and client output match, same contract as `groupByDay`.
+ */
+export function splitByNewsBacked(items: FeedDayItem[]): FeedDaySplit {
+  const newsBacked: FeedDayItem[] = [];
+  const tmdbOnly: FeedDayItem[] = [];
+  for (const item of items) {
+    (item.news_backed ? newsBacked : tmdbOnly).push(item);
+  }
+  return { newsBacked, tmdbOnly };
+}
+
 export interface EventDayGroup {
   /** UTC "YYYY-MM-DD" — a stable React key for the day section. */
   dayKey: string;

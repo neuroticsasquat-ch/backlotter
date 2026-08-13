@@ -7,7 +7,8 @@ import { arcStageLabel } from "@/components/film/labels";
  *  slot — the feed is the discovery surface for undated films, so an empty slot there
  *  would read as missing data rather than as a meaningful state.
  *  The home feed only signals that a film has an update that day — not how many or
- *  what kind. Zebra-striped within its day list. */
+ *  what kind. Zebra-striped within its section — a day that carries both news-backed and
+ *  TMDB-only updates renders them as two lists, and the stripe restarts under each. */
 export function FeedDayCard({ item }: { item: FeedDayItem }) {
   return (
     <Link

@@ -134,6 +134,10 @@ export interface FeedDayItem {
   day: string; // "YYYY-MM-DD" (UTC); one row per film per day
   top_event_type: string; // raw event_type, rendered via eventTypeLabel
   event_count: number;
+  // True when any of this film-day's events has a linked story. The backend derives it from
+  // EXISTS(event_story), not from `provenance` — provenance is where an event was born and is
+  // never mutated when a story attaches later. Drives the feed's within-day sectioning.
+  news_backed: boolean;
 }
 
 export interface FeedDayResponse {
