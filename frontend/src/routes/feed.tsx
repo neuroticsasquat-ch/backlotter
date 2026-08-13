@@ -10,11 +10,12 @@ import { groupByDay, splitByNewsBacked } from "@/lib/feed-groups";
 import { FeedDayCard } from "@/components/feed/FeedDayCard";
 import { FeedDayPosters } from "@/components/feed/FeedDayPosters";
 
-// Separates the second section from the first: a rule plus real space, because the sub-heading
-// otherwise lands between two striped rows and reads as one of them. Only from the second
-// section on — the first already has the day heading above it doing this job.
-const SECTION_BREAK =
-  "[&:not(:first-child)]:mt-5 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-border [&:not(:first-child)]:pt-4";
+// Every section opens with a rule and real space: the sub-heading otherwise lands between two
+// striped rows and reads as one of them, and the first one needs the break just as much — to
+// stand off the poster strip above it on a phone, and the dateline on desktop. The extra top
+// margin is only from the second section on, so the first rule stays level with the top of the
+// day's poster column rather than floating below it.
+const SECTION_BREAK = "border-t border-border pt-4 [&:not(:first-child)]:mt-5";
 
 // How many days the feed shows per page. "View more" fetches the next page of days
 // (manual — never auto-loads — so the footer stays reachable).

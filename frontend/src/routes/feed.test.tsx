@@ -260,14 +260,16 @@ describe("feed day sections", () => {
     expect(tuesday.querySelectorAll("h3")).toHaveLength(0);
   });
 
-  it("breaks the second section off with a rule and space, not just a heading", async () => {
-    // The sub-heading sits between two striped rows; without a break of its own it reads as
-    // one of them. The first section needs none — the day heading above it already does this.
+  it("opens every section with a rule and space, not just a heading", async () => {
+    // A sub-heading sits between two striped rows and reads as one of them without a break of
+    // its own. The first section needs it too — to stand off the poster strip on a phone and
+    // the dateline on desktop — but not the extra top margin, which would drop its rule below
+    // the top of the day's poster column.
     renderFeed(oneDay(dayItem("reported", { news_backed: true }), dayItem("tmdb")));
     const tmdb = (await screen.findByText("via TMDB")).parentElement;
     const news = screen.getByText("In the news").parentElement;
+    expect(news?.className).toContain("border-t");
     expect(tmdb?.className).toContain("border-t");
-    expect(news?.className).toBe(tmdb?.className);
     expect(news?.matches(":first-child")).toBe(true);
   });
 
