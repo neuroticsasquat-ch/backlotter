@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { posterUrl, profileUrl } from "@/lib/poster";
+import { posterSrcSet, posterUrl, profileUrl } from "@/lib/poster";
 
 describe("posterUrl", () => {
   it("builds a TMDB URL from a path and size", () => {
@@ -22,5 +22,19 @@ describe("profileUrl", () => {
 
   it("returns null when the path is null", () => {
     expect(profileUrl(null)).toBeNull();
+  });
+});
+
+describe("posterSrcSet", () => {
+  it("offers each width with its descriptor", () => {
+    expect(posterSrcSet("/odyssey.jpg")).toBe(
+      "https://image.tmdb.org/t/p/w92/odyssey.jpg 92w, " +
+        "https://image.tmdb.org/t/p/w185/odyssey.jpg 185w, " +
+        "https://image.tmdb.org/t/p/w342/odyssey.jpg 342w",
+    );
+  });
+
+  it("returns null for a film with no poster, same as posterUrl", () => {
+    expect(posterSrcSet(null)).toBeNull();
   });
 });

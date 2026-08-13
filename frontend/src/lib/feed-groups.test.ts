@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { groupByDay, groupEventsByDay, splitByNewsBacked } from "@/lib/feed-groups";
+import {
+  MAX_DAY_POSTERS,
+  dayPosterLeads,
+  groupByDay,
+  groupEventsByDay,
+  splitByNewsBacked,
+} from "@/lib/feed-groups";
 import type { FeedDayItem, FilmEvent } from "@/api/types";
 
 function item(day: string, film_slug: string, overrides: Partial<FeedDayItem> = {}): FeedDayItem {
@@ -124,5 +130,48 @@ describe("groupEventsByDay", () => {
     const groups = groupEventsByDay([event("2026-06-23T23:30:00Z", "late evening UTC")]);
     expect(groups[0].dayKey).toBe("2026-06-23");
     expect(groups[0].heading).toContain("June 23, 2026");
+  });
+});
+
+describe("dayPosterLeads", () => {
+  /** Local helper: unlike the shared `item`, these default to *having* a poster. */
+  function poster(film_slug: string, overrides: Partial<FeedDayItem> = {}): FeedDayItem {
+    return item("2026-06-23", film_slug, { poster_path: `/${film_slug}.jpg`, ...overrides });
+  }
+
+  it("puts news-backed films ahead of TMDB-only ones regardless of backend order", () => {
+    // Backend order within a day is by popularity, so the two kinds arrive interleaved.
+    const leads = dayPosterLeads([
+      poster("primetime"),
+      poster("animals", { news_backed: true }),
+      poster("dorothy"),
+      poster("charlie", { news_backed: true }),
+    ]);
+    expect(leads.map((i) => i.film_slug)).toEqual(["animals", "charlie", "primetime", "dorothy"]);
+  });
+
+  it("keeps backend order (popularity) within each kind", () => {
+    const leads = dayPosterLeads([
+      poster("popular", { news_backed: true }),
+      poster("less-popular", { news_backed: true }),
+    ]);
+    expect(leads.map((i) => i.film_slug)).toEqual(["popular", "less-popular"]);
+  });
+
+  it("drops films with no poster rather than holding a blank slot", () => {
+    const leads = dayPosterLeads([
+      poster("no-poster", { news_backed: true, poster_path: null }),
+      poster("has-poster"),
+    ]);
+    expect(leads.map((i) => i.film_slug)).toEqual(["has-poster"]);
+  });
+
+  it("caps the strip so a backfill day does not load dozens of images", () => {
+    const many = Array.from({ length: 40 }, (_, i) => poster(`film-${i}`));
+    expect(dayPosterLeads(many)).toHaveLength(MAX_DAY_POSTERS);
+  });
+
+  it("returns nothing for a day whose films all lack posters", () => {
+    expect(dayPosterLeads([poster("x", { poster_path: null })])).toEqual([]);
   });
 });
