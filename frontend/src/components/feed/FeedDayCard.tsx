@@ -14,7 +14,7 @@ import { arcStageLabel, eventTypeLabel } from "@/components/film/labels";
 export function FeedDayCard({ item }: { item: FeedDayItem }) {
   return (
     <Link
-      to={`/film/${item.film_slug}`}
+      to={`/film/${item.film_ref}`}
       className="block rounded px-2 py-1.5 text-sm odd:bg-muted/40 hover:bg-muted"
     >
       <span className="block -indent-3 pl-3 font-medium">

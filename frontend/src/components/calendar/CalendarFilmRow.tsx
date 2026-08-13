@@ -8,7 +8,7 @@ export function CalendarFilmRow({ item }: { item: CalendarItem }) {
   const poster = posterUrl(item.poster_path, "w92");
   return (
     <Link
-      to={`/film/${item.film_slug}`}
+      to={`/film/${item.film_ref}`}
       className="flex gap-3 rounded px-2 py-2 odd:bg-muted/40 hover:bg-muted"
     >
       {poster ? (

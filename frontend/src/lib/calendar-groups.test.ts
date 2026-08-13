@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { groupByReleaseDate, nestByYearMonth } from "@/lib/calendar-groups";
 import type { CalendarItem } from "@/api/types";
 
-function item(film_slug: string, release_date: string, release_type: string): CalendarItem {
+function item(film_ref: string, release_date: string, release_type: string): CalendarItem {
   return {
-    film_slug,
-    film_title: film_slug.toUpperCase(),
+    film_ref,
+    film_title: film_ref.toUpperCase(),
     release_year: 2026,
     poster_path: null,
     release_date,
@@ -45,12 +45,9 @@ describe("groupByReleaseDate", () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].buckets).toHaveLength(2);
     expect(groups[0].buckets[0].bucket).toBe("premiere");
-    expect(groups[0].buckets[0].films.map((f) => f.film_slug)).toEqual([
-      "premiere_1",
-      "premiere_2",
-    ]);
+    expect(groups[0].buckets[0].films.map((f) => f.film_ref)).toEqual(["premiere_1", "premiere_2"]);
     expect(groups[0].buckets[1].bucket).toBe("wide");
-    expect(groups[0].buckets[1].films.map((f) => f.film_slug)).toEqual(["wide_1"]);
+    expect(groups[0].buckets[1].films.map((f) => f.film_ref)).toEqual(["wide_1"]);
   });
 
   it("preserves the premiere→limited→wide order the server emitted", () => {
@@ -70,7 +67,7 @@ describe("groupByReleaseDate", () => {
     expect(bucket).toHaveProperty("films");
     expect(bucket.label).toBe("Limited");
     expect(bucket.films).toHaveLength(1);
-    expect(bucket.films[0].film_slug).toBe("film_a");
+    expect(bucket.films[0].film_ref).toBe("film_a");
   });
 
   it("a second date with only limited items opens a fresh date section", () => {

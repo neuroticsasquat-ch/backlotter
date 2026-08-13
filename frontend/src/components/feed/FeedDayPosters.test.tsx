@@ -5,12 +5,12 @@ import { FeedDayPosters } from "@/components/feed/FeedDayPosters";
 import { MAX_DAY_POSTERS } from "@/lib/feed-groups";
 import type { FeedDayItem } from "@/api/types";
 
-function item(film_slug: string, overrides: Partial<FeedDayItem> = {}): FeedDayItem {
+function item(film_ref: string, overrides: Partial<FeedDayItem> = {}): FeedDayItem {
   return {
-    film_slug,
-    film_title: film_slug,
+    film_ref,
+    film_title: film_ref,
     release_year: 2026,
-    poster_path: `/${film_slug}.jpg`,
+    poster_path: `/${film_ref}.jpg`,
     arc_stage: "shooting",
     day: "2026-06-23",
     top_event_type: "trailer",

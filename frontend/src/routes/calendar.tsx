@@ -82,7 +82,7 @@ export default function CalendarPage({ loaderData }: Route.ComponentProps) {
                             </h5>
                             <div>
                               {bucket.films.map((f) => (
-                                <CalendarFilmRow item={f} key={f.film_slug} />
+                                <CalendarFilmRow item={f} key={f.film_ref} />
                               ))}
                             </div>
                           </div>

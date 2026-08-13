@@ -11,7 +11,7 @@ import type { FilmIndexItem } from "@/api/types";
 const BACKEND = "https://api.upmovies.localhost";
 
 const sampleItem: FilmIndexItem = {
-  slug: "the-odyssey-2026",
+  ref: "the-odyssey-2026",
   title: "The Odyssey",
   release_year: 2026,
   poster_path: "/odyssey.jpg",

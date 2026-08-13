@@ -24,7 +24,7 @@ export function FeedDayPosters({ items }: { items: FeedDayItem[] }) {
   return (
     <div className="flex gap-2 overflow-hidden [mask-image:linear-gradient(to_right,black_calc(100%-3rem),transparent)]">
       {leads.map((item, index) => (
-        <Link key={item.film_slug} to={`/film/${item.film_slug}`} className="w-20 flex-none">
+        <Link key={item.film_ref} to={`/film/${item.film_ref}`} className="w-20 flex-none">
           <img
             src={posterUrl(item.poster_path, "w185") ?? undefined}
             srcSet={posterSrcSet(item.poster_path) ?? undefined}
