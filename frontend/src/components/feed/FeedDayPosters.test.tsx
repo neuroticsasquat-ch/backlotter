@@ -47,20 +47,22 @@ describe("FeedDayPosters", () => {
     expect(links.map((l) => l.getAttribute("href"))).toEqual(["/film/animals", "/film/primetime"]);
   });
 
-  it("uses the w92 source the calendar rows use", () => {
+  it("falls back to a source sized for the strip's own display width", () => {
+    // The strip renders at a fixed 5rem at every width, so w92 (the old desktop-column size)
+    // came out upscaled. Browsers that honour srcSet pick from it; this is the fallback.
     renderStrip([item("odyssey")]);
     expect(screen.getByRole("img").getAttribute("src")).toBe(
-      "https://image.tmdb.org/t/p/w92/odyssey.jpg",
+      "https://image.tmdb.org/t/p/w185/odyssey.jpg",
     );
   });
 
-  it("hides the posters past the fourth until sm, where the column has room for them", () => {
-    // All of them stay in the DOM — which ones show is CSS, so the server and the client
-    // render the same markup at every width.
+  it("renders every lead at a fixed width and lets the row clip the overflow", () => {
+    // How many show is CSS, not a count in JS — so the markup is identical on the server and
+    // the client, and the strip follows a resize without re-rendering.
     renderStrip(["a", "b", "c", "d", "e"].map((slug) => item(slug)));
     const links = screen.getAllByRole("link");
-    expect(links.slice(0, 4).every((l) => !l.className.includes("hidden"))).toBe(true);
-    expect(links[4].className).toContain("hidden sm:block");
+    expect(links).toHaveLength(5);
+    expect(links.every((l) => l.className.includes("w-20 flex-none"))).toBe(true);
   });
 
   it("caps the strip rather than loading a backfill day's worth of images", () => {
@@ -92,12 +94,10 @@ describe("FeedDayPosters", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("clips the desktop column instead of letting it set the row height", () => {
-    // Laid out in flow the stack would contribute its full height and a tall strip would
-    // drive the row, instead of the event list doing it.
+  it("clips the row horizontally and fades the cut edge", () => {
     renderStrip([item("a")]);
     const strip = screen.getByRole("img").closest("div");
-    expect(strip?.className).toContain("sm:absolute");
-    expect(strip?.className).toContain("sm:overflow-hidden");
+    expect(strip?.className).toContain("overflow-hidden");
+    expect(strip?.className).toContain("to_right");
   });
 });

@@ -129,13 +129,13 @@ describe("feed route render", () => {
     // June 23 has The Odyssey's poster; June 22's only film has none, so that day has no strip.
     const posters = await screen.findAllByRole("img");
     expect(posters).toHaveLength(1);
-    expect(posters[0].getAttribute("src")).toContain("/w92/odyssey.jpg");
+    expect(posters[0].getAttribute("src")).toContain("/w185/odyssey.jpg");
     expect(posters[0].closest("a")).toHaveAttribute("href", "/film/the-odyssey-2026");
   });
 
-  it("stacks the poster above the day's updates on a phone and beside them from sm up", async () => {
-    // A phone column is ~300px once the poster and the date rule take their share, which is
-    // not enough for the titles — so the day's row is a column until `sm`.
+  it("puts the poster strip above the day's updates at every width", async () => {
+    // Beside the list, a poster lined up with whatever row happened to sit next to it and read
+    // as a label for a film it had nothing to do with.
     const Stub = createRoutesStub([{ path: "/", Component: FeedPage, loader: () => ({ feed }) }]);
     render(<Stub initialEntries={["/"]} />);
 
@@ -145,7 +145,7 @@ describe("feed route render", () => {
       .closest("section")
       ?.querySelector("div");
     expect(row?.className).toContain("flex-col");
-    expect(row?.className).toContain("sm:flex-row");
+    expect(row?.className).not.toContain("flex-row");
   });
 
   it("shows the empty state when there are no updates", async () => {
@@ -285,8 +285,8 @@ describe("feed day sections", () => {
     // One strip for the whole day — but ordered news-first, so the reported film leads even
     // though backend order (popularity) puts the TMDB-only one ahead of it.
     expect(posters.map((p) => p.getAttribute("src"))).toEqual([
-      "https://image.tmdb.org/t/p/w92/news.jpg",
-      "https://image.tmdb.org/t/p/w92/tmdb.jpg",
+      "https://image.tmdb.org/t/p/w185/news.jpg",
+      "https://image.tmdb.org/t/p/w185/tmdb.jpg",
     ]);
   });
 });

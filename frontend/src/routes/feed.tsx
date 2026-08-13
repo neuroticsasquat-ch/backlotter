@@ -83,10 +83,11 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
                   <h2 className="text-sm font-medium text-muted-foreground">
                     <time dateTime={group.dayKey}>{group.heading}</time>
                   </h2>
-                  <div className="mt-2 flex flex-col gap-3 border-l-2 border-border pl-3 sm:flex-row">
+                  <div className="mt-2 flex flex-col gap-3 border-l-2 border-border pl-3">
                     {/* One strip per day, not per section — it anchors the date, and takes the
-                        whole day's items so its own news-first ordering applies. Beside the list
-                        from `sm` up; on a phone it stacks above the day's updates instead. */}
+                        whole day's items so its own news-first ordering applies. Above the list at
+                        every width: beside it, a poster lined up with whatever row happened to sit
+                        next to it and read as a label for an unrelated film. */}
                     <FeedDayPosters items={group.items} />
                     <div className="min-w-0 flex-1">
                       {sections.map((section) => (
