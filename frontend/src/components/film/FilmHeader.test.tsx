@@ -4,7 +4,7 @@ import { FilmHeader } from "@/components/film/FilmHeader";
 import type { FilmDetail } from "@/api/types";
 
 const film: FilmDetail = {
-  slug: "the-odyssey-2026",
+  ref: "the-odyssey-2026",
   title: "The Odyssey",
   release_date: "2026-07-17",
   release_year: 2026,
@@ -109,9 +109,16 @@ describe("FilmHeader", () => {
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
-  it("omits the year when release_year is null", () => {
-    render(<FilmHeader film={{ ...film, release_year: null }} />);
+  it("renders the arc-stage label in place of the year when the film is undated", () => {
+    render(<FilmHeader film={{ ...film, release_year: null, arc_stage: "announced" }} />);
     expect(screen.queryByText("(2026)")).toBeNull();
+    expect(screen.getByText("(Announced)")).toBeInTheDocument();
+  });
+
+  it("keeps the year and omits the arc-stage label for a dated film", () => {
+    render(<FilmHeader film={film} />);
+    expect(screen.getByText("(2026)")).toBeInTheDocument();
+    expect(screen.queryByText("(Shooting)")).toBeNull();
   });
 
   it("renders the IMDb and TMDB links in the header", () => {

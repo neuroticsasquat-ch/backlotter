@@ -4,8 +4,11 @@ React + TypeScript SPA for the Upcoming Movies Tracker. Vite, react-router, TanS
 
 ## Linear
 
-- `linear_initiative`: Upcoming Movies Tracker
+- `linear_initiative`: backlotter
 - `linear_team`: Neuroticsasquatch
+- `loop_base`: main — v0.3.0 shipped 2026-08-11 and `release/v0.3.0` is fully merged, so work
+  branches from `main` again. **Repoint this when the next release branch is cut**, and back to
+  `main` when it merges; a stale value here silently forks new work off a dead branch.
 
 ## Golden rule: everything runs in the container via `task`
 

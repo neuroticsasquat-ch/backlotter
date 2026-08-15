@@ -6,8 +6,16 @@ import { getFeedGrouped } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
 import { env } from "@/env";
 import { buildMeta } from "@/lib/seo";
-import { groupByDay } from "@/lib/feed-groups";
+import { groupByDay, splitByNewsBacked } from "@/lib/feed-groups";
 import { FeedDayCard } from "@/components/feed/FeedDayCard";
+import { FeedDayPosters } from "@/components/feed/FeedDayPosters";
+
+// Every section opens with a rule and real space: the sub-heading otherwise lands between two
+// striped rows and reads as one of them, and the first one needs the break just as much — to
+// stand off the poster strip above it on a phone, and the dateline on desktop. The extra top
+// margin is only from the second section on, so the first rule stays level with the top of the
+// day's poster column rather than floating below it.
+const SECTION_BREAK = "border-t border-border pt-4 [&:not(:first-child)]:mt-5";
 
 // How many days the feed shows per page. "View more" fetches the next page of days
 // (manual — never auto-loads — so the footer stays reachable).
@@ -28,11 +36,6 @@ export function meta({ location }: Route.MetaArgs): Route.MetaDescriptors {
     type: "website",
   });
 }
-
-// Each day starts collapsed to its most-popular films (the backend orders within-day
-// by popularity); the rest expand behind a disclosure. Kept even so the zebra stripe
-// pattern stays continuous across the visible/hidden split.
-const DAY_INITIAL_VISIBLE = 8;
 
 export default function FeedPage({ loaderData }: Route.ComponentProps) {
   const { feed } = loaderData;
@@ -57,53 +60,53 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-semibold">Latest Updates</h1>
+      <h1 className="text-2xl font-semibold">Latest Updates for Upcoming Movies</h1>
       {groups.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">No updates yet — check back soon.</p>
       ) : (
         <>
           <div className="mt-6 space-y-8">
             {groups.map((group) => {
-              const visible = group.items.slice(0, DAY_INITIAL_VISIBLE);
-              const hidden = group.items.slice(DAY_INITIAL_VISIBLE);
+              const { newsBacked, tmdbOnly } = splitByNewsBacked(group.items);
+              // The sub-headings exist to separate the two kinds. A day with only one kind has
+              // nothing to separate it from, so it renders as a single unlabelled list rather
+              // than under a lone heading.
+              const sections =
+                newsBacked.length > 0 && tmdbOnly.length > 0
+                  ? [
+                      { key: "news", label: "In the news", items: newsBacked },
+                      { key: "tmdb", label: "via TMDB", items: tmdbOnly },
+                    ]
+                  : [{ key: "all", label: null, items: group.items }];
               return (
                 <section key={group.dayKey}>
                   <h2 className="text-sm font-medium text-muted-foreground">
                     <time dateTime={group.dayKey}>{group.heading}</time>
                   </h2>
-                  <div className="mt-2 border-l-2 border-border pl-3">
-                    <div>
-                      {visible.map((item) => (
-                        <FeedDayCard key={item.film_slug} item={item} />
+                  <div className="mt-2 flex flex-col gap-3 border-l-2 border-border pl-3">
+                    {/* One strip per day, not per section — it anchors the date, and takes the
+                        whole day's items so its own news-first ordering applies. Above the list at
+                        every width: beside it, a poster lined up with whatever row happened to sit
+                        next to it and read as a label for an unrelated film. */}
+                    <FeedDayPosters items={group.items} />
+                    <div className="min-w-0 flex-1">
+                      {sections.map((section) => (
+                        <div key={section.key} className={SECTION_BREAK}>
+                          {section.label !== null && (
+                            <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
+                              {section.label}
+                            </h3>
+                          )}
+                          {/* Each section is its own striping context, so the zebra pattern
+                              restarts under each sub-heading. */}
+                          <div>
+                            {section.items.map((item) => (
+                              <FeedDayCard key={item.film_ref} item={item} />
+                            ))}
+                          </div>
+                        </div>
                       ))}
                     </div>
-                    {hidden.length > 0 && (
-                      <details className="group">
-                        <summary className="flex cursor-pointer list-none items-center gap-1 rounded px-2 py-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 [&::-webkit-details-marker]:hidden">
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 24 24"
-                            className="h-3.5 w-3.5 transition-transform duration-200 group-open:rotate-90"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="9 6 15 12 9 18" />
-                          </svg>
-                          <span className="group-open:hidden">
-                            Show all {group.items.length} updates
-                          </span>
-                          <span className="hidden group-open:inline">Show fewer</span>
-                        </summary>
-                        <div>
-                          {hidden.map((item) => (
-                            <FeedDayCard key={item.film_slug} item={item} />
-                          ))}
-                        </div>
-                      </details>
-                    )}
                   </div>
                 </section>
               );

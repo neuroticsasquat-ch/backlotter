@@ -7,7 +7,7 @@ export interface AuthedUser {
   csrf_token: string;
 }
 
-export type IngestRunKind = "tmdb" | "feeds" | "link" | "synthesize";
+export type IngestRunKind = "tmdb" | "feeds" | "link" | "synthesize" | "sweep";
 export type IngestRunStatus = "running" | "succeeded" | "failed" | "cancelled";
 
 export type LlmStage = "link" | "cluster" | "summarize";
@@ -48,6 +48,10 @@ export interface FilmSource {
   published_at: string | null;
 }
 
+/** Where an event came from. A `catalog` event was raised by a TMDB field or credit
+ *  change with no story behind it, so its `sources` may legitimately be empty. */
+export type EventProvenance = "story" | "catalog";
+
 export interface FilmEvent {
   event_id: string;
   event_type: string;
@@ -55,6 +59,7 @@ export interface FilmEvent {
   created_at: string;
   summary: string;
   summary_edited: boolean;
+  provenance: EventProvenance;
   sources: FilmSource[];
 }
 
@@ -95,7 +100,9 @@ export interface CrewMember {
 }
 
 export interface FilmDetail {
-  slug: string;
+  // `<tmdb_id>-<slug-of-current-title>`, the film's canonical URL segment. Resolved on the
+  // leading id, so the trailing half is decorative and follows the current title (NEU-1143).
+  ref: string;
   title: string;
   tmdb_id: number;
   imdb_id: string | null;
@@ -121,13 +128,23 @@ export interface FilmDetail {
 }
 
 export interface FeedDayItem {
-  film_slug: string;
+  // `<tmdb_id>-<slug-of-current-title>`, the film's canonical URL segment. Resolved on the
+  // leading id, so the trailing half is decorative and follows the current title (NEU-1143).
+  film_ref: string;
   film_title: string;
   release_year: number | null;
   poster_path: string | null;
+  arc_stage: ArcStage; // mirrors the backend; rendered in place of the year for an undated film
   day: string; // "YYYY-MM-DD" (UTC); one row per film per day
   top_event_type: string; // raw event_type, rendered via eventTypeLabel
+  // Every distinct beat the film-day carries, most-significant first (so `event_types[0]`
+  // is `top_event_type`). Raw event_types — render each via eventTypeLabel.
+  event_types: string[];
   event_count: number;
+  // True when any of this film-day's events has a linked story. The backend derives it from
+  // EXISTS(event_story), not from `provenance` — provenance is where an event was born and is
+  // never mutated when a story attaches later. Drives the feed's within-day sectioning.
+  news_backed: boolean;
 }
 
 export interface FeedDayResponse {
@@ -138,11 +155,13 @@ export interface FeedDayResponse {
 }
 
 export interface FilmIndexItem {
-  slug: string;
+  // `<tmdb_id>-<slug-of-current-title>`, the film's canonical URL segment. Resolved on the
+  // leading id, so the trailing half is decorative and follows the current title (NEU-1143).
+  ref: string;
   title: string;
   release_year: number | null;
   poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()
-  arc_stage: ArcStage; // mirrors the backend; not rendered in search results yet (reserved for a future badge)
+  arc_stage: ArcStage; // mirrors the backend; rendered in place of the year for an undated film
 }
 
 export interface FilmIndexResponse {
@@ -153,7 +172,9 @@ export interface FilmIndexResponse {
 }
 
 export interface CalendarItem {
-  film_slug: string;
+  // `<tmdb_id>-<slug-of-current-title>`, the film's canonical URL segment. Resolved on the
+  // leading id, so the trailing half is decorative and follows the current title (NEU-1143).
+  film_ref: string;
   film_title: string;
   release_year: number | null;
   poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()

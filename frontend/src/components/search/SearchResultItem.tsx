@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import type { FilmIndexItem } from "@/api/types";
+import { arcStageLabel } from "@/components/film/labels";
 import { posterUrl } from "@/lib/poster";
 
 interface SearchResultItemProps {
@@ -8,11 +9,13 @@ interface SearchResultItemProps {
   id: string;
 }
 
+/** One search result: poster, title, and the release year — or, for an undated
+ *  film, its arc-stage label ("Announced") in the same trailing slot. */
 export function SearchResultItem({ item, isActive, id }: SearchResultItemProps) {
   return (
     <li id={id} role="option" aria-selected={isActive} className={isActive ? "bg-accent" : ""}>
       <Link
-        to={`/film/${item.slug}`}
+        to={`/film/${item.ref}`}
         tabIndex={-1}
         className="flex items-center gap-3 px-3 py-2 hover:bg-accent"
       >
@@ -25,9 +28,9 @@ export function SearchResultItem({ item, isActive, id }: SearchResultItemProps) 
           />
         )}
         <span className="truncate text-sm">{item.title}</span>
-        {item.release_year && (
-          <span className="ml-auto text-xs text-muted-foreground">{item.release_year}</span>
-        )}
+        <span className="ml-auto text-xs text-muted-foreground">
+          {item.release_year ?? arcStageLabel(item.arc_stage)}
+        </span>
       </Link>
     </li>
   );

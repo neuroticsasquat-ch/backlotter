@@ -2,15 +2,20 @@ import type { FilmDetail } from "@/api/types";
 import { formatRuntime, pickRating } from "@/lib/format";
 import { posterUrl } from "@/lib/poster";
 import { ArcStepper } from "./ArcStepper";
+import { arcStageLabel } from "./labels";
 import { ExternalLinks } from "./ExternalLinks";
 
 /** Title + parenthetical year, then the poster beside the production-status arc
  *  (left-aligned), with a labeled spec sheet (director, runtime, rating, genres)
- *  below. Production companies render in their own collapsible section below the cast. */
+ *  below. An undated film shows its arc-stage label ("Announced") in the year's
+ *  slot rather than dropping it — with thousands of undated films, an empty slot
+ *  reads as missing data instead of a meaningful state.
+ *  Production companies render in their own collapsible section below the cast. */
 export function FilmHeader({ film }: { film: FilmDetail }) {
   const poster = posterUrl(film.poster_path, "w342");
   const runtime = film.runtime != null && film.runtime > 0 ? formatRuntime(film.runtime) : null;
   const rating = pickRating(film.release_dates);
+  const yearOrStage = film.release_year ?? arcStageLabel(film.arc_stage);
 
   const billing: [string, string[]][] = (
     [
@@ -30,9 +35,7 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
     <header>
       <div className="flex flex-wrap items-baseline gap-x-2">
         <h1 className="text-2xl font-bold">{film.title}</h1>
-        {film.release_year && (
-          <span className="text-2xl font-normal text-muted-foreground">({film.release_year})</span>
-        )}
+        <span className="text-2xl font-normal text-muted-foreground">({yearOrStage})</span>
       </div>
 
       <div className="mt-4 flex items-start gap-4">

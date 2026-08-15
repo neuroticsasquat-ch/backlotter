@@ -5,7 +5,7 @@ import { http, HttpResponse } from "msw";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { server } from "@/test/msw/server";
 import { env } from "@/env";
-import type { IngestRun, LlmStageUsage } from "@/api/types";
+import type { IngestRun, IngestRunKind, LlmStageUsage } from "@/api/types";
 import { AdminIngest } from "./AdminIngest";
 
 const base = env.apiBaseUrl;
@@ -66,15 +66,45 @@ describe("AdminIngest", () => {
     expect(screen.getByText("42")).toBeInTheDocument();
   });
 
-  it("renders friendly labels for link and synthesize run kinds", async () => {
+  it("renders friendly labels for link, synthesize and sweep run kinds", async () => {
     server.use(
       http.get(`${base}/admin/runs`, () =>
-        HttpResponse.json([makeRun({ kind: "link" }), makeRun({ kind: "synthesize" })]),
+        HttpResponse.json([
+          makeRun({ kind: "link" }),
+          makeRun({ kind: "synthesize" }),
+          makeRun({ kind: "sweep" }),
+        ]),
       ),
     );
     renderPage();
     expect(await screen.findByText("Link")).toBeInTheDocument();
     expect(screen.getByText("Synthesize")).toBeInTheDocument();
+    expect(screen.getByText("Sweep")).toBeInTheDocument();
+  });
+
+  it("falls back to the raw kind for a kind the frontend does not know", async () => {
+    // The backend's `kind` is a bare string; our union is only a local model of it. A kind
+    // this build predates must still render legibly rather than as a blank cell.
+    server.use(
+      http.get(`${base}/admin/runs`, () =>
+        HttpResponse.json([makeRun({ kind: "backfill" as unknown as IngestRunKind })]),
+      ),
+    );
+    renderPage();
+    expect(await screen.findByText("backfill")).toBeInTheDocument();
+  });
+
+  it("falls back to the raw kind when it collides with an Object.prototype key", async () => {
+    // An unguarded lookup on an object literal resolves inherited keys, so a kind named
+    // "constructor" would yield a function and React would render nothing — the very blank
+    // cell the fallback exists to prevent.
+    server.use(
+      http.get(`${base}/admin/runs`, () =>
+        HttpResponse.json([makeRun({ kind: "constructor" as unknown as IngestRunKind })]),
+      ),
+    );
+    renderPage();
+    expect(await screen.findByText("constructor")).toBeInTheDocument();
   });
 
   it("shows running vs terminal statuses", async () => {

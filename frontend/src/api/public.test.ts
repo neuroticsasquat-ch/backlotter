@@ -7,7 +7,7 @@ import type { CalendarResponse, FeedDayResponse, FilmDetail, FilmIndexResponse }
 const BACKEND = "https://api.upmovies.localhost";
 
 const sample: FilmDetail = {
-  slug: "the-odyssey-2026",
+  ref: "the-odyssey-2026",
   title: "The Odyssey",
   release_date: "2026-07-17",
   release_year: 2026,
@@ -36,7 +36,7 @@ describe("getFilm", () => {
   it("returns the typed film on 200", async () => {
     server.use(http.get(`${BACKEND}/films/the-odyssey-2026`, () => HttpResponse.json(sample)));
     const film = await getFilm(BACKEND, "the-odyssey-2026");
-    expect(film?.slug).toBe("the-odyssey-2026");
+    expect(film?.ref).toBe("the-odyssey-2026");
     expect(film?.arc_stage).toBe("wrapped");
   });
 
@@ -54,13 +54,16 @@ describe("getFilm", () => {
 const sampleGrouped: FeedDayResponse = {
   items: [
     {
-      film_slug: "the-odyssey-2026",
+      film_ref: "the-odyssey-2026",
       film_title: "The Odyssey",
       release_year: 2026,
       poster_path: "/poster.jpg",
+      arc_stage: "shooting",
       day: "2026-06-23",
       top_event_type: "casting",
+      event_types: ["casting"],
       event_count: 2,
+      news_backed: true,
     },
   ],
   total: 1,
@@ -79,7 +82,7 @@ describe("getFeedGrouped", () => {
     );
     const feed = await getFeedGrouped(BACKEND);
     expect(feed.total).toBe(1);
-    expect(feed.items[0].film_slug).toBe("the-odyssey-2026");
+    expect(feed.items[0].film_ref).toBe("the-odyssey-2026");
     expect(feed.items[0].event_count).toBe(2);
     expect(captured?.searchParams.get("limit")).toBe("50");
     expect(captured?.searchParams.get("offset")).toBe("0");
@@ -94,7 +97,7 @@ describe("getFeedGrouped", () => {
 const sampleCalendar: CalendarResponse = {
   items: [
     {
-      film_slug: "the-odyssey-2026",
+      film_ref: "the-odyssey-2026",
       film_title: "The Odyssey",
       release_year: 2026,
       poster_path: "/poster.jpg",
@@ -121,7 +124,7 @@ describe("getCalendar", () => {
     );
     const calendar = await getCalendar(BACKEND);
     expect(calendar.total).toBe(1);
-    expect(calendar.items[0].film_slug).toBe("the-odyssey-2026");
+    expect(calendar.items[0].film_ref).toBe("the-odyssey-2026");
     expect(calendar.items[0].release_type).toBe("wide");
     expect(captured?.searchParams.get("limit")).toBe("100");
     expect(captured?.searchParams.get("offset")).toBe("0");
@@ -151,7 +154,7 @@ describe("getCalendar", () => {
 const sampleSearch: FilmIndexResponse = {
   items: [
     {
-      slug: "the-matrix-1999",
+      ref: "the-matrix-1999",
       title: "The Matrix",
       release_year: 1999,
       poster_path: "/matrix.jpg",
@@ -168,7 +171,7 @@ describe("getFilmSearch", () => {
     server.use(http.get(`${BACKEND}/films/search`, () => HttpResponse.json(sampleSearch)));
     const result = await getFilmSearch(BACKEND, "matrix");
     expect(result.total).toBe(1);
-    expect(result.items[0].slug).toBe("the-matrix-1999");
+    expect(result.items[0].ref).toBe("the-matrix-1999");
     expect(result.items[0].arc_stage).toBe("released");
   });
 

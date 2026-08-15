@@ -96,7 +96,7 @@ export function SearchBox() {
         if (!results || results.length === 0) break;
         e.preventDefault();
         const idx = activeIndex >= 0 && activeIndex < results.length ? activeIndex : 0;
-        void navigate(`/film/${results[idx].slug}`);
+        void navigate(`/film/${results[idx].ref}`);
         break;
       }
     }
@@ -137,7 +137,7 @@ export function SearchBox() {
         >
           {results?.map((item, i) => (
             <SearchResultItem
-              key={item.slug}
+              key={item.ref}
               item={item}
               id={`search-opt-${i}`}
               isActive={activeIndex === i}

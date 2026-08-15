@@ -13,7 +13,7 @@ const BACKEND = "https://api.upmovies.localhost";
 const calendarTwoDates: CalendarResponse = {
   items: [
     {
-      film_slug: "the-odyssey-2026",
+      film_ref: "the-odyssey-2026",
       film_title: "The Odyssey",
       release_year: 2026,
       poster_path: "/odyssey.jpg",
@@ -24,7 +24,7 @@ const calendarTwoDates: CalendarResponse = {
       genres: [],
     },
     {
-      film_slug: "dune-3-2026",
+      film_ref: "dune-3-2026",
       film_title: "Dune Part Three",
       release_year: 2026,
       poster_path: null,
@@ -35,7 +35,7 @@ const calendarTwoDates: CalendarResponse = {
       genres: [],
     },
     {
-      film_slug: "avatar-3-2026",
+      film_ref: "avatar-3-2026",
       film_title: "Avatar 3",
       release_year: 2025,
       poster_path: "/avatar3.jpg",
@@ -70,7 +70,7 @@ describe("calendar route loader", () => {
     server.use(http.get(`${BACKEND}/calendar`, () => HttpResponse.json(calendarTwoDates)));
     const data = await callLoader();
     expect(data.calendar.total).toBe(2);
-    expect(data.calendar.items[0].film_slug).toBe("the-odyssey-2026");
+    expect(data.calendar.items[0].film_ref).toBe("the-odyssey-2026");
   });
 });
 
@@ -170,7 +170,7 @@ describe("calendar route render", () => {
     const multiMonth: CalendarResponse = {
       items: [
         {
-          film_slug: "film-june",
+          film_ref: "film-june",
           film_title: "June Film",
           release_year: 2026,
           poster_path: null,
@@ -181,7 +181,7 @@ describe("calendar route render", () => {
           genres: [],
         },
         {
-          film_slug: "film-july",
+          film_ref: "film-july",
           film_title: "July Film",
           release_year: 2026,
           poster_path: null,

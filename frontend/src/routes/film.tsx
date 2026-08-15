@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- route files intentionally export loader + meta + ErrorBoundary alongside the component */
-import { isRouteErrorResponse, Link } from "react-router";
+import { isRouteErrorResponse, Link, redirect } from "react-router";
 import type { Route } from "./+types/film";
 import { getFilm } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
@@ -14,11 +14,23 @@ import { ProductionCompanies } from "@/components/film/ProductionCompanies";
 import { ReleaseDates } from "@/components/film/ReleaseDates";
 import { EventTimeline } from "@/components/film/EventTimeline";
 
-export async function loader({ params, context }: Route.LoaderArgs) {
+export async function loader({ params, request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
-  const film = await getFilm(env.API_BASE_URL, params.slug);
+  const film = await getFilm(env.API_BASE_URL, params.ref);
   if (!film) {
     throw new Response(null, { status: 404, statusText: "Film not found" });
+  }
+  // A ref resolves on its leading id, so several URLs reach the same film: one minted before
+  // NEU-1143 (a bare legacy slug), a bare id, or a ref whose decorative half was built from a
+  // title the film has since outgrown. Send all of them to the canonical form.
+  //
+  // 301, not 302: the old URLs are in the sitemap and indexed, and a permanent redirect is what
+  // moves the ranking signal onto the URL we now emit. A temporary one strands it on a URL that
+  // no longer appears anywhere.
+  if (params.ref !== film.ref) {
+    const url = new URL(request.url);
+    url.pathname = `/film/${film.ref}`;
+    throw redirect(url.toString(), 301);
   }
   return { film };
 }

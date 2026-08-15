@@ -28,6 +28,31 @@ export function groupByDay(items: FeedDayItem[]): FeedDayGroup[] {
   return groups;
 }
 
+export interface FeedDaySplit {
+  /** Items a news outlet reported — these lead the day. */
+  newsBacked: FeedDayItem[];
+  /** Items only TMDB has. */
+  tmdbOnly: FeedDayItem[];
+}
+
+/**
+ * Partition one day's items into the news-backed and TMDB-only sections the feed renders, in that
+ * order. Keys off the backend's `news_backed` flag (`EXISTS(event_story)`), never `provenance`: an
+ * event born on TMDB that a trade later covers is news-backed from then on, and must move section
+ * without moving day.
+ *
+ * A pure partition — every input item lands in exactly one bucket, relative order preserved within
+ * each, no `Date.now()` — so SSR and client output match, same contract as `groupByDay`.
+ */
+export function splitByNewsBacked(items: FeedDayItem[]): FeedDaySplit {
+  const newsBacked: FeedDayItem[] = [];
+  const tmdbOnly: FeedDayItem[] = [];
+  for (const item of items) {
+    (item.news_backed ? newsBacked : tmdbOnly).push(item);
+  }
+  return { newsBacked, tmdbOnly };
+}
+
 export interface EventDayGroup {
   /** UTC "YYYY-MM-DD" — a stable React key for the day section. */
   dayKey: string;
@@ -55,4 +80,26 @@ export function groupEventsByDay(events: FilmEvent[]): EventDayGroup[] {
     }
   }
   return groups;
+}
+
+/** How many posters the day's strip renders at most. The desktop column clips to the event
+ *  list's height, so the true count is whatever fits — this is only a ceiling that stops a
+ *  backfill day (ADR-0016 notes those run to 70+ rows) from loading dozens of images to clip
+ *  all but a few. Eight stacked posters cover roughly fourteen feed rows. */
+export const MAX_DAY_POSTERS = 8;
+
+/**
+ * The films whose posters lead a feed day, news-backed first and at most `limit` of them.
+ *
+ * Ordered through `splitByNewsBacked` rather than by taking the backend's order directly, so the
+ * strip agrees with the sections the reader sees below it. Backend order within a day is by
+ * popularity, not by section, so the raw first item is simply the day's most popular film — which
+ * is a TMDB-only one often enough to read as a rule.
+ *
+ * Films without a poster are dropped rather than held as blanks. A pure function of its input —
+ * no `Date.now()` — so SSR and client output match, same contract as `groupByDay`.
+ */
+export function dayPosterLeads(items: FeedDayItem[], limit = MAX_DAY_POSTERS): FeedDayItem[] {
+  const { newsBacked, tmdbOnly } = splitByNewsBacked(items.filter((item) => item.poster_path));
+  return [...newsBacked, ...tmdbOnly].slice(0, limit);
 }
