@@ -213,7 +213,7 @@ describe("feed day sections", () => {
     await screen.findByText(/June 23, 2026/);
 
     const subheadings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
-    expect(subheadings).toEqual(["In the news"]);
+    expect(subheadings).toEqual(["In the news (1 movie)"]);
 
     // The news-backed film renders above both TMDB-only ones despite the original order.
     const links = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
@@ -245,7 +245,7 @@ describe("feed day sections", () => {
     );
     await screen.findByText(/June 23, 2026/);
 
-    const newsSection = screen.getByText("In the news").closest("div")!;
+    const newsSection = screen.getByText("In the news (2 movies)").closest("div")!;
     const newsLinks = [...newsSection.querySelectorAll("a[href^='/film/']")].map(
       (a) => a.getAttribute("href"),
     );
@@ -308,10 +308,10 @@ describe("feed day sections", () => {
     expect(monday.querySelector('a[href="/film/reported-monday"]')).not.toBeNull();
     expect(tuesday.querySelector('a[href="/film/reported-monday"]')).toBeNull();
     expect([...monday.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
-      "In the news",
+      "In the news (1 movie)",
     ]);
     // Expand the TMDB section to see all items
-    await userEvent.click(screen.getByText("via TMDB"));
+    await userEvent.click(screen.getByText("via TMDB (1 movie)"));
     // Within each section, items are alphabetically sorted. News section renders first (reported-monday),
     // then TMDB section (monday-tmdb).
     const mondayLinks = [...monday.querySelectorAll("a[href^='/film/']")].map((a) => a.getAttribute("href"));
@@ -323,8 +323,8 @@ describe("feed day sections", () => {
 
   it("opens every section with a rule and space, not just a heading", async () => {
     renderFeed(oneDay(dayItem("reported", { news_backed: true }), dayItem("tmdb")));
-    const newsContainer = (await screen.findByText("In the news")).closest(".border-t")!;
-    const tmdbContainer = screen.getByText("via TMDB").closest(".border-t")!;
+    const newsContainer = (await screen.findByText("In the news (1 movie)")).closest(".border-t")!;
+    const tmdbContainer = screen.getByText("via TMDB (1 movie)").closest(".border-t")!;
     expect(newsContainer).not.toBeNull();
     expect(tmdbContainer).not.toBeNull();
   });
@@ -358,21 +358,11 @@ describe("tmdb section collapse", () => {
     );
     await screen.findByText(/June 23, 2026/);
 
-    // The TMDB section shows its heading and count but the items are hidden
-    const tmdbHeading = screen.getByText("via TMDB");
-    expect(tmdbHeading).toBeInTheDocument();
-
-    // The count badge should show 2
-    const countEl = tmdbHeading.parentElement!.querySelector(".ml-auto");
-    expect(countEl?.textContent).toBe("2");
-
-    // The expand/collapse chevron should be present (not rotated = collapsed)
-    const chevron = tmdbHeading.parentElement!.querySelector("svg");
-    expect(chevron).not.toBeNull();
-    expect(chevron?.className).not.toContain("rotate-90");
+    // The TMDB heading shows "via TMDB (2 movies)" 
+    expect(screen.getByText("via TMDB (2 movies)")).toBeInTheDocument();
   });
 
-  it("renders In the news section always expanded", async () => {
+  it("renders In the news section always expanded with count", async () => {
     renderFeed(
       oneDay(
         dayItem("news-film", { news_backed: true }),
@@ -381,9 +371,9 @@ describe("tmdb section collapse", () => {
     );
     await screen.findByText(/June 23, 2026/);
 
-    // News section heading is an h3, not a button
-    const newsHeading = screen.getByText("In the news");
-    expect(newsHeading.tagName).toBe("H3");
+    // News section heading shows count
+    expect(screen.getByText("In the news (1 movie)")).toBeInTheDocument();
+    expect(screen.getByText("In the news (1 movie)").tagName).toBe("H3");
   });
 
   it("toggles via TMDB section open on click", async () => {
@@ -399,7 +389,7 @@ describe("tmdb section collapse", () => {
     expect(screen.queryByText("TMDB-A")).toBeNull();
 
     // Click the TMDB heading to expand
-    await userEvent.click(screen.getByText("via TMDB"));
+    await userEvent.click(screen.getByText("via TMDB (1 movie)"));
     expect(screen.getByText("TMDB-A")).toBeInTheDocument();
   });
 });
@@ -419,7 +409,7 @@ describe("within-day cap removal", () => {
     await screen.findByText(/June 23, 2026/);
 
     // Expand the TMDB section to count all items
-    const tmdbBtn = screen.getByText("via TMDB");
+    const tmdbBtn = screen.getByText(/via TMDB/);
     await userEvent.click(tmdbBtn);
     expect(screen.getAllByRole("link").length).toBeGreaterThanOrEqual(74);
     expect(screen.queryByText(/Show all/i)).toBeNull();

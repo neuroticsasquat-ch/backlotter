@@ -131,17 +131,18 @@ function SectionWrapper({
   section: { key: string; label: string | null; items: unknown[] };
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(section.key !== "tmdb");
-
   if (section.label === null) {
     return <div className={SECTION_BREAK}>{children}</div>;
   }
+
+  const count = section.items.length;
+  const label = `${section.label} (${count} movie${count === 1 ? "" : "s"})`;
 
   if (section.key === "news") {
     return (
       <div className={SECTION_BREAK}>
         <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
-          {section.label}
+          {label}
         </h3>
         {children}
       </div>
@@ -149,7 +150,7 @@ function SectionWrapper({
   }
 
   // TMDB section: collapsible, collapsed by default
-  const count = section.items.length;
+  const [open, setOpen] = useState(false);
   return (
     <div className={SECTION_BREAK}>
       <button
@@ -164,8 +165,7 @@ function SectionWrapper({
         >
           <path d="M5.5 3.5L10.5 8L5.5 12.5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span>{section.label}</span>
-        <span className="ml-auto text-muted-foreground/60">{count}</span>
+        <span>{label}</span>
       </button>
       {open && children}
     </div>
