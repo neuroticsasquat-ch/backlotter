@@ -131,6 +131,10 @@ function SectionWrapper({
   section: { key: string; label: string | null; items: unknown[] };
   children: React.ReactNode;
 }) {
+  // TMDB section: collapsible, collapsed by default. Must be declared before any
+  // early return so React hooks are called unconditionally (lint rule).
+  const [open, setOpen] = useState(section.key !== "tmdb");
+
   if (section.label === null) {
     return <div className={SECTION_BREAK}>{children}</div>;
   }
@@ -148,9 +152,6 @@ function SectionWrapper({
       </div>
     );
   }
-
-  // TMDB section: collapsible, collapsed by default
-  const [open, setOpen] = useState(false);
   return (
     <div className={SECTION_BREAK}>
       <button
