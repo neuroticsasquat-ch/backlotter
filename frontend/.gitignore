@@ -36,3 +36,4 @@ workers/*.d.ts
 
 # Wrangler local dev overrides (may contain secrets)
 .dev.vars
+.pack-lock.json
