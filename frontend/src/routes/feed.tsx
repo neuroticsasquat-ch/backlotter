@@ -91,20 +91,11 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
                     <FeedDayPosters items={group.items} />
                     <div className="min-w-0 flex-1">
                       {sections.map((section) => (
-                        <div key={section.key} className={SECTION_BREAK}>
-                          {section.label !== null && (
-                            <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
-                              {section.label}
-                            </h3>
-                          )}
-                          {/* Each section is its own striping context, so the zebra pattern
-                              restarts under each sub-heading. */}
-                          <div>
-                            {section.items.map((item) => (
-                              <FeedDayCard key={item.film_ref} item={item} />
-                            ))}
-                          </div>
-                        </div>
+                        <SectionWrapper key={section.key} section={section}>
+                          {section.items.map((item) => (
+                            <FeedDayCard key={item.film_ref} item={item} />
+                          ))}
+                        </SectionWrapper>
                       ))}
                     </div>
                   </div>
@@ -127,6 +118,57 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
         </>
       )}
     </main>
+  );
+}
+
+/** Wraps a day section: "In the news" is always expanded; "via TMDB" is collapsible and
+ *  collapsed by default, with a count of movies listed. A single unlabelled section renders
+ *  as a plain broke. */
+function SectionWrapper({
+  section,
+  children,
+}: {
+  section: { key: string; label: string | null; items: unknown[] };
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(section.key !== "tmdb");
+
+  if (section.label === null) {
+    return <div className={SECTION_BREAK}>{children}</div>;
+  }
+
+  if (section.key === "news") {
+    return (
+      <div className={SECTION_BREAK}>
+        <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
+          {section.label}
+        </h3>
+        {children}
+      </div>
+    );
+  }
+
+  // TMDB section: collapsible, collapsed by default
+  const count = section.items.length;
+  return (
+    <div className={SECTION_BREAK}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80"
+      >
+        <svg
+          className={`size-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+          viewBox="0 0 16 16"
+          fill="currentColor"
+        >
+          <path d="M5.5 3.5L10.5 8L5.5 12.5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span>{section.label}</span>
+        <span className="ml-auto text-muted-foreground/60">{count}</span>
+      </button>
+      {open && children}
+    </div>
   );
 }
 

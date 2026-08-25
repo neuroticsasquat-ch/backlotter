@@ -15,6 +15,7 @@ const item: FeedDayItem = {
   event_types: ["release_date"],
   event_count: 1,
   news_backed: false,
+  event_story_sources: [],
 };
 
 function renderCard(overrides: Partial<FeedDayItem> = {}) {

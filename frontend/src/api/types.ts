@@ -145,6 +145,8 @@ export interface FeedDayItem {
   // EXISTS(event_story), not from `provenance` — provenance is where an event was born and is
   // never mutated when a story attaches later. Drives the feed's within-day sectioning.
   news_backed: boolean;
+  // Story sources for the events on this (film, day), deduplicated by outlet, newest first.
+  event_story_sources: FilmSource[];
 }
 
 export interface FeedDayResponse {

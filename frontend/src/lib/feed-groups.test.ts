@@ -54,16 +54,16 @@ describe("splitByNewsBacked", () => {
     expect(splitByNewsBacked([])).toEqual({ newsBacked: [], tmdbOnly: [] });
   });
 
-  it("partitions on news_backed, preserving the backend's within-day order in each list", () => {
-    // Interleaved on input: the split must not reorder within either bucket.
+  it("sorts alphabetically within each bucket", () => {
+    // Interleaved on input: the split sorts by title (case-insensitive) within each bucket.
     const { newsBacked, tmdbOnly } = splitByNewsBacked([
-      item("2026-06-23", "a", { news_backed: true }),
-      item("2026-06-23", "b"),
-      item("2026-06-23", "c", { news_backed: true }),
-      item("2026-06-23", "d"),
+      item("2026-06-23", "z-film", { news_backed: true, film_title: "Z Film" }),
+      item("2026-06-23", "a-film", { film_title: "A Film" }),
+      item("2026-06-23", "m-film", { news_backed: true, film_title: "M Film" }),
+      item("2026-06-23", "b-film", { film_title: "B Film" }),
     ]);
-    expect(newsBacked.map((i) => i.film_ref)).toEqual(["a", "c"]);
-    expect(tmdbOnly.map((i) => i.film_ref)).toEqual(["b", "d"]);
+    expect(newsBacked.map((i) => i.film_ref)).toEqual(["m-film", "z-film"]);
+    expect(tmdbOnly.map((i) => i.film_ref)).toEqual(["a-film", "b-film"]);
   });
 
   it("puts every item in one bucket when the day is all news-backed", () => {
@@ -139,7 +139,7 @@ describe("dayPosterLeads", () => {
     return item("2026-06-23", film_ref, { poster_path: `/${film_ref}.jpg`, ...overrides });
   }
 
-  it("puts news-backed films ahead of TMDB-only ones regardless of backend order", () => {
+  it("puts news-backed films ahead of TMDB-only ones, alphabetically within each kind", () => {
     // Backend order within a day is by popularity, so the two kinds arrive interleaved.
     const leads = dayPosterLeads([
       poster("primetime"),
@@ -147,15 +147,17 @@ describe("dayPosterLeads", () => {
       poster("dorothy"),
       poster("charlie", { news_backed: true }),
     ]);
-    expect(leads.map((i) => i.film_ref)).toEqual(["animals", "charlie", "primetime", "dorothy"]);
+    // News-backed first, alphabetically: animals then charlie. Then TMDB-only: dorothy then primetime.
+    expect(leads.map((i) => i.film_ref)).toEqual(["animals", "charlie", "dorothy", "primetime"]);
   });
 
-  it("keeps backend order (popularity) within each kind", () => {
+  it("partitions alphabetically within each kind", () => {
     const leads = dayPosterLeads([
-      poster("popular", { news_backed: true }),
       poster("less-popular", { news_backed: true }),
+      poster("popular", { news_backed: true }),
     ]);
-    expect(leads.map((i) => i.film_ref)).toEqual(["popular", "less-popular"]);
+    // Alphabetical: less-popular before popular
+    expect(leads.map((i) => i.film_ref)).toEqual(["less-popular", "popular"]);
   });
 
   it("drops films with no poster rather than holding a blank slot", () => {
