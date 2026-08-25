@@ -20,6 +20,7 @@ function item(day: string, film_ref: string, overrides: Partial<FeedDayItem> = {
     event_types: ["casting"],
     event_count: 1,
     news_backed: false,
+    events: [],
     ...overrides,
   };
 }
