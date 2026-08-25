@@ -36,16 +36,27 @@ export interface FeedDaySplit {
 }
 
 /**
+ * Natural English sort key for a film title: strips leading "A ", "An ", "The "
+ * (case-insensitive) before comparing.
+ */
+function naturalSortKey(title: string): string {
+  return title.replace(/^(a|an|the)\s+/i, "").toLowerCase();
+}
+
+/**
  * Partition one day's items into the news-backed and TMDB-only sections the feed renders, in that
  * order. Keys off the backend's `news_backed` flag (`EXISTS(event_story)`), never `provenance`: an
  * event born on TMDB that a trade later covers is news-backed from then on, and must move section
  * without moving day.
  *
- * Within each bucket items are sorted alphabetically by title (case-insensitive), so the feed
- * reads predictably regardless of the backend's ordering.
+ * Within each bucket items are sorted by natural English title order (case-insensitive, ignoring
+ * leading "A", "An", "The"), so the feed reads predictably regardless of the backend's ordering.
  */
 export function splitByNewsBacked(items: FeedDayItem[]): FeedDaySplit {
-  const sorted = [...items].sort((a, b) => a.film_title.localeCompare(b.film_title));
+  const sorted = [...items].sort((a, b) => {
+    const cmp = naturalSortKey(a.film_title).localeCompare(naturalSortKey(b.film_title));
+    return cmp !== 0 ? cmp : a.film_title.localeCompare(b.film_title);
+  });
   const newsBacked: FeedDayItem[] = [];
   const tmdbOnly: FeedDayItem[] = [];
   for (const item of sorted) {

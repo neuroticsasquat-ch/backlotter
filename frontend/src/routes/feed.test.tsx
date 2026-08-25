@@ -246,8 +246,8 @@ describe("feed day sections", () => {
     await screen.findByText(/June 23, 2026/);
 
     const newsSection = screen.getByText("In the news (2 movies)").closest("div")!;
-    const newsLinks = [...newsSection.querySelectorAll("a[href^='/film/']")].map(
-      (a) => a.getAttribute("href"),
+    const newsLinks = [...newsSection.querySelectorAll("a[href^='/film/']")].map((a) =>
+      a.getAttribute("href"),
     );
     expect(newsLinks).toEqual(["/film/a-movie", "/film/z-movie"]);
   });
@@ -268,7 +268,12 @@ describe("feed day sections", () => {
               summary_edited: false,
               provenance: "story",
               sources: [
-                { url: "https://variety.com/story1", source: "Variety", title: "Story One", published_at: null },
+                {
+                  url: "https://variety.com/story1",
+                  source: "Variety",
+                  title: "Story One",
+                  published_at: null,
+                },
               ],
             },
           ],
@@ -314,7 +319,9 @@ describe("feed day sections", () => {
     await userEvent.click(screen.getByText("via TMDB (1 movie)"));
     // Within each section, items are alphabetically sorted. News section renders first (reported-monday),
     // then TMDB section (monday-tmdb).
-    const mondayLinks = [...monday.querySelectorAll("a[href^='/film/']")].map((a) => a.getAttribute("href"));
+    const mondayLinks = [...monday.querySelectorAll("a[href^='/film/']")].map((a) =>
+      a.getAttribute("href"),
+    );
     expect(mondayLinks).toEqual(["/film/reported-monday", "/film/monday-tmdb"]);
     expect(mondayLinks.length).toBe(2);
     // Tuesday is TMDB-only, so it stays unlabelled.
@@ -350,25 +357,16 @@ describe("feed day sections", () => {
 describe("tmdb section collapse", () => {
   it("renders via TMDB section collapsed by default with movie count", async () => {
     renderFeed(
-      oneDay(
-        dayItem("news-film", { news_backed: true }),
-        dayItem("tmdb-a"),
-        dayItem("tmdb-b"),
-      ),
+      oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-a"), dayItem("tmdb-b")),
     );
     await screen.findByText(/June 23, 2026/);
 
-    // The TMDB heading shows "via TMDB (2 movies)" 
+    // The TMDB heading shows "via TMDB (2 movies)"
     expect(screen.getByText("via TMDB (2 movies)")).toBeInTheDocument();
   });
 
   it("renders In the news section always expanded with count", async () => {
-    renderFeed(
-      oneDay(
-        dayItem("news-film", { news_backed: true }),
-        dayItem("tmdb-film"),
-      ),
-    );
+    renderFeed(oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-film")));
     await screen.findByText(/June 23, 2026/);
 
     // News section heading shows count
@@ -377,12 +375,7 @@ describe("tmdb section collapse", () => {
   });
 
   it("toggles via TMDB section open on click", async () => {
-    renderFeed(
-      oneDay(
-        dayItem("news-film", { news_backed: true }),
-        dayItem("tmdb-a"),
-      ),
-    );
+    renderFeed(oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-a")));
     await screen.findByText(/June 23, 2026/);
 
     // Initially TMDB section items are not visible (via queryByText — element shouldn't exist)
