@@ -23,7 +23,18 @@ const feed: FeedDayResponse = {
       event_types: ["trailer"],
       event_count: 1,
       news_backed: true,
-      event_story_sources: [],
+      events: [
+        {
+          event_id: "evt-odyssey-trailer",
+          event_type: "trailer",
+          confidence: "confirmed",
+          created_at: "2026-06-23T12:00:00Z",
+          summary: "The first trailer for The Odyssey was released.",
+          summary_edited: false,
+          provenance: "story",
+          sources: [],
+        },
+      ],
     },
     {
       film_ref: "dune-3-2026",
@@ -36,7 +47,7 @@ const feed: FeedDayResponse = {
       event_types: ["casting"],
       event_count: 3,
       news_backed: false,
-      event_story_sources: [],
+      events: [],
     },
   ],
   total: 2,
@@ -56,7 +67,7 @@ function dayItem(film_ref: string, overrides: Partial<FeedDayItem> = {}): FeedDa
     event_types: ["casting"],
     event_count: 1,
     news_backed: false,
-    event_story_sources: [],
+    events: [],
     ...overrides,
   };
 }
@@ -241,25 +252,32 @@ describe("feed day sections", () => {
     expect(newsLinks).toEqual(["/film/a-movie", "/film/z-movie"]);
   });
 
-  it("renders story sources within a news-backed card", async () => {
+  it("renders events within a card with a summary line and source chips", async () => {
     renderFeed(
       oneDay(
         dayItem("reported", {
           news_backed: true,
           film_title: "Reported Film",
-          event_story_sources: [
-            { url: "https://variety.com/story1", source: "Variety", title: "Story One", published_at: null },
+          events: [
+            {
+              event_id: "evt-1",
+              event_type: "trailer",
+              confidence: "confirmed",
+              created_at: "2026-06-23T10:00:00Z",
+              summary: "First trailer released.",
+              summary_edited: false,
+              provenance: "story",
+              sources: [
+                { url: "https://variety.com/story1", source: "Variety", title: "Story One", published_at: null },
+              ],
+            },
           ],
         }),
       ),
     );
     await screen.findByText("Reported Film");
+    expect(screen.getByText("First trailer released.")).toBeInTheDocument();
     expect(screen.getByText("Variety")).toBeInTheDocument();
-    expect(screen.getByText("Story One")).toBeInTheDocument();
-    // The story source renders as a span[role="link"] inside the card's anchor
-    const storyLink = screen.getByText("Story One").closest('[role="link"]')!;
-    expect(storyLink).toBeInTheDocument();
-    expect(storyLink.getAttribute("tabIndex")).toBe("0");
   });
 
   it("sections a promoted event on its original day, not the day the story arrived", async () => {

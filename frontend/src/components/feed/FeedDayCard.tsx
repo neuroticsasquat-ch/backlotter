@@ -1,19 +1,13 @@
 import { Link } from "react-router";
-import type { FeedDayItem } from "@/api/types";
+import type { FeedDayItem, FilmEvent } from "@/api/types";
 import { arcStageLabel, eventTypeLabel } from "@/components/film/labels";
-import { outletLabel } from "@/lib/feed-labels";
 
-/** One (film, day) row for the home feed: the film title + year, then a badge for every beat
- *  the film saw that day, the whole row linked. An undated film shows its arc-stage label
- *  ("Announced") in the year's slot — the feed is the discovery surface for undated films, so an
- *  empty slot there would read as missing data rather than as a meaningful state.
+/** One (film, day) row for the home feed: the film title + year, then each event rendered
+ *  as a summary line with source chips below it, matching the film detail page format.
  *  The title wraps rather than truncating (long titles are common and the mobile column is
  *  narrow); wrapped lines take a hanging indent so a second line reads as continuation rather
- *  than as its own row. The beat badges sit at that same indent, subordinate to the title.
- *  Zebra-striped within its section — a day that carries both news-backed and TMDB-only
- *  updates renders them as two lists, and the stripe restarts under each.
- *  When the row carries news stories (event_story_sources), each story is listed beneath the
- *  beat badges linked to its URL. */
+ *  than as its own row. Zebra-striped within its section — a day that carries both news-backed
+ *  and TMDB-only updates renders them as two lists, and the stripe restarts under each. */
 export function FeedDayCard({ item }: { item: FeedDayItem }) {
   return (
     <Link
@@ -27,48 +21,83 @@ export function FeedDayCard({ item }: { item: FeedDayItem }) {
           ({item.release_year ?? arcStageLabel(item.arc_stage)})
         </span>
       </span>
-      {item.event_types.length > 0 && (
-        <span className="mt-1 flex flex-wrap gap-1 pl-3">
-          {item.event_types.map((eventType) => (
-            <span
-              key={eventType}
-              className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium uppercase leading-none tracking-wide text-muted-foreground"
-            >
-              {eventTypeLabel(eventType)}
-            </span>
+      {item.events.length > 0 && (
+        <div className="mt-1 space-y-1.5 pl-3">
+          {item.events.map((event) => (
+            <FeedEvent key={event.event_id} event={event} />
           ))}
-        </span>
-      )}
-      {item.event_story_sources && item.event_story_sources.length > 0 && (
-        <ul className="mt-1.5 space-y-0.5 pl-3">
-          {item.event_story_sources.map((src, i) => (
-            <li key={i}>
-              <span
-                role="link"
-                tabIndex={0}
-                className="group inline-flex cursor-pointer items-baseline gap-1 text-xs text-muted-foreground hover:text-foreground"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.open(src.url, "_blank", "noopener,noreferrer");
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.stopPropagation();
-                    window.open(src.url, "_blank", "noopener,noreferrer");
-                  }
-                }}
-              >
-                <span className="shrink-0 font-medium text-foreground/60">
-                  {outletLabel(src)}
-                </span>
-                <span className="truncate underline decoration-dotted underline-offset-2">
-                  {src.title}
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        </div>
       )}
     </Link>
+  );
+}
+
+function FeedEvent({ event }: { event: FilmEvent }) {
+  return (
+    <div>
+      <p className="text-xs leading-relaxed text-foreground">
+        <span className="mr-1 inline-block rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground">
+          {eventTypeLabel(event.event_type)}
+        </span>
+        {event.summary}
+        {event.summary_edited ? (
+          <span className="ml-1 inline-block rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground">
+            edited
+          </span>
+        ) : null}
+      </p>
+      <FeedEventSources sources={event.sources} provenance={event.provenance} />
+    </div>
+  );
+}
+
+function FeedEventSources({
+  sources,
+  provenance,
+}: {
+  sources: FilmEvent["sources"];
+  provenance: FilmEvent["provenance"];
+}) {
+  if (sources.length === 0) {
+    if (provenance !== "catalog") return null;
+    return <p className="mt-1 text-[11px] text-muted-foreground">via TMDB</p>;
+  }
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
+      {sources.map((source, i) => (
+        <span
+          key={`${source.url}-${i}`}
+          role="link"
+          tabIndex={0}
+          title={source.title}
+          className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-border px-2 py-0.5 text-muted-foreground transition-colors hover:border-blue-500 hover:bg-blue-500/10 hover:text-blue-400"
+          onClick={(e) => {
+            e.stopPropagation();
+            window.open(source.url, "_blank", "noopener,noreferrer");
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.stopPropagation();
+              window.open(source.url, "_blank", "noopener,noreferrer");
+            }
+          }}
+        >
+          {source.source}
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            className="h-2.5 w-2.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M7 17 17 7" />
+            <path d="M9 7h8v8" />
+          </svg>
+        </span>
+      ))}
+    </div>
   );
 }
