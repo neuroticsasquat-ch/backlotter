@@ -56,8 +56,14 @@ describe("FeedDayCard", () => {
     // NEU-1138 splits a day into two sibling lists. The stripe resets per section precisely
     // because it is CSS nth-child on the card's own parent, not an index passed in — so the
     // card takes no position prop, and adding one would silently change the day's appearance.
-    renderCard();
-    expect(screen.getByRole("link").className).toContain("odd:bg-muted/40");
+    // The container div carries the stripe; the inner link does not.
+    const { container } = render(
+      <MemoryRouter>
+        <FeedDayCard item={item} />
+      </MemoryRouter>,
+    );
+    const card = container.firstElementChild!;
+    expect(card.className).toContain("odd:bg-muted/40");
   });
 
   it("labels every beat the film saw that day via event badges", () => {
