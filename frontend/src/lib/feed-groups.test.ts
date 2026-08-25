@@ -59,9 +59,9 @@ describe("splitByNewsBacked", () => {
     // Interleaved on input: the split sorts by title (case-insensitive) within each bucket.
     const { newsBacked, tmdbOnly } = splitByNewsBacked([
       item("2026-06-23", "z-film", { news_backed: true, film_title: "Z Film" }),
-      item("2026-06-23", "a-film", { film_title: "A Film" }),
+      item("2026-06-23", "a-film", { film_title: "Alpha Film" }),
       item("2026-06-23", "m-film", { news_backed: true, film_title: "M Film" }),
-      item("2026-06-23", "b-film", { film_title: "B Film" }),
+      item("2026-06-23", "b-film", { film_title: "Bravo Film" }),
     ]);
     expect(newsBacked.map((i) => i.film_ref)).toEqual(["m-film", "z-film"]);
     expect(tmdbOnly.map((i) => i.film_ref)).toEqual(["a-film", "b-film"]);
@@ -83,6 +83,30 @@ describe("splitByNewsBacked", () => {
     ]);
     expect(newsBacked).toEqual([]);
     expect(tmdbOnly).toHaveLength(2);
+  });
+
+  it("sorts by natural English title ignoring leading A, An, The", () => {
+    const items = [
+      item("2026-06-23", "the-batman", { news_backed: true, film_title: "The Batman" }),
+      item("2026-06-23", "an-american", { news_backed: true, film_title: "An American in Paris" }),
+      item("2026-06-23", "a-clockwork", { news_backed: true, film_title: "A Clockwork Orange" }),
+      item("2026-06-23", "batman", { news_backed: true, film_title: "Batman" }),
+      item("2026-06-23", "avengers", { news_backed: true, film_title: "Avengers" }),
+    ];
+    const { newsBacked } = splitByNewsBacked(items);
+    // Natural sort keys:
+    //   "An American in Paris" → "american in paris"
+    //   "Avengers"            → "avengers"
+    //   "Batman"              → "batman"
+    //   "The Batman"          → "batman" (tie with "Batman" → localeCompare original: B < T)
+    //   "A Clockwork Orange"  → "clockwork orange"
+    expect(newsBacked.map((i) => i.film_ref)).toEqual([
+      "an-american",
+      "avengers",
+      "batman",
+      "the-batman",
+      "a-clockwork",
+    ]);
   });
 
   it("keeps every input item — the split partitions, it never drops or caps", () => {

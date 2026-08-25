@@ -98,10 +98,9 @@ describe("ReleaseDates", () => {
       expect(screen.getByRole("heading", { name: /release dates/i })).toBeInTheDocument();
     });
 
-    it("does NOT require country tags when all rows share one country", () => {
+    it("shows country tag even when all rows share one country", () => {
       render(<ReleaseDates dates={singleCountryDates} />);
-      // The country tag is optional in the single-country case — assert it's absent
-      expect(screen.queryByText("US")).not.toBeInTheDocument();
+      expect(screen.getAllByText("US")).toHaveLength(2);
     });
   });
 
