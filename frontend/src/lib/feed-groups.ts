@@ -41,13 +41,14 @@ export interface FeedDaySplit {
  * event born on TMDB that a trade later covers is news-backed from then on, and must move section
  * without moving day.
  *
- * A pure partition — every input item lands in exactly one bucket, relative order preserved within
- * each, no `Date.now()` — so SSR and client output match, same contract as `groupByDay`.
+ * Within each bucket items are sorted alphabetically by title (case-insensitive), so the feed
+ * reads predictably regardless of the backend's ordering.
  */
 export function splitByNewsBacked(items: FeedDayItem[]): FeedDaySplit {
+  const sorted = [...items].sort((a, b) => a.film_title.localeCompare(b.film_title));
   const newsBacked: FeedDayItem[] = [];
   const tmdbOnly: FeedDayItem[] = [];
-  for (const item of items) {
+  for (const item of sorted) {
     (item.news_backed ? newsBacked : tmdbOnly).push(item);
   }
   return { newsBacked, tmdbOnly };

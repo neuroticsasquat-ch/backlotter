@@ -64,6 +64,7 @@ const sampleGrouped: FeedDayResponse = {
       event_types: ["casting"],
       event_count: 2,
       news_backed: true,
+      events: [],
     },
   ],
   total: 1,

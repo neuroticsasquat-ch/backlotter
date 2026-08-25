@@ -15,6 +15,7 @@ const item: FeedDayItem = {
   event_types: ["release_date"],
   event_count: 1,
   news_backed: false,
+  events: [],
 };
 
 function renderCard(overrides: Partial<FeedDayItem> = {}) {
@@ -55,31 +56,39 @@ describe("FeedDayCard", () => {
     // NEU-1138 splits a day into two sibling lists. The stripe resets per section precisely
     // because it is CSS nth-child on the card's own parent, not an index passed in — so the
     // card takes no position prop, and adding one would silently change the day's appearance.
-    renderCard();
-    expect(screen.getByRole("link").className).toContain("odd:bg-muted/40");
+    // The container div carries the stripe; the inner link does not.
+    const { container } = render(
+      <MemoryRouter>
+        <FeedDayCard item={item} />
+      </MemoryRouter>,
+    );
+    const card = container.firstElementChild!;
+    expect(card.className).toContain("odd:bg-muted/40");
   });
 
-  it("labels every beat the film saw that day, in the order the backend ranked them", () => {
-    renderCard({ event_types: ["trailer", "casting", "announced"], event_count: 5 });
+  it("labels every beat the film saw that day via event badges", () => {
+    renderCard({
+      events: [
+        { event_id: "e1", event_type: "trailer", confidence: "confirmed", created_at: "2026-06-23T12:00:00Z", summary: "Trailer released.", summary_edited: false, provenance: "story", sources: [] },
+        { event_id: "e2", event_type: "casting", confidence: "rumored", created_at: "2026-06-23T12:00:00Z", summary: "Actor cast.", summary_edited: false, provenance: "story", sources: [] },
+      ],
+    });
     expect(screen.getByText("Trailer")).toBeInTheDocument();
     expect(screen.getByText("Casting")).toBeInTheDocument();
-    expect(screen.getByText("Announced")).toBeInTheDocument();
   });
 
-  it("renders the beat labels beneath the title, not inside it", () => {
-    renderCard({ event_types: ["casting"] });
-    const title = screen.getByText("The Odyssey");
-    expect(title).not.toContainElement(screen.getByText("Casting"));
-  });
-
-  it("shows a single label for a one-beat day", () => {
-    renderCard({ event_types: ["release_date"] });
+  it("shows a single event for a one-beat day", () => {
+    renderCard({
+      events: [
+        { event_id: "e3", event_type: "release_date", confidence: "confirmed", created_at: "2026-06-23T12:00:00Z", summary: "Date set.", summary_edited: false, provenance: "story", sources: [] },
+      ],
+    });
     expect(screen.getByText("Release date")).toBeInTheDocument();
     expect(screen.queryByText("Trailer")).toBeNull();
   });
 
-  it("still shows no event count — the labels say what happened, not how often", () => {
-    renderCard({ event_count: 3, event_types: ["casting"] });
+  it("still shows no event count — events say what happened, not how often", () => {
+    renderCard({ event_count: 3, events: [] });
     expect(screen.queryByText(/^\+/)).toBeNull();
     expect(screen.queryByText("3")).toBeNull();
   });
@@ -91,5 +100,44 @@ describe("FeedDayCard", () => {
     const link = screen.getByRole("link");
     expect(link.className).not.toContain("truncate");
     expect(screen.getByText(/^Untitled Shang-Chi/).className).toContain("-indent-3");
+  });
+
+  it("renders events with summary text and type badge", () => {
+    renderCard({
+      events: [
+        {
+          event_id: "evt-1",
+          event_type: "trailer",
+          confidence: "confirmed",
+          created_at: "2026-06-23T12:00:00Z",
+          summary: "The official trailer was released.",
+          summary_edited: false,
+          provenance: "story",
+          sources: [],
+        },
+      ],
+    });
+    expect(screen.getByText("Trailer")).toBeInTheDocument();
+    expect(screen.getByText("The official trailer was released.")).toBeInTheDocument();
+  });
+
+  it("renders source chips for an event with sources", () => {
+    renderCard({
+      events: [
+        {
+          event_id: "evt-2",
+          event_type: "casting",
+          confidence: "rumored",
+          created_at: "2026-06-23T12:00:00Z",
+          summary: "New actor cast.",
+          summary_edited: false,
+          provenance: "story",
+          sources: [
+            { url: "https://deadline.com/article", source: "Deadline", title: "Exclusive", published_at: null },
+          ],
+        },
+      ],
+    });
+    expect(screen.getByText("Deadline")).toBeInTheDocument();
   });
 });
