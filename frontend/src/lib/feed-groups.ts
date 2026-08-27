@@ -113,5 +113,12 @@ export const MAX_DAY_POSTERS = 8;
  */
 export function dayPosterLeads(items: FeedDayItem[], limit = MAX_DAY_POSTERS): FeedDayItem[] {
   const { newsBacked, tmdbOnly } = splitByNewsBacked(items.filter((item) => item.poster_path));
-  return [...newsBacked, ...tmdbOnly].slice(0, limit);
+  const seen = new Set<string>();
+  return [...newsBacked, ...tmdbOnly]
+    .filter((item) => {
+      if (seen.has(item.film_ref)) return false;
+      seen.add(item.film_ref);
+      return true;
+    })
+    .slice(0, limit);
 }

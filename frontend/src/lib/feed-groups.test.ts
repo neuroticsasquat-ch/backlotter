@@ -201,4 +201,41 @@ describe("dayPosterLeads", () => {
   it("returns nothing for a day whose films all lack posters", () => {
     expect(dayPosterLeads([poster("x", { poster_path: null })])).toEqual([]);
   });
+
+  it("deduplicates same film appearing in both news and TMDB sections", () => {
+    const leads = dayPosterLeads([
+      poster("batman", { news_backed: true }),
+      poster("batman"),
+    ]);
+    expect(leads).toHaveLength(1);
+    expect(leads[0].film_ref).toBe("batman");
+    expect(leads[0].news_backed).toBe(true);
+  });
+
+  it("keeps first (news-backed) copy of a film in both sections", () => {
+    const leads = dayPosterLeads([
+      poster("batman", { news_backed: true }),
+      poster("batman"),
+      poster("superman", { news_backed: true }),
+      poster("superman"),
+    ]);
+    expect(leads.map((i) => i.film_ref)).toEqual(["batman", "superman"]);
+    expect(leads.every((i) => i.news_backed)).toBe(true);
+  });
+
+  it("does not affect distinct films", () => {
+    const leads = dayPosterLeads([
+      poster("a"),
+      poster("b"),
+      poster("c"),
+    ]);
+    expect(leads.map((i) => i.film_ref)).toEqual(["a", "b", "c"]);
+  });
+
+  it("caps after dedup", () => {
+    const items = Array.from({ length: 20 }, (_, i) =>
+      poster(`film-${i % 8}`),
+    );
+    expect(dayPosterLeads(items)).toHaveLength(8);
+  });
 });
