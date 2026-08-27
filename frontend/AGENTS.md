@@ -44,6 +44,10 @@ Before claiming work done, `task test`, `task lint`, `task typecheck` must be gr
 - Render with the providers the unit needs: `QueryClientProvider` (use `{ retry: false }`), `AuthProvider`, and `MemoryRouter` + `Routes` when the component uses router context.
 - Auth resolves **asynchronously** via the `/me` query. Use `findBy*` for content gated on it, and key assertions off something that only appears post-auth (e.g. the "Log out" control) — not content that renders before auth resolves, or you'll get a false pass/fail.
 
+## Sibling repo
+
+The backend lives at `../upcoming-movies-backend`. Read its `AGENTS.md` before working on backend code.
+
 ## Gotchas
 
 - A few pre-existing files (`AuthContext.*`) have Prettier drift on `main`. Don't reformat unrelated files in a PR — format only what you touch.
