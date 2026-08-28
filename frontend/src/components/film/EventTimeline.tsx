@@ -5,17 +5,8 @@ import { EventCard } from "./EventCard";
 
 const SECTION_BREAK = "border-t border-border pt-4 [&:not(:first-child)]:mt-5";
 
-function SubSection({
-  label,
-  events,
-  defaultOpen,
-}: {
-  label: string;
-  events: FilmEvent[];
-  defaultOpen: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const count = events.length;
+function TmdbSubSection({ events }: { events: FilmEvent[] }) {
+  const [open, setOpen] = useState(false);
   return (
     <div className={SECTION_BREAK}>
       <button
@@ -30,21 +21,25 @@ function SubSection({
         >
           <path d="M5.5 3.5L10.5 8L5.5 12.5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span>{label} ({count} event{count === 1 ? "" : "s"})</span>
+        <span>via TMDB</span>
       </button>
-      {open && (
-        <ol className="mt-2 space-y-4">
-          {events.map((event, i) => (
-            <li
-              key={`${event.event_type}-${event.created_at}-${i}`}
-              className="border-l-2 border-border pl-3"
-            >
-              <EventCard event={event} />
-            </li>
-          ))}
-        </ol>
-      )}
+      {open && <EventList events={events} />}
     </div>
+  );
+}
+
+function EventList({ events }: { events: FilmEvent[] }) {
+  return (
+    <ol className="mt-2 space-y-4">
+      {events.map((event, i) => (
+        <li
+          key={`${event.event_type}-${event.created_at}-${i}`}
+          className="border-l-2 border-border pl-3"
+        >
+          <EventCard event={event} />
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -67,23 +62,17 @@ export function EventTimeline({ dayGroups }: { dayGroups: FilmDayGroup[] }) {
                 <h3 className="text-sm font-medium text-muted-foreground">
                   <time dateTime={group.day}>{group.heading}</time>
                 </h3>
-                {hasNews && hasTmdb ? (
-                  <div className="mt-2 space-y-0">
-                    <SubSection label="In the news" events={group.news_events} defaultOpen />
-                    <SubSection label="via TMDB" events={group.tmdb_events} defaultOpen={false} />
-                  </div>
-                ) : (
-                  <ol className="mt-2 space-y-4">
-                    {(hasNews ? group.news_events : group.tmdb_events).map((event, i) => (
-                      <li
-                        key={`${event.event_type}-${event.created_at}-${i}`}
-                        className="border-l-2 border-border pl-3"
-                      >
-                        <EventCard event={event} />
-                      </li>
-                    ))}
-                  </ol>
-                )}
+                <div className="mt-2 space-y-0">
+                  {hasNews && (
+                    <div className={hasTmdb ? SECTION_BREAK : ""}>
+                      <h4 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
+                        In the news
+                      </h4>
+                      <EventList events={group.news_events} />
+                    </div>
+                  )}
+                  {hasTmdb && <TmdbSubSection events={group.tmdb_events} />}
+                </div>
               </section>
             );
           })}
