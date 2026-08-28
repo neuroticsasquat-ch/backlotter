@@ -13,6 +13,7 @@ import { FilmPlot } from "@/components/film/FilmPlot";
 import { ProductionCompanies } from "@/components/film/ProductionCompanies";
 import { ReleaseDates } from "@/components/film/ReleaseDates";
 import { EventTimeline } from "@/components/film/EventTimeline";
+import type { FilmEvent } from "@/api/types";
 
 export async function loader({ params, request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
@@ -44,8 +45,11 @@ export function meta({ loaderData, location }: Route.MetaArgs): Route.MetaDescri
   }
   const { film } = loaderData;
   const title = film.release_year ? `${film.title} (${film.release_year})` : film.title;
-  // Pick the newest event by created_at, independent of array order (ISO-8601 sorts chronologically).
-  const latest = [...film.events].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0]
+  // Flatten day_groups to find the newest event by created_at for SEO description.
+  const allEvents: FilmEvent[] = film.day_groups.flatMap(
+    (g) => [...g.news_events, ...g.tmdb_events],
+  );
+  const latest = allEvents.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0]
     ?.summary;
   const description = latest
     ? truncate(latest)
@@ -70,7 +74,7 @@ export default function FilmPage({ loaderData }: Route.ComponentProps) {
         <FilmCredits cast={film.cast} />
         <FilmCrew crew={film.crew} />
         <ProductionCompanies companies={film.production_companies} />
-        <EventTimeline events={film.events} />
+        <EventTimeline dayGroups={film.day_groups} />
       </div>
     </main>
   );
