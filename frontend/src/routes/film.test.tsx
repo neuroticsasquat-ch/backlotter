@@ -18,28 +18,42 @@ const film: FilmDetail = {
   release_year: 2026,
   poster_path: "/poster.jpg",
   arc_stage: "wrapped",
-  events: [
+  day_groups: [
     {
-      event_id: "evt-1",
-      event_type: "casting",
-      confidence: "confirmed",
-      created_at: "2025-01-01T00:00:00Z",
-      summary: "Casting announced.",
-      summary_edited: false,
-      provenance: "story",
-      sources: [
-        { url: "https://deadline.com/a", source: "Deadline", title: "Cast", published_at: null },
+      day: "2026-06-01",
+      heading: "Monday, June 1, 2026",
+      news_events: [
+        {
+          event_id: "evt-2",
+          event_type: "trailer",
+          confidence: "rumored",
+          created_at: "2026-06-01T00:00:00Z",
+          summary: "Trailer dropped.",
+          summary_edited: false,
+          provenance: "story",
+          sources: [],
+        },
       ],
+      tmdb_events: [],
     },
     {
-      event_id: "evt-2",
-      event_type: "trailer",
-      confidence: "rumored",
-      created_at: "2026-06-01T00:00:00Z",
-      summary: "Trailer dropped.",
-      summary_edited: false,
-      provenance: "story",
-      sources: [],
+      day: "2025-01-01",
+      heading: "Wednesday, January 1, 2025",
+      news_events: [
+        {
+          event_id: "evt-1",
+          event_type: "casting",
+          confidence: "confirmed",
+          created_at: "2025-01-01T00:00:00Z",
+          summary: "Casting announced.",
+          summary_edited: false,
+          provenance: "story",
+          sources: [
+            { url: "https://deadline.com/a", source: "Deadline", title: "Cast", published_at: null },
+          ],
+        },
+      ],
+      tmdb_events: [],
     },
   ],
   overview: "A contemporary retelling of Homer's epic voyage.",
@@ -147,26 +161,40 @@ describe("film route meta", () => {
   it("uses the newest event's summary for the description, regardless of array order", () => {
     const outOfOrder: FilmDetail = {
       ...film,
-      events: [
+      day_groups: [
         {
-          event_id: "evt-3",
-          event_type: "trailer",
-          confidence: "confirmed",
-          created_at: "2026-06-01T00:00:00Z",
-          summary: "Newest: trailer dropped.",
-          summary_edited: false,
-          provenance: "story",
-          sources: [],
+          day: "2026-06-01",
+          heading: "Monday, June 1, 2026",
+          news_events: [
+            {
+              event_id: "evt-3",
+              event_type: "trailer",
+              confidence: "confirmed",
+              created_at: "2026-06-01T00:00:00Z",
+              summary: "Newest: trailer dropped.",
+              summary_edited: false,
+              provenance: "story",
+              sources: [],
+            },
+          ],
+          tmdb_events: [],
         },
         {
-          event_id: "evt-4",
-          event_type: "casting",
-          confidence: "confirmed",
-          created_at: "2025-01-01T00:00:00Z",
-          summary: "Oldest: casting announced.",
-          summary_edited: false,
-          provenance: "story",
-          sources: [],
+          day: "2025-01-01",
+          heading: "Wednesday, January 1, 2025",
+          news_events: [
+            {
+              event_id: "evt-4",
+              event_type: "casting",
+              confidence: "confirmed",
+              created_at: "2025-01-01T00:00:00Z",
+              summary: "Oldest: casting announced.",
+              summary_edited: false,
+              provenance: "story",
+              sources: [],
+            },
+          ],
+          tmdb_events: [],
         },
       ],
     };
@@ -215,7 +243,7 @@ describe("film route render", () => {
       {
         path: "/film/:slug",
         Component: FilmPage,
-        loader: () => ({ film: { ...film, events: [] } }),
+        loader: () => ({ film: { ...film, day_groups: [] } }),
       },
     ]);
     renderStub(Stub, "/film/the-odyssey-2026");

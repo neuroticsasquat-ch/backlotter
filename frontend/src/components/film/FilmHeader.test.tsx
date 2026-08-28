@@ -10,7 +10,7 @@ const film: FilmDetail = {
   release_year: 2026,
   poster_path: "/poster.jpg",
   arc_stage: "shooting",
-  events: [],
+  day_groups: [],
   overview: null,
   tagline: null,
   runtime: 148,

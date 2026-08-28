@@ -13,7 +13,7 @@ const sample: FilmDetail = {
   release_year: 2026,
   poster_path: "/poster.jpg",
   arc_stage: "wrapped",
-  events: [],
+  day_groups: [],
   overview: null,
   tagline: null,
   runtime: null,

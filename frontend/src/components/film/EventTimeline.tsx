@@ -1,37 +1,92 @@
-import type { FilmEvent } from "@/api/types";
-import { groupEventsByDay } from "@/lib/feed-groups";
+import { useState } from "react";
+import type { FilmDayGroup, FilmEvent } from "@/api/types";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { EventCard } from "./EventCard";
 
-/** The "Latest updates" section: summarized events grouped by day (newest day first),
- *  each a divider-separated row (no card chrome) under a muted day heading. A collapsible
- *  section like Cast / Companies, but expanded by default, showing the total event count.
- *  Events carry their own per-event rails, so the section itself isn't railed. */
-export function EventTimeline({ events }: { events: FilmEvent[] }) {
-  const groups = events.length > 0 ? groupEventsByDay(events) : [];
+const SECTION_BREAK = "border-t border-border pt-4 [&:not(:first-child)]:mt-5";
+
+function SubSection({
+  label,
+  events,
+  defaultOpen,
+}: {
+  label: string;
+  events: FilmEvent[];
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const count = events.length;
   return (
-    <CollapsibleSection title="Latest updates" count={events.length} defaultOpen railed={false}>
-      {groups.length === 0 ? (
+    <div className={SECTION_BREAK}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80"
+      >
+        <svg
+          className={`size-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+          viewBox="0 0 16 16"
+          fill="currentColor"
+        >
+          <path d="M5.5 3.5L10.5 8L5.5 12.5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span>{label} ({count} event{count === 1 ? "" : "s"})</span>
+      </button>
+      {open && (
+        <ol className="mt-2 space-y-4">
+          {events.map((event, i) => (
+            <li
+              key={`${event.event_type}-${event.created_at}-${i}`}
+              className="border-l-2 border-border pl-3"
+            >
+              <EventCard event={event} />
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+export function EventTimeline({ dayGroups }: { dayGroups: FilmDayGroup[] }) {
+  const totalEvents = dayGroups.reduce(
+    (acc, g) => acc + g.news_events.length + g.tmdb_events.length,
+    0,
+  );
+  return (
+    <CollapsibleSection title="Latest updates" count={totalEvents} defaultOpen railed={false}>
+      {dayGroups.length === 0 ? (
         <p className="text-sm text-muted-foreground">No updates yet — check back soon.</p>
       ) : (
         <div className="space-y-6">
-          {groups.map((group) => (
-            <section key={group.dayKey}>
-              <h3 className="text-sm font-medium text-muted-foreground">
-                <time dateTime={group.dayKey}>{group.heading}</time>
-              </h3>
-              <ol className="mt-2 space-y-4">
-                {group.events.map((event, i) => (
-                  <li
-                    key={`${event.event_type}-${event.created_at}-${i}`}
-                    className="border-l-2 border-border pl-3"
-                  >
-                    <EventCard event={event} />
-                  </li>
-                ))}
-              </ol>
-            </section>
-          ))}
+          {dayGroups.map((group) => {
+            const hasNews = group.news_events.length > 0;
+            const hasTmdb = group.tmdb_events.length > 0;
+            return (
+              <section key={group.day}>
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  <time dateTime={group.day}>{group.heading}</time>
+                </h3>
+                {hasNews && hasTmdb ? (
+                  <div className="mt-2 space-y-0">
+                    <SubSection label="In the news" events={group.news_events} defaultOpen />
+                    <SubSection label="via TMDB" events={group.tmdb_events} defaultOpen={false} />
+                  </div>
+                ) : (
+                  <ol className="mt-2 space-y-4">
+                    {(hasNews ? group.news_events : group.tmdb_events).map((event, i) => (
+                      <li
+                        key={`${event.event_type}-${event.created_at}-${i}`}
+                        className="border-l-2 border-border pl-3"
+                      >
+                        <EventCard event={event} />
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </section>
+            );
+          })}
         </div>
       )}
     </CollapsibleSection>
