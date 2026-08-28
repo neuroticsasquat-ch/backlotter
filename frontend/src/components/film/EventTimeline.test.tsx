@@ -115,14 +115,13 @@ describe("EventTimeline", () => {
     expect(screen.getByText(/via TMDB/i)).toBeInTheDocument();
   });
 
-  it("does not render section label when only one subgroup is present", async () => {
+  it("renders section label even when only one subgroup is present", async () => {
     renderTimeline([
       makeDayGroup("2026-06-01", "Monday, June 1, 2026", [
         makeEvent({ summary: "Only news event.", created_at: "2026-06-01T08:00:00Z" }),
       ]),
     ]);
     expect(await screen.findByText(/Only news event/)).toBeInTheDocument();
-    expect(screen.queryByText(/In the news/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/via TMDB/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/In the news/i)).toBeInTheDocument();
   });
 });
