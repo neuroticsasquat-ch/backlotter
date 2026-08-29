@@ -99,6 +99,14 @@ export interface CrewMember {
   department: string | null;
 }
 
+/** A day's events on a film page, split into news-backed and TMDB-only subgroups (NEU-1201). */
+export interface FilmDayGroup {
+  day: string; // "YYYY-MM-DD"
+  heading: string; // "Monday, June 23, 2026"
+  news_events: FilmEvent[];
+  tmdb_events: FilmEvent[];
+}
+
 export interface FilmDetail {
   // `<tmdb_id>-<slug-of-current-title>`, the film's canonical URL segment. Resolved on the
   // leading id, so the trailing half is decorative and follows the current title (NEU-1143).
@@ -110,7 +118,7 @@ export interface FilmDetail {
   release_year: number | null;
   poster_path: string | null;
   arc_stage: ArcStage;
-  events: FilmEvent[];
+  day_groups: FilmDayGroup[];
   overview: string | null;
   tagline: string | null;
   runtime: number | null;
@@ -145,6 +153,9 @@ export interface FeedDayItem {
   // EXISTS(event_story), not from `provenance` — provenance is where an event was born and is
   // never mutated when a story attaches later. Drives the feed's within-day sectioning.
   news_backed: boolean;
+  // The events on this (film, day), with summaries and sources — matches the EventOut
+  // shape from the film detail page.
+  events: FilmEvent[];
 }
 
 export interface FeedDayResponse {

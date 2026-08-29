@@ -2,13 +2,9 @@
 
 React + TypeScript SPA for the Upcoming Movies Tracker. Vite, react-router, TanStack Query (server state), Tailwind v4 + Radix/shadcn-style UI primitives, Sentry, sonner. Tooling: ESLint, Prettier, `tsc`, Vitest + Testing Library + MSW. pnpm (`pnpm@9.15.0`). Runs in a container — **no local Node/pnpm**.
 
-## Linear
+## Branching
 
-- `linear_initiative`: backlotter
-- `linear_team`: Neuroticsasquatch
-- `loop_base`: main — v0.3.0 shipped 2026-08-11 and `release/v0.3.0` is fully merged, so work
-  branches from `main` again. **Repoint this when the next release branch is cut**, and back to
-  `main` when it merges; a stale value here silently forks new work off a dead branch.
+- `loop_base`: main — v0.3.0 shipped 2026-08-11 and `release/v0.3.0` is fully merged, so work branches from `main` again. **Repoint this when the next release branch is cut**, and back to `main` when it merges; a stale value here silently forks new work off a dead branch.
 
 ## Golden rule: everything runs in the container via `task`
 
@@ -48,6 +44,10 @@ Before claiming work done, `task test`, `task lint`, `task typecheck` must be gr
 - Render with the providers the unit needs: `QueryClientProvider` (use `{ retry: false }`), `AuthProvider`, and `MemoryRouter` + `Routes` when the component uses router context.
 - Auth resolves **asynchronously** via the `/me` query. Use `findBy*` for content gated on it, and key assertions off something that only appears post-auth (e.g. the "Log out" control) — not content that renders before auth resolves, or you'll get a false pass/fail.
 
+## Sibling repo
+
+The backend lives at `../upcoming-movies-backend`. Read its `AGENTS.md` before working on backend code.
+
 ## Gotchas
 
 - A few pre-existing files (`AuthContext.*`) have Prettier drift on `main`. Don't reformat unrelated files in a PR — format only what you touch.
@@ -55,18 +55,4 @@ Before claiming work done, `task test`, `task lint`, `task typecheck` must be gr
 
 ## Commits / PRs
 
-Conventional commits with the Linear ID as a trailing parenthetical: `feat: add X (NEU-123)`. Keep the `🤖 Generated with Claude Code` footer; **no** `Co-Authored-By`. The GitHub↔Linear connector moves ticket status automatically — don't touch it. Branch per ticket (Linear gives the branch name).
-
-## Agent skills
-
-### Issue tracker
-
-Issues and PRDs live in **Linear** (team Neuroticsasquatch, initiative "Upcoming Movies Tracker", `NEU-###` tickets) via the Linear MCP; a GitHub↔Linear connector moves workflow state automatically. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five canonical triage roles map to same-named **Linear labels** (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), applied on top of workflow state. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-**Single-context**: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Conventional commits with the Linear ID as a trailing parenthetical: `feat: add X (NEU-123)`. **No** `Co-Authored-By`. The GitHub↔Linear connector moves ticket status automatically — don't touch it. Branch per ticket (Linear gives the branch name).

@@ -20,6 +20,7 @@ function item(day: string, film_ref: string, overrides: Partial<FeedDayItem> = {
     event_types: ["casting"],
     event_count: 1,
     news_backed: false,
+    events: [],
     ...overrides,
   };
 }
@@ -54,16 +55,16 @@ describe("splitByNewsBacked", () => {
     expect(splitByNewsBacked([])).toEqual({ newsBacked: [], tmdbOnly: [] });
   });
 
-  it("partitions on news_backed, preserving the backend's within-day order in each list", () => {
-    // Interleaved on input: the split must not reorder within either bucket.
+  it("sorts alphabetically within each bucket", () => {
+    // Interleaved on input: the split sorts by title (case-insensitive) within each bucket.
     const { newsBacked, tmdbOnly } = splitByNewsBacked([
-      item("2026-06-23", "a", { news_backed: true }),
-      item("2026-06-23", "b"),
-      item("2026-06-23", "c", { news_backed: true }),
-      item("2026-06-23", "d"),
+      item("2026-06-23", "z-film", { news_backed: true, film_title: "Z Film" }),
+      item("2026-06-23", "a-film", { film_title: "Alpha Film" }),
+      item("2026-06-23", "m-film", { news_backed: true, film_title: "M Film" }),
+      item("2026-06-23", "b-film", { film_title: "Bravo Film" }),
     ]);
-    expect(newsBacked.map((i) => i.film_ref)).toEqual(["a", "c"]);
-    expect(tmdbOnly.map((i) => i.film_ref)).toEqual(["b", "d"]);
+    expect(newsBacked.map((i) => i.film_ref)).toEqual(["m-film", "z-film"]);
+    expect(tmdbOnly.map((i) => i.film_ref)).toEqual(["a-film", "b-film"]);
   });
 
   it("puts every item in one bucket when the day is all news-backed", () => {
@@ -82,6 +83,30 @@ describe("splitByNewsBacked", () => {
     ]);
     expect(newsBacked).toEqual([]);
     expect(tmdbOnly).toHaveLength(2);
+  });
+
+  it("sorts by natural English title ignoring leading A, An, The", () => {
+    const items = [
+      item("2026-06-23", "the-batman", { news_backed: true, film_title: "The Batman" }),
+      item("2026-06-23", "an-american", { news_backed: true, film_title: "An American in Paris" }),
+      item("2026-06-23", "a-clockwork", { news_backed: true, film_title: "A Clockwork Orange" }),
+      item("2026-06-23", "batman", { news_backed: true, film_title: "Batman" }),
+      item("2026-06-23", "avengers", { news_backed: true, film_title: "Avengers" }),
+    ];
+    const { newsBacked } = splitByNewsBacked(items);
+    // Natural sort keys:
+    //   "An American in Paris" → "american in paris"
+    //   "Avengers"            → "avengers"
+    //   "Batman"              → "batman"
+    //   "The Batman"          → "batman" (tie with "Batman" → localeCompare original: B < T)
+    //   "A Clockwork Orange"  → "clockwork orange"
+    expect(newsBacked.map((i) => i.film_ref)).toEqual([
+      "an-american",
+      "avengers",
+      "batman",
+      "the-batman",
+      "a-clockwork",
+    ]);
   });
 
   it("keeps every input item — the split partitions, it never drops or caps", () => {
@@ -139,7 +164,7 @@ describe("dayPosterLeads", () => {
     return item("2026-06-23", film_ref, { poster_path: `/${film_ref}.jpg`, ...overrides });
   }
 
-  it("puts news-backed films ahead of TMDB-only ones regardless of backend order", () => {
+  it("puts news-backed films ahead of TMDB-only ones, alphabetically within each kind", () => {
     // Backend order within a day is by popularity, so the two kinds arrive interleaved.
     const leads = dayPosterLeads([
       poster("primetime"),
@@ -147,15 +172,17 @@ describe("dayPosterLeads", () => {
       poster("dorothy"),
       poster("charlie", { news_backed: true }),
     ]);
-    expect(leads.map((i) => i.film_ref)).toEqual(["animals", "charlie", "primetime", "dorothy"]);
+    // News-backed first, alphabetically: animals then charlie. Then TMDB-only: dorothy then primetime.
+    expect(leads.map((i) => i.film_ref)).toEqual(["animals", "charlie", "dorothy", "primetime"]);
   });
 
-  it("keeps backend order (popularity) within each kind", () => {
+  it("partitions alphabetically within each kind", () => {
     const leads = dayPosterLeads([
-      poster("popular", { news_backed: true }),
       poster("less-popular", { news_backed: true }),
+      poster("popular", { news_backed: true }),
     ]);
-    expect(leads.map((i) => i.film_ref)).toEqual(["popular", "less-popular"]);
+    // Alphabetical: less-popular before popular
+    expect(leads.map((i) => i.film_ref)).toEqual(["less-popular", "popular"]);
   });
 
   it("drops films with no poster rather than holding a blank slot", () => {
@@ -173,5 +200,42 @@ describe("dayPosterLeads", () => {
 
   it("returns nothing for a day whose films all lack posters", () => {
     expect(dayPosterLeads([poster("x", { poster_path: null })])).toEqual([]);
+  });
+
+  it("deduplicates same film appearing in both news and TMDB sections", () => {
+    const leads = dayPosterLeads([
+      poster("batman", { news_backed: true }),
+      poster("batman"),
+    ]);
+    expect(leads).toHaveLength(1);
+    expect(leads[0].film_ref).toBe("batman");
+    expect(leads[0].news_backed).toBe(true);
+  });
+
+  it("keeps first (news-backed) copy of a film in both sections", () => {
+    const leads = dayPosterLeads([
+      poster("batman", { news_backed: true }),
+      poster("batman"),
+      poster("superman", { news_backed: true }),
+      poster("superman"),
+    ]);
+    expect(leads.map((i) => i.film_ref)).toEqual(["batman", "superman"]);
+    expect(leads.every((i) => i.news_backed)).toBe(true);
+  });
+
+  it("does not affect distinct films", () => {
+    const leads = dayPosterLeads([
+      poster("a"),
+      poster("b"),
+      poster("c"),
+    ]);
+    expect(leads.map((i) => i.film_ref)).toEqual(["a", "b", "c"]);
+  });
+
+  it("caps after dedup", () => {
+    const items = Array.from({ length: 20 }, (_, i) =>
+      poster(`film-${i % 8}`),
+    );
+    expect(dayPosterLeads(items)).toHaveLength(8);
   });
 });

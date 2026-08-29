@@ -36,18 +36,30 @@ export interface FeedDaySplit {
 }
 
 /**
+ * Natural English sort key for a film title: strips leading "A ", "An ", "The "
+ * (case-insensitive) before comparing.
+ */
+function naturalSortKey(title: string): string {
+  return title.replace(/^(a|an|the)\s+/i, "").toLowerCase();
+}
+
+/**
  * Partition one day's items into the news-backed and TMDB-only sections the feed renders, in that
  * order. Keys off the backend's `news_backed` flag (`EXISTS(event_story)`), never `provenance`: an
  * event born on TMDB that a trade later covers is news-backed from then on, and must move section
  * without moving day.
  *
- * A pure partition — every input item lands in exactly one bucket, relative order preserved within
- * each, no `Date.now()` — so SSR and client output match, same contract as `groupByDay`.
+ * Within each bucket items are sorted by natural English title order (case-insensitive, ignoring
+ * leading "A", "An", "The"), so the feed reads predictably regardless of the backend's ordering.
  */
 export function splitByNewsBacked(items: FeedDayItem[]): FeedDaySplit {
+  const sorted = [...items].sort((a, b) => {
+    const cmp = naturalSortKey(a.film_title).localeCompare(naturalSortKey(b.film_title));
+    return cmp !== 0 ? cmp : a.film_title.localeCompare(b.film_title);
+  });
   const newsBacked: FeedDayItem[] = [];
   const tmdbOnly: FeedDayItem[] = [];
-  for (const item of items) {
+  for (const item of sorted) {
     (item.news_backed ? newsBacked : tmdbOnly).push(item);
   }
   return { newsBacked, tmdbOnly };
@@ -101,5 +113,12 @@ export const MAX_DAY_POSTERS = 8;
  */
 export function dayPosterLeads(items: FeedDayItem[], limit = MAX_DAY_POSTERS): FeedDayItem[] {
   const { newsBacked, tmdbOnly } = splitByNewsBacked(items.filter((item) => item.poster_path));
-  return [...newsBacked, ...tmdbOnly].slice(0, limit);
+  const seen = new Set<string>();
+  return [...newsBacked, ...tmdbOnly]
+    .filter((item) => {
+      if (seen.has(item.film_ref)) return false;
+      seen.add(item.film_ref);
+      return true;
+    })
+    .slice(0, limit);
 }

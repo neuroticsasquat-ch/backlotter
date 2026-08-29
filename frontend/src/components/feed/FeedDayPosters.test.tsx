@@ -17,6 +17,7 @@ function item(film_ref: string, overrides: Partial<FeedDayItem> = {}): FeedDayIt
     event_types: ["trailer"],
     event_count: 1,
     news_backed: false,
+    events: [],
     ...overrides,
   };
 }

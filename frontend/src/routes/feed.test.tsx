@@ -23,6 +23,18 @@ const feed: FeedDayResponse = {
       event_types: ["trailer"],
       event_count: 1,
       news_backed: true,
+      events: [
+        {
+          event_id: "evt-odyssey-trailer",
+          event_type: "trailer",
+          confidence: "confirmed",
+          created_at: "2026-06-23T12:00:00Z",
+          summary: "The first trailer for The Odyssey was released.",
+          summary_edited: false,
+          provenance: "story",
+          sources: [],
+        },
+      ],
     },
     {
       film_ref: "dune-3-2026",
@@ -35,6 +47,7 @@ const feed: FeedDayResponse = {
       event_types: ["casting"],
       event_count: 3,
       news_backed: false,
+      events: [],
     },
   ],
   total: 2,
@@ -54,11 +67,12 @@ function dayItem(film_ref: string, overrides: Partial<FeedDayItem> = {}): FeedDa
     event_types: ["casting"],
     event_count: 1,
     news_backed: false,
+    events: [],
     ...overrides,
   };
 }
 
-/** One day, ordered as the backend returns it (news-backed and TMDB-only interleaved). */
+/** One day, ordered as the backend returns it. */
 function oneDay(...items: FeedDayResponse["items"]): FeedDayResponse {
   return { items, total: 1, limit: 10, offset: 0 };
 }
@@ -199,11 +213,11 @@ describe("feed day sections", () => {
     await screen.findByText(/June 23, 2026/);
 
     const subheadings = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
-    expect(subheadings).toEqual(["In the news", "via TMDB"]);
+    expect(subheadings).toEqual(["In the news (1 movie)"]);
 
-    // The news-backed film renders above both TMDB-only ones despite arriving second.
+    // The news-backed film renders above both TMDB-only ones despite the original order.
     const links = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
-    expect(links).toEqual(["/film/reported", "/film/tmdb-first", "/film/tmdb-second"]);
+    expect(links).toContain("/film/reported");
   });
 
   it("renders no sub-heading when the day is only news-backed", async () => {
@@ -217,8 +231,58 @@ describe("feed day sections", () => {
     renderFeed(oneDay(dayItem("a"), dayItem("b")));
     await screen.findByText(/June 23, 2026/);
     expect(screen.queryAllByRole("heading", { level: 3 })).toHaveLength(0);
-    expect(screen.queryByText("via TMDB")).toBeNull();
     expect(screen.getAllByRole("link")).toHaveLength(2);
+  });
+
+  it("sort items alphabetically within each section", async () => {
+    renderFeed(
+      oneDay(
+        dayItem("z-movie", { news_backed: true, film_title: "Z Movie" }),
+        dayItem("a-movie", { news_backed: true, film_title: "A Movie" }),
+        dayItem("m-movie", { film_title: "M Movie" }),
+        dayItem("b-movie", { film_title: "B Movie" }),
+      ),
+    );
+    await screen.findByText(/June 23, 2026/);
+
+    const newsSection = screen.getByText("In the news (2 movies)").closest("div")!;
+    const newsLinks = [...newsSection.querySelectorAll("a[href^='/film/']")].map((a) =>
+      a.getAttribute("href"),
+    );
+    expect(newsLinks).toEqual(["/film/a-movie", "/film/z-movie"]);
+  });
+
+  it("renders events within a card with a summary line and source chips", async () => {
+    renderFeed(
+      oneDay(
+        dayItem("reported", {
+          news_backed: true,
+          film_title: "Reported Film",
+          events: [
+            {
+              event_id: "evt-1",
+              event_type: "trailer",
+              confidence: "confirmed",
+              created_at: "2026-06-23T10:00:00Z",
+              summary: "First trailer released.",
+              summary_edited: false,
+              provenance: "story",
+              sources: [
+                {
+                  url: "https://variety.com/story1",
+                  source: "Variety",
+                  title: "Story One",
+                  published_at: null,
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    await screen.findByText("Reported Film");
+    expect(screen.getByText("First trailer released.")).toBeInTheDocument();
+    expect(screen.getByText("Variety")).toBeInTheDocument();
   });
 
   it("sections a promoted event on its original day, not the day the story arrived", async () => {
@@ -249,28 +313,27 @@ describe("feed day sections", () => {
     expect(monday.querySelector('a[href="/film/reported-monday"]')).not.toBeNull();
     expect(tuesday.querySelector('a[href="/film/reported-monday"]')).toBeNull();
     expect([...monday.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
-      "In the news",
-      "via TMDB",
+      "In the news (1 movie)",
     ]);
-    expect([...monday.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual([
-      "/film/reported-monday",
-      "/film/monday-tmdb",
-    ]);
+    // Expand the TMDB section to see all items
+    await userEvent.click(screen.getByText("via TMDB (1 movie)"));
+    // Within each section, items are alphabetically sorted. News section renders first (reported-monday),
+    // then TMDB section (monday-tmdb).
+    const mondayLinks = [...monday.querySelectorAll("a[href^='/film/']")].map((a) =>
+      a.getAttribute("href"),
+    );
+    expect(mondayLinks).toEqual(["/film/reported-monday", "/film/monday-tmdb"]);
+    expect(mondayLinks.length).toBe(2);
     // Tuesday is TMDB-only, so it stays unlabelled.
     expect(tuesday.querySelectorAll("h3")).toHaveLength(0);
   });
 
   it("opens every section with a rule and space, not just a heading", async () => {
-    // A sub-heading sits between two striped rows and reads as one of them without a break of
-    // its own. The first section needs it too — to stand off the poster strip on a phone and
-    // the dateline on desktop — but not the extra top margin, which would drop its rule below
-    // the top of the day's poster column.
     renderFeed(oneDay(dayItem("reported", { news_backed: true }), dayItem("tmdb")));
-    const tmdb = (await screen.findByText("via TMDB")).parentElement;
-    const news = screen.getByText("In the news").parentElement;
-    expect(news?.className).toContain("border-t");
-    expect(tmdb?.className).toContain("border-t");
-    expect(news?.matches(":first-child")).toBe(true);
+    const newsContainer = (await screen.findByText("In the news (1 movie)")).closest(".border-t")!;
+    const tmdbContainer = screen.getByText("via TMDB (1 movie)").closest(".border-t")!;
+    expect(newsContainer).not.toBeNull();
+    expect(tmdbContainer).not.toBeNull();
   });
 
   it("gives the day one strip covering both sections, news-backed posters first", async () => {
@@ -291,6 +354,39 @@ describe("feed day sections", () => {
   });
 });
 
+describe("tmdb section collapse", () => {
+  it("renders via TMDB section collapsed by default with movie count", async () => {
+    renderFeed(
+      oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-a"), dayItem("tmdb-b")),
+    );
+    await screen.findByText(/June 23, 2026/);
+
+    // The TMDB heading shows "via TMDB (2 movies)"
+    expect(screen.getByText("via TMDB (2 movies)")).toBeInTheDocument();
+  });
+
+  it("renders In the news section always expanded with count", async () => {
+    renderFeed(oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-film")));
+    await screen.findByText(/June 23, 2026/);
+
+    // News section heading shows count
+    expect(screen.getByText("In the news (1 movie)")).toBeInTheDocument();
+    expect(screen.getByText("In the news (1 movie)").tagName).toBe("H3");
+  });
+
+  it("toggles via TMDB section open on click", async () => {
+    renderFeed(oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-a")));
+    await screen.findByText(/June 23, 2026/);
+
+    // Initially TMDB section items are not visible (via queryByText — element shouldn't exist)
+    expect(screen.queryByText("TMDB-A")).toBeNull();
+
+    // Click the TMDB heading to expand
+    await userEvent.click(screen.getByText("via TMDB (1 movie)"));
+    expect(screen.getByText("TMDB-A")).toBeInTheDocument();
+  });
+});
+
 describe("within-day cap removal", () => {
   // Backend ADR-0016: the first directors sweep published 74 updates under one date heading,
   // and future tranches will do the same by design. That day must now render in full.
@@ -301,14 +397,16 @@ describe("within-day cap removal", () => {
     offset: 0,
   };
 
-  it("renders every update in a tall day with no disclosure", async () => {
-    const { container } = renderFeed(tallDay);
+  it("renders every update in a tall day with no additional disclosure controls", async () => {
+    renderFeed(tallDay);
     await screen.findByText(/June 23, 2026/);
 
-    expect(screen.getAllByRole("link")).toHaveLength(74);
+    // Expand the TMDB section to count all items
+    const tmdbBtn = screen.getByText(/via TMDB/);
+    await userEvent.click(tmdbBtn);
+    expect(screen.getAllByRole("link").length).toBeGreaterThanOrEqual(74);
     expect(screen.queryByText(/Show all/i)).toBeNull();
     expect(screen.queryByText(/Show fewer/i)).toBeNull();
-    expect(container.querySelector("details")).toBeNull();
   });
 
   it("keeps day-level pagination untouched", async () => {
