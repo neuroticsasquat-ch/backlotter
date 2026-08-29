@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { FilmDayGroup, FilmEvent } from "@/api/types";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { EventCard } from "./EventCard";
@@ -6,24 +5,12 @@ import { EventCard } from "./EventCard";
 const SECTION_BREAK = "border-t border-border pt-4 [&:not(:first-child)]:mt-5";
 
 function TmdbSubSection({ events }: { events: FilmEvent[] }) {
-  const [open, setOpen] = useState(false);
   return (
     <div className={SECTION_BREAK}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80"
-      >
-        <svg
-          className={`size-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <path d="M5.5 3.5L10.5 8L5.5 12.5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span>via TMDB</span>
-      </button>
-      {open && <EventList events={events} />}
+      <h4 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
+        via TMDB
+      </h4>
+      <EventList events={events} />
     </div>
   );
 }
