@@ -69,8 +69,26 @@ describe("FeedDayCard", () => {
   it("labels every beat the film saw that day via event badges", () => {
     renderCard({
       events: [
-        { event_id: "e1", event_type: "trailer", confidence: "confirmed", created_at: "2026-06-23T12:00:00Z", summary: "Trailer released.", summary_edited: false, provenance: "story", sources: [] },
-        { event_id: "e2", event_type: "casting", confidence: "rumored", created_at: "2026-06-23T12:00:00Z", summary: "Actor cast.", summary_edited: false, provenance: "story", sources: [] },
+        {
+          event_id: "e1",
+          event_type: "trailer",
+          confidence: "confirmed",
+          created_at: "2026-06-23T12:00:00Z",
+          summary: "Trailer released.",
+          summary_edited: false,
+          provenance: "story",
+          sources: [],
+        },
+        {
+          event_id: "e2",
+          event_type: "casting",
+          confidence: "rumored",
+          created_at: "2026-06-23T12:00:00Z",
+          summary: "Actor cast.",
+          summary_edited: false,
+          provenance: "story",
+          sources: [],
+        },
       ],
     });
     expect(screen.getByText("Trailer")).toBeInTheDocument();
@@ -80,17 +98,30 @@ describe("FeedDayCard", () => {
   it("shows a single event for a one-beat day", () => {
     renderCard({
       events: [
-        { event_id: "e3", event_type: "release_date", confidence: "confirmed", created_at: "2026-06-23T12:00:00Z", summary: "Date set.", summary_edited: false, provenance: "story", sources: [] },
+        {
+          event_id: "e3",
+          event_type: "release_date",
+          confidence: "confirmed",
+          created_at: "2026-06-23T12:00:00Z",
+          summary: "Date set.",
+          summary_edited: false,
+          provenance: "story",
+          sources: [],
+        },
       ],
     });
     expect(screen.getByText("Release date")).toBeInTheDocument();
     expect(screen.queryByText("Trailer")).toBeNull();
   });
 
-  it("still shows no event count — events say what happened, not how often", () => {
+  it("renders title only when events are empty", () => {
     renderCard({ event_count: 3, events: [] });
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/film/the-odyssey-2026");
     expect(screen.queryByText(/^\+/)).toBeNull();
     expect(screen.queryByText("3")).toBeNull();
+    // No event-type badge or summary should render for a title-only row.
+    expect(screen.queryByText("Trailer")).toBeNull();
+    expect(screen.queryByText("Casting")).toBeNull();
   });
 
   it("wraps a long title instead of truncating it", () => {
@@ -133,7 +164,12 @@ describe("FeedDayCard", () => {
           summary_edited: false,
           provenance: "story",
           sources: [
-            { url: "https://deadline.com/article", source: "Deadline", title: "Exclusive", published_at: null },
+            {
+              url: "https://deadline.com/article",
+              source: "Deadline",
+              title: "Exclusive",
+              published_at: null,
+            },
           ],
         },
       ],

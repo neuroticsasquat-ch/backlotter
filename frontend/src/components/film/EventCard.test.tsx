@@ -134,15 +134,15 @@ it("resets the summary to AI after confirmation", async () => {
   await waitFor(() => expect(called).toBe(true));
 });
 
-it("attributes a source-less catalog event to TMDB", async () => {
+it("renders no attribution for a source-less catalog event", async () => {
   server.use(meHandler({ is_admin: false }));
   renderCard({ event_type: "crew_attached", provenance: "catalog", sources: [] });
   await screen.findByText("Bogus recast.");
-  expect(screen.getByText("via TMDB")).toBeInTheDocument();
+  expect(screen.queryByText("via TMDB")).toBeNull();
   expect(screen.getByText("Crew attached")).toBeInTheDocument();
 });
 
-it("shows the outlets, not the TMDB fallback, on a catalog event that has gained sources", async () => {
+it("shows the outlets on a catalog event that has gained sources", async () => {
   server.use(meHandler({ is_admin: false }));
   renderCard({ provenance: "catalog" });
   await screen.findByText("Bogus recast.");
@@ -150,7 +150,7 @@ it("shows the outlets, not the TMDB fallback, on a catalog event that has gained
   expect(screen.queryByText("via TMDB")).toBeNull();
 });
 
-it("leaves an ordinary story event unattributed to TMDB", async () => {
+it("leaves an ordinary story event unattributed", async () => {
   server.use(meHandler({ is_admin: false }));
   renderCard({ sources: [] });
   await screen.findByText("Bogus recast.");

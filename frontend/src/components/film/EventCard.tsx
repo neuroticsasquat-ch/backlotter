@@ -53,7 +53,6 @@ export function EventCard({ event }: { event: FilmEvent }) {
       </p>
       <SourceLinks
         sources={event.sources}
-        provenance={event.provenance}
         admin={isAdmin}
         busy={busy}
         onDelink={
