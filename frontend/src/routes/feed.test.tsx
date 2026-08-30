@@ -320,7 +320,7 @@ describe("feed day sections", () => {
     });
     await screen.findByText(/June 22, 2026/);
 
-    const days = [...document.querySelectorAll("main section")];
+    const days = [...document.querySelectorAll("main section")] as HTMLElement[];
     const tuesday = days.find(
       (d) => d.querySelector("time")?.getAttribute("datetime") === "2026-06-23",
     )!;
