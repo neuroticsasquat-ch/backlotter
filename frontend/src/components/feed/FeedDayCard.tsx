@@ -44,21 +44,14 @@ function FeedEvent({ event }: { event: FilmEvent }) {
           </span>
         ) : null}
       </p>
-      <FeedEventSources sources={event.sources} provenance={event.provenance} />
+      <FeedEventSources sources={event.sources} />
     </div>
   );
 }
 
-function FeedEventSources({
-  sources,
-  provenance,
-}: {
-  sources: FilmEvent["sources"];
-  provenance: FilmEvent["provenance"];
-}) {
+function FeedEventSources({ sources }: { sources: FilmEvent["sources"] }) {
   if (sources.length === 0) {
-    if (provenance !== "catalog") return null;
-    return <p className="mt-1 text-[11px] text-muted-foreground">via TMDB</p>;
+    return null;
   }
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">

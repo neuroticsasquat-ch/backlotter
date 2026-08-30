@@ -31,6 +31,9 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   other: "Update",
 };
 
+/** Shared heading for the catalog-sourced section on both the grouped feed and the film page. */
+export const UNCONFIRMED_UPDATES_LABEL = "unconfirmed updates";
+
 /** Display label for an event's beat (event_type). Unknown types fall back to title case. */
 export function eventTypeLabel(eventType: string): string {
   return (

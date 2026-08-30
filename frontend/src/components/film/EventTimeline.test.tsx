@@ -114,7 +114,7 @@ describe("EventTimeline", () => {
       },
     ]);
     expect(await screen.findByText(/In the news/i)).toBeInTheDocument();
-    expect(screen.getByText(/via TMDB/i)).toBeInTheDocument();
+    expect(screen.getByText(/unconfirmed updates/i)).toBeInTheDocument();
     expect(screen.getByText(/TMDB event/)).toBeInTheDocument();
   });
 
@@ -130,8 +130,8 @@ describe("EventTimeline", () => {
       },
     ]);
     expect(await screen.findByText(/Only TMDB event/)).toBeInTheDocument();
-    expect(screen.getByText(/via TMDB/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /via TMDB/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/unconfirmed updates/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /unconfirmed updates/i })).not.toBeInTheDocument();
   });
 
   it("renders both subgroups visible on initial render", async () => {
@@ -146,7 +146,7 @@ describe("EventTimeline", () => {
     expect(await screen.findByText(/News event/)).toBeInTheDocument();
     expect(screen.getByText(/TMDB event/)).toBeInTheDocument();
     expect(screen.getByText(/In the news/i)).toBeInTheDocument();
-    expect(screen.getByText(/via TMDB/i)).toBeInTheDocument();
+    expect(screen.getByText(/unconfirmed updates/i)).toBeInTheDocument();
   });
 
   it("renders section label even when only one subgroup is present", async () => {

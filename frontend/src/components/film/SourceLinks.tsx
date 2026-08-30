@@ -1,31 +1,24 @@
-import type { EventProvenance, FilmSource } from "@/api/types";
+import type { FilmSource } from "@/api/types";
 
 /** Outbound links to the stories an event's summary was based on, shown as
  *  clearly-clickable chips — each opens the original article in a new tab.
  *  When `admin` and `onDelink` are both provided, each chip gets a × button
- *  that calls `onDelink(source.url)`.
- *
- *  A catalog-sourced event has no outlet to link, because no outlet wrote about
- *  it — those attribute to TMDB instead. The fallback keys off an *empty*
- *  `sources`, not off `provenance` alone: a catalog event that later has a story
- *  cluster onto it keeps `provenance: "catalog"` while gaining real outlets, and
- *  those outlets must win. */
+ *  that calls `onDelink(source.url)`. A catalog-sourced event with no outlets
+ *  renders no attribution line at all; the "unconfirmed updates" section heading
+ *  is the sole veracity signal. */
 export function SourceLinks({
   sources,
-  provenance,
   admin = false,
   busy = false,
   onDelink,
 }: {
   sources: FilmSource[];
-  provenance: EventProvenance;
   admin?: boolean;
   busy?: boolean;
   onDelink?: (url: string) => void;
 }) {
   if (sources.length === 0) {
-    if (provenance !== "catalog") return null;
-    return <p className="mt-2 text-xs text-muted-foreground">via TMDB</p>;
+    return null;
   }
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">

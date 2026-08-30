@@ -9,6 +9,7 @@ import { buildMeta } from "@/lib/seo";
 import { groupByDay, splitByNewsBacked } from "@/lib/feed-groups";
 import { FeedDayCard } from "@/components/feed/FeedDayCard";
 import { FeedDayPosters } from "@/components/feed/FeedDayPosters";
+import { UNCONFIRMED_UPDATES_LABEL } from "@/components/film/labels";
 
 // Every section opens with a rule and real space: the sub-heading otherwise lands between two
 // striped rows and reads as one of them, and the first one needs the break just as much — to
@@ -68,16 +69,12 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
           <div className="mt-6 space-y-8">
             {groups.map((group) => {
               const { newsBacked, tmdbOnly } = splitByNewsBacked(group.items);
-              // The sub-headings exist to separate the two kinds. A day with only one kind has
-              // nothing to separate it from, so it renders as a single unlabelled list rather
-              // than under a lone heading.
-              const sections =
-                newsBacked.length > 0 && tmdbOnly.length > 0
-                  ? [
-                      { key: "news", label: "In the news", items: newsBacked },
-                      { key: "tmdb", label: "via TMDB", items: tmdbOnly },
-                    ]
-                  : [{ key: "all", label: null, items: group.items }];
+              // Every day renders both labelled sections. An empty section shows a static
+              // "None today" line so the absence of catalog or news activity is legible.
+              const sections = [
+                { key: "news", label: "In the news", items: newsBacked },
+                { key: "tmdb", label: UNCONFIRMED_UPDATES_LABEL, items: tmdbOnly },
+              ];
               return (
                 <section key={group.dayKey}>
                   <h2 className="text-sm font-medium text-muted-foreground">
@@ -121,25 +118,32 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
   );
 }
 
-/** Wraps a day section: "In the news" is always expanded; "via TMDB" is collapsible and
- *  collapsed by default, with a count of movies listed. A single unlabelled section renders
- *  as a plain broke. */
+/** Wraps a day section: "In the news" is always expanded; "unconfirmed updates" is
+ *  collapsible and collapsed by default when non-empty, with a count of movies listed.
+ *  An empty section renders a static "None today" line without a toggle. */
 function SectionWrapper({
   section,
   children,
 }: {
-  section: { key: string; label: string | null; items: unknown[] };
+  section: { key: string; label: string; items: unknown[] };
   children: React.ReactNode;
 }) {
   // TMDB section: collapsible, collapsed by default. Must be declared before any
   // early return so React hooks are called unconditionally (lint rule).
   const [open, setOpen] = useState(section.key !== "tmdb");
 
-  if (section.label === null) {
-    return <div className={SECTION_BREAK}>{children}</div>;
+  const count = section.items.length;
+  if (count === 0) {
+    return (
+      <div className={SECTION_BREAK}>
+        <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
+          {section.label}
+        </h3>
+        <p className="px-2 text-sm text-muted-foreground">None today</p>
+      </div>
+    );
   }
 
-  const count = section.items.length;
   const label = `${section.label} (${count} movie${count === 1 ? "" : "s"})`;
 
   if (section.key === "news") {
@@ -164,7 +168,14 @@ function SectionWrapper({
           viewBox="0 0 16 16"
           fill="currentColor"
         >
-          <path d="M5.5 3.5L10.5 8L5.5 12.5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M5.5 3.5L10.5 8L5.5 12.5"
+            stroke="currentColor"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
         <span>{label}</span>
       </button>

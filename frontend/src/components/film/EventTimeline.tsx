@@ -1,4 +1,5 @@
 import type { FilmDayGroup, FilmEvent } from "@/api/types";
+import { UNCONFIRMED_UPDATES_LABEL } from "./labels";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { EventCard } from "./EventCard";
 
@@ -8,7 +9,7 @@ function TmdbSubSection({ events }: { events: FilmEvent[] }) {
   return (
     <div className={SECTION_BREAK}>
       <h4 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
-        via TMDB
+        {UNCONFIRMED_UPDATES_LABEL}
       </h4>
       <EventList events={events} />
     </div>
