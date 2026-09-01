@@ -1,19 +1,30 @@
-# syntax=docker/dockerfile:1.7
-# node:22 (Debian) required — workerd/wrangler depend on glibc; Alpine (musl) is incompatible
-FROM node:22 AS base
-ENV CI=1 \
-    PNPM_HOME=/root/.local/share/pnpm \
-    PATH=/root/.local/share/pnpm:$PATH
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
-WORKDIR /app
+# Reference frontend Dockerfile. Lives at the root of every frontend repo.
 
-FROM base AS deps
-COPY package.json pnpm-lock.yaml* ./
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile || pnpm install
+FROM node:22-slim AS base
+WORKDIR /app
+COPY package.json package-lock.json* ./
+
 
 FROM base AS dev
-COPY --from=deps /app/node_modules /app/node_modules
+
+RUN npm ci
+
 COPY . .
+
 EXPOSE 5173
-CMD ["pnpm", "dev", "--host", "0.0.0.0"]
+
+# --host is required: without it Vite binds 127.0.0.1 inside the container and
+# the published port answers nothing.
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+
+
+FROM base AS build
+
+RUN npm ci
+COPY . .
+RUN npm run build
+
+
+FROM nginx:alpine AS prod
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
