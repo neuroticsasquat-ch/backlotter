@@ -163,6 +163,38 @@ describe("FeedDayCard", () => {
     expect(within(screen.getByRole("link")).getByText("Release date")).toBeInTheDocument();
   });
 
+  it("separates consecutive beat pills by more than their own inner padding", () => {
+    // The pill's px-1.5 is 6px, and its bg sits ~10 RGB points off the row's, so its edge is
+    // near-invisible. A gap narrower than that padding reads as a word space and two pills
+    // merge into one chip (NEU-1213). ml-1 — the news-card value, which is fine before prose
+    // but not between identical pills — is what regressed here, so pin the wider margin.
+    renderCard({ events: [], event_types: ["release_date", "casting"] });
+    for (const label of ["Release date", "Casting"]) {
+      expect(screen.getByText(label).className).toContain("ml-2");
+      expect(screen.getByText(label).className).not.toContain("ml-1");
+    }
+  });
+
+  it("leaves the news-card event badge on mr-1", () => {
+    // NEU-1213 widens the *beat* pill only. The event badge is followed by summary prose,
+    // where 4px is right — widening it too would be the scope creep that ticket excluded.
+    renderCard({
+      events: [
+        {
+          event_id: "evt-4",
+          event_type: "trailer",
+          confidence: "confirmed",
+          created_at: "2026-06-23T12:00:00Z",
+          summary: "Trailer released.",
+          summary_edited: false,
+          provenance: "story",
+          sources: [],
+        },
+      ],
+    });
+    expect(screen.getByText("Trailer").className).toContain("mr-1");
+  });
+
   it("wraps a long title instead of truncating it", () => {
     // The mobile column is ~300px wide, so truncation hides most of a long title. The
     // hanging indent on the wrapped lines is what keeps line two from reading as its own row.

@@ -26,7 +26,7 @@ export function FeedDayCard({ item }: { item: FeedDayItem }) {
           item.event_types.map((eventType) => (
             <span
               key={eventType}
-              className="ml-1 inline-block rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground"
+              className="ml-2 inline-block rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground"
             >
               {eventTypeLabel(eventType)}
             </span>
