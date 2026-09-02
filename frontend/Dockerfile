@@ -19,9 +19,9 @@ CMD ["pnpm", "dev", "--host", "0.0.0.0", "--port", "5173"]
 
 FROM base AS build
 
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 COPY . .
-RUN npm run build
+RUN pnpm build
 
 
 FROM nginx:alpine AS prod

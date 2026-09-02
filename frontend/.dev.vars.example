@@ -1,7 +1,9 @@
 # Copy this to .dev.vars for local Docker dev.
-# API_BASE_URL must use the Docker container name so workerd (the SSR server)
-# can reach the backend container-to-container without going through Traefik.
-API_BASE_URL=http://upmovies_backend:8000
+# API_BASE_URL must be absolute and name the backend's compose service, so workerd (the
+# SSR server) reaches it container-to-container. This is the SSR path only -- the browser
+# goes through the dev server's /api proxy instead (vite.config.ts), which is why that one
+# is relative and this one cannot be.
+API_BASE_URL=http://api:8000
 # Optional: SSR (server-side) Sentry DSN for the Worker. Leave unset locally to disable.
 # In prod this is the SENTRY_DSN var in wrangler.jsonc (or a CF dashboard Worker var).
 # SENTRY_DSN=

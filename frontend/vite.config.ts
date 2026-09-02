@@ -43,6 +43,19 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 5173,
     strictPort: true,
+    // The browser reaches the API through this dev server rather than directly, so dev is
+    // same-origin: the session cookie and the CSRF header behave as they do in prod, and no
+    // CORS config has to be kept in sync. `API_PROXY_TARGET` is handed to this container by
+    // the workspace compose; the fallback is the same service on the compose network. Only
+    // the browser needs this -- SSR loaders run inside the container and read the absolute
+    // `API_BASE_URL` Worker binding from `.dev.vars` instead.
+    proxy: {
+      "/api": {
+        target: process.env.API_PROXY_TARGET ?? "http://api:8000",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api/, ""),
+      },
+    },
     // No `hmr` block on purpose. Left unset, Vite injects null for protocol, host and
     // port, and the client falls back to the page's own origin -- so the socket follows
     // however the dev server was reached, whether that is the workspace's HTTPS proxy or
