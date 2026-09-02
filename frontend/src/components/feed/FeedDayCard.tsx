@@ -2,8 +2,11 @@ import { Link } from "react-router";
 import type { FeedDayItem, FilmEvent } from "@/api/types";
 import { arcStageLabel, eventTypeLabel } from "@/components/film/labels";
 
-/** One (film, day) row for the home feed: the film title + year linked to the film page,
- *  then each event as a summary line with real anchor source chips below it.
+/** One (film, day) row for the home feed: the film title + year linked to the film page.
+ *  Two row shapes, never both — a news-backed row lists each event as a summary line with
+ *  real anchor source chips below it; a catalog row (which ships no events since NEU-1208)
+ *  labels the day's beats as badges inline after the title, so it can be triaged without a
+ *  page load (NEU-1212).
  *  Zebra-striped within its section — a day that carries both news-backed and TMDB-only
  *  updates renders them as two lists, and the stripe restarts under each. */
 export function FeedDayCard({ item }: { item: FeedDayItem }) {
@@ -18,6 +21,16 @@ export function FeedDayCard({ item }: { item: FeedDayItem }) {
           {" "}
           ({item.release_year ?? arcStageLabel(item.arc_stage)})
         </span>
+        {item.events.length === 0 &&
+          item.event_types.length > 0 &&
+          item.event_types.map((eventType) => (
+            <span
+              key={eventType}
+              className="ml-1 inline-block rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground"
+            >
+              {eventTypeLabel(eventType)}
+            </span>
+          ))}
       </Link>
       {item.events.length > 0 && (
         <div className="mt-1 space-y-1.5 pl-3">

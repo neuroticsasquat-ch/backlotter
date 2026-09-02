@@ -344,9 +344,7 @@ describe("feed day sections", () => {
     expect(mondayLinks).toEqual(["/film/reported-monday", "/film/monday-tmdb"]);
     expect(mondayLinks.length).toBe(2);
     // Tuesday is TMDB-only: empty "In the news" heading plus collapsed "unconfirmed updates".
-    expect([...tuesday.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
-      "In the news",
-    ]);
+    expect([...tuesday.querySelectorAll("h3")].map((h) => h.textContent)).toEqual(["In the news"]);
     expect(within(tuesday).getByText("unconfirmed updates (1 movie)")).toBeInTheDocument();
   });
 
@@ -415,13 +413,15 @@ describe("unconfirmed updates section", () => {
     expect(screen.getByText("None today")).toBeInTheDocument();
   });
 
-  it("renders movie titles only without event cards", async () => {
-    // Backend now ships events: [] for catalog-sourced feed rows (NEU-1208).
+  it("renders movie titles with beat labels but no event cards", async () => {
+    // Backend still ships events: [] for catalog-sourced feed rows (NEU-1208); NEU-1212
+    // labels the row with the day's beats so it can be triaged without a page load.
     renderFeed(
       oneDay(
         dayItem("tmdb-film", {
           film_title: "TMDB Film",
           event_count: 1,
+          event_types: ["casting"],
           events: [],
         }),
       ),
@@ -430,6 +430,7 @@ describe("unconfirmed updates section", () => {
 
     await userEvent.click(screen.getByText("unconfirmed updates (1 movie)"));
     expect(screen.getByText("TMDB Film")).toBeInTheDocument();
+    expect(screen.getByText("Casting")).toBeInTheDocument();
     expect(screen.queryByText("The official trailer was released.")).toBeNull();
     expect(screen.queryByText("Trailer")).toBeNull();
   });
