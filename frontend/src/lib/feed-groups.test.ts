@@ -15,6 +15,8 @@ function item(day: string, film_ref: string, overrides: Partial<FeedDayItem> = {
     release_year: 2026,
     poster_path: null,
     arc_stage: "shooting",
+    production_countries: [],
+    directors: [],
     day,
     top_event_type: "casting",
     event_types: ["casting"],

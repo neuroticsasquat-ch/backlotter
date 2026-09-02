@@ -1,4 +1,5 @@
-import type { ReleaseDate } from "@/api/types";
+import type { ArcStage, ReleaseDate } from "@/api/types";
+import { arcStageLabel } from "@/components/film/labels";
 
 const DATE_FMT = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
@@ -100,4 +101,55 @@ export function pickRating(dates: ReleaseDate[]): Rating | null {
   );
   if (withCert.length === 0) return null;
   return withCert.find((r) => r.country === "US") ?? withCert[0];
+}
+
+/** Join with "/", showing at most `cap` values and " +N" for the rest. Null for an empty list. */
+function joinCapped(values: string[], cap?: number): string | null {
+  if (values.length === 0) return null;
+  if (cap == null || values.length <= cap) return values.join("/");
+  return `${values.slice(0, cap).join("/")} +${values.length - cap}`;
+}
+
+/**
+ * Join country display names with "/", capped at `cap` values followed by " +N" for the
+ * remainder. Returns null for an empty list so a caller can drop the element entirely.
+ * Uncapped by default — the film page's spec sheet has the width; the feed row does not.
+ */
+export function formatCountryList(countries: string[], opts?: { cap?: number }): string | null {
+  return joinCapped(countries, opts?.cap);
+}
+
+export interface FilmParentheticalInput {
+  production_countries: string[];
+  directors: string[];
+  release_year: number | null;
+  arc_stage: ArcStage;
+}
+
+const COUNTRY_CAP = 3;
+const DIRECTOR_CAP = 2;
+
+/**
+ * The feed row's title parenthetical, without its surrounding parens — countries, director,
+ * and year in that order, joined with ", " (NEU-1215).
+ *
+ * Multi-value elements join with "/" rather than a comma, so the comma always means "next
+ * element": "(USA, Dir: Joel Coen, Ethan Coen, 2010)" is unparseable. Absent elements
+ * contribute nothing at all — no empty slot, no placeholder separator. The arc-stage label is
+ * the last resort for the 2% of films carrying none of the three, where a bare title with no
+ * parenthetical would read as a rendering bug.
+ */
+export function filmParenthetical(input: FilmParentheticalInput): string {
+  const parts: string[] = [];
+
+  const countries = formatCountryList(input.production_countries, { cap: COUNTRY_CAP });
+  if (countries) parts.push(countries);
+
+  const directors = joinCapped(input.directors, DIRECTOR_CAP);
+  if (directors) parts.push(`Dir: ${directors}`);
+
+  if (input.release_year != null) parts.push(String(input.release_year));
+
+  if (parts.length === 0) return arcStageLabel(input.arc_stage);
+  return parts.join(", ");
 }

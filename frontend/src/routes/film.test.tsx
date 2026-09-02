@@ -60,6 +60,7 @@ const film: FilmDetail = {
   tagline: "The journey home begins.",
   runtime: 148,
   genres: ["Adventure", "Drama"],
+  production_countries: [],
   vote_average: 7.8,
   vote_count: 1200,
   original_language: "en",

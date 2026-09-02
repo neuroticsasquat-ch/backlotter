@@ -12,6 +12,8 @@ function item(film_ref: string, overrides: Partial<FeedDayItem> = {}): FeedDayIt
     release_year: 2026,
     poster_path: `/${film_ref}.jpg`,
     arc_stage: "shooting",
+    production_countries: [],
+    directors: [],
     day: "2026-06-23",
     top_event_type: "trailer",
     event_types: ["trailer"],
