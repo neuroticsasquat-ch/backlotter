@@ -14,6 +14,7 @@ export default defineConfig({
   // //# sourceMappingURL= comment — otherwise `wrangler deploy` fails reading a map that
   // filesToDeleteAfterUpload has already removed. Sentry still resolves via debug IDs.
   build: { sourcemap: sentryAuthToken ? "hidden" : false },
+  base: "/",
   plugins: [
     cloudflare({ viteEnvironment: { name: "ssr" } }),
     tailwindcss(),
@@ -47,7 +48,7 @@ export default defineConfig({
       protocol: "wss",
       host: "app.upmovies.localhost",
     },
-    allowedHosts: ["app.upmovies.localhost"],
+    allowedHosts: [".coder.neuroticsasquat.ch"],
     watch: {
       usePolling: true,
       interval: 500,

@@ -1,14 +1,9 @@
 version: '3'
 
-includes:
-  infra:
-    taskfile: ../../tbc-localdev-infra/Taskfile.yml
-    dir: ../../tbc-localdev-infra
-
 vars:
-  COMPOSE: docker compose
-  SVC: upmovies-frontend
-  EXEC: "{{.COMPOSE}} exec -T {{.SVC}}"
+  COMPOSE: "docker compose -f ../docker-compose.yml"
+  SVC: web
+  EXEC: "docker compose -f ../docker-compose.yml exec -T web"
 
 tasks:
   up:
