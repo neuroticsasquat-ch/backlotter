@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 import { FeedDayCard } from "@/components/feed/FeedDayCard";
@@ -114,14 +114,53 @@ describe("FeedDayCard", () => {
     expect(screen.queryByText("Trailer")).toBeNull();
   });
 
-  it("renders title only when events are empty", () => {
-    renderCard({ event_count: 3, events: [] });
+  it("renders beat labels when events are empty", () => {
+    // NEU-1208 stopped shipping events for catalog rows; NEU-1212 puts the day's beats back
+    // as badges, so the row is triageable without a page load. Still no count of any kind.
+    renderCard({ event_count: 3, events: [], event_types: ["release_date"] });
     expect(screen.getByRole("link")).toHaveAttribute("href", "/film/the-odyssey-2026");
+    expect(screen.getByText("Release date")).toBeInTheDocument();
     expect(screen.queryByText(/^\+/)).toBeNull();
     expect(screen.queryByText("3")).toBeNull();
-    // No event-type badge or summary should render for a title-only row.
+    // The beats are labelled, but no event summary line renders for a catalog row — the
+    // badge is the whole of the row's content beyond the title.
+    expect(screen.queryByText("Date set.")).toBeNull();
+    expect(screen.getByRole("link").parentElement!.querySelector("p")).toBeNull();
+    // Nor any beat the row does not carry.
     expect(screen.queryByText("Trailer")).toBeNull();
     expect(screen.queryByText("Casting")).toBeNull();
+  });
+
+  it("renders a badge for every beat type, in the order the backend shipped them", () => {
+    renderCard({ events: [], event_types: ["release_date", "casting"] });
+    const badges = screen.getAllByText(/^(Release date|Casting)$/).map((el) => el.textContent);
+    expect(badges).toEqual(["Release date", "Casting"]);
+  });
+
+  it("renders no beat labels on a row that has events", () => {
+    // A row shows either its beats or its event cards, never both — so the type label
+    // appears exactly once, from the event card.
+    renderCard({
+      event_types: ["release_date"],
+      events: [
+        {
+          event_id: "evt-3",
+          event_type: "release_date",
+          confidence: "confirmed",
+          created_at: "2026-06-23T12:00:00Z",
+          summary: "Date set.",
+          summary_edited: false,
+          provenance: "story",
+          sources: [],
+        },
+      ],
+    });
+    expect(screen.getAllByText("Release date")).toHaveLength(1);
+  });
+
+  it("renders the beat labels inside the title link", () => {
+    renderCard({ events: [], event_types: ["release_date"] });
+    expect(within(screen.getByRole("link")).getByText("Release date")).toBeInTheDocument();
   });
 
   it("wraps a long title instead of truncating it", () => {
