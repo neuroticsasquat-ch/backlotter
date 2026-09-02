@@ -6,7 +6,9 @@ import { arcStageLabel, eventTypeLabel } from "@/components/film/labels";
  *  Two row shapes, never both — a news-backed row lists each event as a summary line with
  *  real anchor source chips below it; a catalog row (which ships no events since NEU-1208)
  *  labels the day's beats as badges inline after the title, so it can be triaged without a
- *  page load (NEU-1212).
+ *  page load (NEU-1212). Those badges need `indent-0`: the link's `-indent-3` hanging indent
+ *  inherits into them, and an inline-block re-applies it to its own first line, which paints
+ *  the label outside its own pill (NEU-1214).
  *  Zebra-striped within its section — a day that carries both news-backed and TMDB-only
  *  updates renders them as two lists, and the stripe restarts under each. */
 export function FeedDayCard({ item }: { item: FeedDayItem }) {
@@ -26,7 +28,7 @@ export function FeedDayCard({ item }: { item: FeedDayItem }) {
           item.event_types.map((eventType) => (
             <span
               key={eventType}
-              className="ml-2 inline-block rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground"
+              className="ml-2 inline-block indent-0 rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground"
             >
               {eventTypeLabel(eventType)}
             </span>
