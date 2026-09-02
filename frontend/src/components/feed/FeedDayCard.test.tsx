@@ -175,6 +175,30 @@ describe("FeedDayCard", () => {
     }
   });
 
+  it("cancels the title link's inherited negative text-indent on the beat pill", () => {
+    // The Link carries -indent-3 for the title's hanging indent, and text-indent inherits.
+    // Each inline-block badge re-applies it to its own first line, painting the label 6px
+    // outside the left edge of its own background — which also ate the gap to the year
+    // parenthetical and to the preceding pill (NEU-1214). jsdom has no layout, so pin the
+    // class; the geometry it buys was verified in the browser.
+    renderCard({ events: [], event_types: ["release_date", "casting"] });
+    for (const label of ["Release date", "Casting"]) {
+      expect(screen.getByText(label).className).toContain("indent-0");
+    }
+  });
+
+  it("keeps the hanging indent on the link, not on the badges", () => {
+    // -indent-3 has to stay on the Link: it is what makes a wrapped long title's second
+    // line hang. Cancelling it on the badge must not cancel it on the title.
+    renderCard({
+      film_title: "Untitled Shang-Chi and the Legend of the Ten Rings Sequel",
+      events: [],
+      event_types: ["release_date"],
+    });
+    expect(screen.getByRole("link").className).toContain("-indent-3");
+    expect(screen.getByText("Release date").className).not.toContain("-indent-3");
+  });
+
   it("leaves the news-card event badge on mr-1", () => {
     // NEU-1213 widens the *beat* pill only. The event badge is followed by summary prose,
     // where 4px is right — widening it too would be the scope creep that ticket excluded.
