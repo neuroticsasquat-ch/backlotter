@@ -43,11 +43,12 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 5173,
     strictPort: true,
-    hmr: {
-      clientPort: 443,
-      protocol: "wss",
-      host: "app.upmovies.localhost",
-    },
+    // No `hmr` block on purpose. Left unset, Vite injects null for protocol, host and
+    // port, and the client falls back to the page's own origin -- so the socket follows
+    // however the dev server was reached, whether that is the workspace's HTTPS proxy or
+    // http://localhost:5173 directly. Pinning them (as this did to the retired Traefik
+    // host on :443) breaks every other route in, and breaks it silently: the page still
+    // renders and only live reload stops arriving.
     allowedHosts: [".coder.neuroticsasquat.ch"],
     watch: {
       usePolling: true,

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`AGENTS.md`** — operating rules and container workflow. Note: its architecture description
   (Vite SPA, `createBrowserRouter`, ESLint) is **stale** — see Architecture below for what's
   actually here. Its `task` command table and container rules are accurate.
-- **Sibling repo**: `../upcoming-movies-backend`; read its `AGENTS.md` before touching backend code.
+- **Sibling repo**: `../backend`; read its `AGENTS.md` before touching backend code.
 
 ## Everything runs in the container
 

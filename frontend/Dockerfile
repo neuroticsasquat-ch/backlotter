@@ -2,20 +2,19 @@
 
 FROM node:22-slim AS base
 WORKDIR /app
-COPY package.json package-lock.json* ./
+RUN corepack enable
+COPY package.json pnpm-lock.yaml ./
 
 
 FROM base AS dev
 
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 
 EXPOSE 5173
 
-# --host is required: without it Vite binds 127.0.0.1 inside the container and
-# the published port answers nothing.
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+CMD ["pnpm", "dev", "--host", "0.0.0.0", "--port", "5173"]
 
 
 FROM base AS build
