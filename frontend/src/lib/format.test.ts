@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   dayKey,
+  filmParenthetical,
+  formatCountryList,
   formatDayHeading,
   formatEventDate,
   formatLanguage,
@@ -160,5 +162,131 @@ describe("pickRating", () => {
         rd({ country: "GB", certification: "12A" }),
       ]),
     ).toEqual({ certification: "12A", country: "GB" });
+  });
+});
+
+describe("formatCountryList", () => {
+  it("returns null for an empty list", () => {
+    expect(formatCountryList([])).toBeNull();
+  });
+
+  it("renders a single value alone", () => {
+    expect(formatCountryList(["USA"])).toBe("USA");
+  });
+
+  it("joins with a slash, not a comma — the comma means 'next element'", () => {
+    expect(formatCountryList(["Ireland", "UK", "USA"])).toBe("Ireland/UK/USA");
+  });
+
+  it("caps and reports the remainder", () => {
+    const nine = [
+      "Canada",
+      "Colombia",
+      "France",
+      "Mexico",
+      "Netherlands",
+      "Switzerland",
+      "Thailand",
+      "UK",
+      "USA",
+    ];
+    expect(formatCountryList(nine, { cap: 3 })).toBe("Canada/Colombia/France +6");
+  });
+
+  it("renders every value when uncapped", () => {
+    const nine = [
+      "Canada",
+      "Colombia",
+      "France",
+      "Mexico",
+      "Netherlands",
+      "Switzerland",
+      "Thailand",
+      "UK",
+      "USA",
+    ];
+    expect(formatCountryList(nine)).toBe(nine.join("/"));
+  });
+
+  it("does not append a remainder when the list exactly fills the cap", () => {
+    expect(formatCountryList(["A", "B", "C"], { cap: 3 })).toBe("A/B/C");
+  });
+});
+
+describe("filmParenthetical", () => {
+  const input = (over: Partial<Parameters<typeof filmParenthetical>[0]> = {}) => ({
+    production_countries: [],
+    directors: [],
+    release_year: null,
+    arc_stage: "announced" as const,
+    ...over,
+  });
+
+  it("renders all three elements in country, director, year order", () => {
+    expect(
+      filmParenthetical(
+        input({
+          production_countries: ["USA"],
+          directors: ["Christopher Nolan"],
+          release_year: 2010,
+        }),
+      ),
+    ).toBe("USA, Dir: Christopher Nolan, 2010");
+  });
+
+  it("omits the year for the 78% of films that have none — no empty slot", () => {
+    expect(
+      filmParenthetical(
+        input({ production_countries: ["Japan"], directors: ["Ryusuke Hamaguchi"] }),
+      ),
+    ).toBe("Japan, Dir: Ryusuke Hamaguchi");
+  });
+
+  it("renders the year alone", () => {
+    expect(filmParenthetical(input({ release_year: 2010 }))).toBe("2010");
+  });
+
+  it("renders the country alone", () => {
+    expect(filmParenthetical(input({ production_countries: ["South Korea"] }))).toBe("South Korea");
+  });
+
+  it("renders the director alone", () => {
+    expect(filmParenthetical(input({ directors: ["Bong Joon-ho"] }))).toBe("Dir: Bong Joon-ho");
+  });
+
+  it("falls back to the arc-stage label only when all three are absent", () => {
+    expect(filmParenthetical(input({ arc_stage: "shooting" }))).toBe("Shooting");
+  });
+
+  it("joins co-directors with a slash", () => {
+    expect(filmParenthetical(input({ directors: ["Ethan Coen", "Joel Coen"] }))).toBe(
+      "Dir: Ethan Coen/Joel Coen",
+    );
+  });
+
+  it("caps directors at two and reports the remainder", () => {
+    const fourteen = Array.from({ length: 14 }, (_, i) => `Director ${i + 1}`);
+    expect(filmParenthetical(input({ directors: fourteen }))).toBe(
+      "Dir: Director 1/Director 2 +12",
+    );
+  });
+
+  it("caps countries at three", () => {
+    const nine = [
+      "Canada",
+      "Colombia",
+      "France",
+      "Mexico",
+      "Netherlands",
+      "Switzerland",
+      "Thailand",
+      "UK",
+      "USA",
+    ];
+    expect(
+      filmParenthetical(
+        input({ production_countries: nine, directors: ["Apichatpong Weerasethakul"] }),
+      ),
+    ).toBe("Canada/Colombia/France +6, Dir: Apichatpong Weerasethakul");
   });
 });

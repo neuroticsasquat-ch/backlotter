@@ -123,6 +123,9 @@ export interface FilmDetail {
   tagline: string | null;
   runtime: number | null;
   genres: string[];
+  // Display forms, already abbreviated and sorted by display name. No `directors` counterpart:
+  // the film page reads its director out of `crew` (NEU-1215).
+  production_countries: string[];
   vote_average: number | null;
   vote_count: number | null;
   original_language: string | null;
@@ -142,7 +145,13 @@ export interface FeedDayItem {
   film_title: string;
   release_year: number | null;
   poster_path: string | null;
-  arc_stage: ArcStage; // mirrors the backend; rendered in place of the year for an undated film
+  // Mirrors the backend; the title parenthetical's last resort, rendered only when the film has
+  // no country, director, or year (NEU-1215).
+  arc_stage: ArcStage;
+  // The other two elements of the title parenthetical, display-ready and never null. Uncapped —
+  // each surface caps for itself (the feed row at 3 countries / 2 directors).
+  production_countries: string[];
+  directors: string[];
   day: string; // "YYYY-MM-DD" (UTC); one row per film per day
   top_event_type: string; // raw event_type, rendered via eventTypeLabel
   // Every distinct beat the film-day carries, most-significant first (so `event_types[0]`

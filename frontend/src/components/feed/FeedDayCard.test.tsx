@@ -10,6 +10,8 @@ const item: FeedDayItem = {
   release_year: 2026,
   poster_path: "/odyssey.jpg",
   arc_stage: "shooting",
+  production_countries: [],
+  directors: [],
   day: "2026-06-23",
   top_event_type: "release_date",
   event_types: ["release_date"],
@@ -35,10 +37,45 @@ describe("FeedDayCard", () => {
     expect(screen.getByText("(2026)")).toBeInTheDocument();
   });
 
-  it("renders the arc-stage label in place of the year when the film is undated", () => {
+  it("falls back to the arc-stage label only when country, director, and year are all absent", () => {
+    // The last resort for the 2% of films carrying none of the three — a bare title with no
+    // parenthetical at all would read as a rendering bug (NEU-1215).
     renderCard({ release_year: null, arc_stage: "announced" });
     expect(screen.queryByText(/\(\d{4}\)/)).toBeNull();
     expect(screen.getByText("(Announced)")).toBeInTheDocument();
+  });
+
+  it("composes country, director, and year into one parenthetical", () => {
+    renderCard({
+      film_title: "Inception",
+      production_countries: ["USA"],
+      directors: ["Christopher Nolan"],
+      release_year: 2010,
+    });
+    expect(screen.getByText("(USA, Dir: Christopher Nolan, 2010)")).toBeInTheDocument();
+  });
+
+  it("drops the year element for an undated film that has a country and a director", () => {
+    // The 78% case: no year, but the parenthetical still places the film.
+    renderCard({
+      release_year: null,
+      arc_stage: "announced",
+      production_countries: ["Japan"],
+      directors: ["Ryusuke Hamaguchi"],
+    });
+    expect(screen.getByText("(Japan, Dir: Ryusuke Hamaguchi)")).toBeInTheDocument();
+    expect(screen.queryByText(/Announced/)).toBeNull();
+  });
+
+  it("caps a co-production's countries and reports the remainder", () => {
+    renderCard({
+      production_countries: ["Canada", "Colombia", "France", "Mexico", "Netherlands"],
+      directors: ["Apichatpong Weerasethakul"],
+      release_year: null,
+    });
+    expect(
+      screen.getByText("(Canada/Colombia/France +2, Dir: Apichatpong Weerasethakul)"),
+    ).toBeInTheDocument();
   });
 
   it("keeps the year and omits the arc-stage label for a dated film", () => {
@@ -185,6 +222,25 @@ describe("FeedDayCard", () => {
     for (const label of ["Release date", "Casting"]) {
       expect(screen.getByText(label).className).toContain("indent-0");
     }
+  });
+
+  it("keeps the badge indent fix on a row with a long parenthetical", () => {
+    // A three-country, two-director parenthetical pushes the title line to wrap far more
+    // often, which is exactly where NEU-1214's -indent-3 / indent-0 pairing shows. The
+    // parenthetical is plain text inside the link, so the pairing must be untouched.
+    renderCard({
+      film_title: "Jenjira's Magnificent Dream",
+      production_countries: ["Canada", "Colombia", "France", "Mexico"],
+      directors: ["Ann Director", "Bob Director", "Cal Director"],
+      release_year: 2026,
+      events: [],
+      event_types: ["release_date"],
+    });
+    expect(
+      screen.getByText("(Canada/Colombia/France +1, Dir: Ann Director/Bob Director +1, 2026)"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link").className).toContain("-indent-3");
+    expect(screen.getByText("Release date").className).toContain("indent-0");
   });
 
   it("keeps the hanging indent on the link, not on the badges", () => {

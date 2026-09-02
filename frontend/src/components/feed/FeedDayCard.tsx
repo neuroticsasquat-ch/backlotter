@@ -1,8 +1,13 @@
 import { Link } from "react-router";
 import type { FeedDayItem, FilmEvent } from "@/api/types";
-import { arcStageLabel, eventTypeLabel } from "@/components/film/labels";
+import { eventTypeLabel } from "@/components/film/labels";
+import { filmParenthetical } from "@/lib/format";
 
-/** One (film, day) row for the home feed: the film title + year linked to the film page.
+/** One (film, day) row for the home feed: the film title + its parenthetical, linked to the
+ *  film page. The parenthetical carries country, director, and year (NEU-1215) — country and
+ *  director being what let a reader place an unfamiliar title without a page load, on a feed
+ *  where 78% of films have no year at all. It is never empty: `filmParenthetical` falls back
+ *  to the arc-stage label.
  *  Two row shapes, never both — a news-backed row lists each event as a summary line with
  *  real anchor source chips below it; a catalog row (which ships no events since NEU-1208)
  *  labels the day's beats as badges inline after the title, so it can be triaged without a
@@ -19,10 +24,7 @@ export function FeedDayCard({ item }: { item: FeedDayItem }) {
         className="block -indent-3 pl-3 font-medium text-foreground hover:text-foreground"
       >
         {item.film_title}
-        <span className="font-normal text-muted-foreground">
-          {" "}
-          ({item.release_year ?? arcStageLabel(item.arc_stage)})
-        </span>
+        <span className="font-normal text-muted-foreground"> ({filmParenthetical(item)})</span>
         {item.events.length === 0 &&
           item.event_types.length > 0 &&
           item.event_types.map((eventType) => (

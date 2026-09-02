@@ -2,20 +2,22 @@ import type { FilmDetail } from "@/api/types";
 import { formatRuntime, pickRating } from "@/lib/format";
 import { posterUrl } from "@/lib/poster";
 import { ArcStepper } from "./ArcStepper";
-import { arcStageLabel } from "./labels";
 import { ExternalLinks } from "./ExternalLinks";
 
 /** Title + parenthetical year, then the poster beside the production-status arc
- *  (left-aligned), with a labeled spec sheet (director, runtime, rating, genres)
- *  below. An undated film shows its arc-stage label ("Announced") in the year's
- *  slot rather than dropping it — with thousands of undated films, an empty slot
- *  reads as missing data instead of a meaningful state.
+ *  (left-aligned), with a labeled spec sheet (countries, director, runtime, rating, genres)
+ *  below. An undated film drops the parenthetical entirely rather than showing its arc-stage
+ *  label: the `ArcStepper` directly below states production status in a better form, so
+ *  "(Announced)" beside the title is duplication (NEU-1215). The feed row, which has no such
+ *  affordance, keeps that fallback.
+ *  The spec sheet is the complete structured record — it caps nothing, and the title
+ *  parenthetical stays year-only here so the director is not repeated 100px above its own
+ *  labelled row.
  *  Production companies render in their own collapsible section below the cast. */
 export function FilmHeader({ film }: { film: FilmDetail }) {
   const poster = posterUrl(film.poster_path, "w342");
   const runtime = film.runtime != null && film.runtime > 0 ? formatRuntime(film.runtime) : null;
   const rating = pickRating(film.release_dates);
-  const yearOrStage = film.release_year ?? arcStageLabel(film.arc_stage);
 
   const billing: [string, string[]][] = (
     [
@@ -35,7 +37,9 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
     <header>
       <div className="flex flex-wrap items-baseline gap-x-2">
         <h1 className="text-2xl font-bold">{film.title}</h1>
-        <span className="text-2xl font-normal text-muted-foreground">({yearOrStage})</span>
+        {film.release_year != null && (
+          <span className="text-2xl font-normal text-muted-foreground">({film.release_year})</span>
+        )}
       </div>
 
       <div className="mt-4 flex items-start gap-4">
@@ -54,6 +58,18 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
       </div>
 
       <dl className="mt-5 grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-2 text-sm text-foreground">
+        {film.production_countries.length > 0 && (
+          <>
+            <dt className="text-muted-foreground">
+              {film.production_countries.length === 1 ? "Country" : "Countries"}
+            </dt>
+            <dd>
+              {film.production_countries.map((country) => (
+                <div key={country}>{country}</div>
+              ))}
+            </dd>
+          </>
+        )}
         {billing.map(([label, names]) => (
           <div key={label} className="contents">
             <dt className="text-muted-foreground">{label}</dt>
