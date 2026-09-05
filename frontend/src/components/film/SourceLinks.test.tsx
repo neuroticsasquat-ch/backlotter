@@ -13,7 +13,6 @@ describe("SourceLinks", () => {
         sources={[
           { url: "https://deadline.com/a", source: "Deadline", title: "Cast", published_at: null },
         ]}
-        provenance="story"
       />,
     );
     const link = screen.getByRole("link", { name: "Deadline" });
@@ -24,29 +23,30 @@ describe("SourceLinks", () => {
   });
 
   it("renders nothing for a source-less story event", () => {
-    const { container } = render(<SourceLinks sources={[]} provenance="story" />);
+    const { container } = render(<SourceLinks sources={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it("shows no delink control without admin props", () => {
-    render(<SourceLinks sources={delinkSources} provenance="story" />);
+    render(<SourceLinks sources={delinkSources} />);
     expect(screen.queryByRole("button", { name: /delink/i })).toBeNull();
   });
 
   it("calls onDelink with the source url when admin", () => {
     const onDelink = vi.fn();
-    render(<SourceLinks sources={delinkSources} provenance="story" admin onDelink={onDelink} />);
+    render(<SourceLinks sources={delinkSources} admin onDelink={onDelink} />);
     fireEvent.click(screen.getByRole("button", { name: /delink ScreenRant/i }));
     expect(onDelink).toHaveBeenCalledWith("https://x.test/a");
   });
 
-  it("attributes a source-less catalog event to TMDB", () => {
-    render(<SourceLinks sources={[]} provenance="catalog" />);
-    expect(screen.getByText("via TMDB")).toBeInTheDocument();
+  it("renders no attribution for a source-less catalog event", () => {
+    const { container } = render(<SourceLinks sources={[]} />);
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText("via TMDB")).toBeNull();
   });
 
-  it("renders the outlets, not the TMDB fallback, once a catalog event gains sources", () => {
-    render(<SourceLinks sources={delinkSources} provenance="catalog" />);
+  it("renders the outlets once a catalog event gains sources", () => {
+    render(<SourceLinks sources={delinkSources} />);
     expect(screen.getByRole("link", { name: "ScreenRant" })).toBeInTheDocument();
     expect(screen.queryByText("via TMDB")).toBeNull();
   });

@@ -15,6 +15,7 @@ const film: FilmDetail = {
   tagline: null,
   runtime: 148,
   genres: ["Adventure", "Drama"],
+  production_countries: [],
   vote_average: null,
   vote_count: null,
   original_language: "en",
@@ -109,16 +110,50 @@ describe("FilmHeader", () => {
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
-  it("renders the arc-stage label in place of the year when the film is undated", () => {
+  it("omits the parenthetical entirely when the film is undated", () => {
+    // No arc-stage fallback here: the ArcStepper directly below already states production
+    // status, so "(Announced)" beside the title is duplication (NEU-1215). Assert absence,
+    // not an empty string — an empty "()" is the failure this guards against.
     render(<FilmHeader film={{ ...film, release_year: null, arc_stage: "announced" }} />);
     expect(screen.queryByText("(2026)")).toBeNull();
-    expect(screen.getByText("(Announced)")).toBeInTheDocument();
+    expect(screen.queryByText("(Announced)")).toBeNull();
+    expect(screen.queryByText("()")).toBeNull();
   });
 
   it("keeps the year and omits the arc-stage label for a dated film", () => {
     render(<FilmHeader film={film} />);
     expect(screen.getByText("(2026)")).toBeInTheDocument();
     expect(screen.queryByText("(Shooting)")).toBeNull();
+  });
+
+  it("lists production countries one per line, uncapped", () => {
+    render(
+      <FilmHeader film={{ ...film, production_countries: ["Ireland", "UK", "USA", "France"] }} />,
+    );
+    expect(screen.getByText("Countries")).toBeInTheDocument();
+    for (const country of ["Ireland", "UK", "USA", "France"]) {
+      expect(screen.getByText(country)).toBeInTheDocument();
+    }
+  });
+
+  it("labels a single country in the singular", () => {
+    render(<FilmHeader film={{ ...film, production_countries: ["USA"] }} />);
+    expect(screen.getByText("Country")).toBeInTheDocument();
+    expect(screen.queryByText("Countries")).toBeNull();
+  });
+
+  it("omits the countries row entirely when the film has none", () => {
+    render(<FilmHeader film={film} />);
+    expect(screen.queryByText("Country")).toBeNull();
+    expect(screen.queryByText("Countries")).toBeNull();
+  });
+
+  it("still renders the Director billing row beside the countries", () => {
+    // The film page reads its director out of `crew`, not a `directors` field — the whole
+    // reason the h1 parenthetical stays year-only.
+    render(<FilmHeader film={{ ...film, production_countries: ["USA"] }} />);
+    expect(screen.getByText("Director")).toBeInTheDocument();
+    expect(screen.getAllByText("Christopher Nolan").length).toBeGreaterThan(0);
   });
 
   it("renders the IMDb and TMDB links in the header", () => {

@@ -32,7 +32,9 @@ function makeDayGroup(day: string, heading: string, events: FilmEvent[]): FilmDa
 /** Renders EventTimeline inside the full provider stack. */
 function renderTimeline(dayGroups: FilmDayGroup[]) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const router = createMemoryRouter([{ path: "/", element: <EventTimeline dayGroups={dayGroups} /> }]);
+  const router = createMemoryRouter([
+    { path: "/", element: <EventTimeline dayGroups={dayGroups} /> },
+  ]);
   render(
     <QueryClientProvider client={qc}>
       <AuthProvider>
@@ -112,7 +114,39 @@ describe("EventTimeline", () => {
       },
     ]);
     expect(await screen.findByText(/In the news/i)).toBeInTheDocument();
-    expect(screen.getByText(/via TMDB/i)).toBeInTheDocument();
+    expect(screen.getByText(/unconfirmed updates/i)).toBeInTheDocument();
+    expect(screen.getByText(/TMDB event/)).toBeInTheDocument();
+  });
+
+  it("renders tmdb events inline without collapse on a tmdb-only day", async () => {
+    renderTimeline([
+      {
+        day: "2026-06-01",
+        heading: "Monday, June 1, 2026",
+        news_events: [],
+        tmdb_events: [
+          makeEvent({ summary: "Only TMDB event.", created_at: "2026-06-01T12:00:00Z" }),
+        ],
+      },
+    ]);
+    expect(await screen.findByText(/Only TMDB event/)).toBeInTheDocument();
+    expect(screen.getByText(/unconfirmed updates/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /unconfirmed updates/i })).not.toBeInTheDocument();
+  });
+
+  it("renders both subgroups visible on initial render", async () => {
+    renderTimeline([
+      {
+        day: "2026-06-01",
+        heading: "Monday, June 1, 2026",
+        news_events: [makeEvent({ summary: "News event.", created_at: "2026-06-01T08:00:00Z" })],
+        tmdb_events: [makeEvent({ summary: "TMDB event.", created_at: "2026-06-01T12:00:00Z" })],
+      },
+    ]);
+    expect(await screen.findByText(/News event/)).toBeInTheDocument();
+    expect(screen.getByText(/TMDB event/)).toBeInTheDocument();
+    expect(screen.getByText(/In the news/i)).toBeInTheDocument();
+    expect(screen.getByText(/unconfirmed updates/i)).toBeInTheDocument();
   });
 
   it("renders section label even when only one subgroup is present", async () => {

@@ -1,9 +1,19 @@
 import { Link } from "react-router";
 import type { FeedDayItem, FilmEvent } from "@/api/types";
-import { arcStageLabel, eventTypeLabel } from "@/components/film/labels";
+import { eventTypeLabel } from "@/components/film/labels";
+import { filmParenthetical } from "@/lib/format";
 
-/** One (film, day) row for the home feed: the film title + year linked to the film page,
- *  then each event as a summary line with real anchor source chips below it.
+/** One (film, day) row for the home feed: the film title + its parenthetical, linked to the
+ *  film page. The parenthetical carries country, director, and year (NEU-1215) — country and
+ *  director being what let a reader place an unfamiliar title without a page load, on a feed
+ *  where 78% of films have no year at all. It is never empty: `filmParenthetical` falls back
+ *  to the arc-stage label.
+ *  Two row shapes, never both — a news-backed row lists each event as a summary line with
+ *  real anchor source chips below it; a catalog row (which ships no events since NEU-1208)
+ *  labels the day's beats as badges inline after the title, so it can be triaged without a
+ *  page load (NEU-1212). Those badges need `indent-0`: the link's `-indent-3` hanging indent
+ *  inherits into them, and an inline-block re-applies it to its own first line, which paints
+ *  the label outside its own pill (NEU-1214).
  *  Zebra-striped within its section — a day that carries both news-backed and TMDB-only
  *  updates renders them as two lists, and the stripe restarts under each. */
 export function FeedDayCard({ item }: { item: FeedDayItem }) {
@@ -14,10 +24,17 @@ export function FeedDayCard({ item }: { item: FeedDayItem }) {
         className="block -indent-3 pl-3 font-medium text-foreground hover:text-foreground"
       >
         {item.film_title}
-        <span className="font-normal text-muted-foreground">
-          {" "}
-          ({item.release_year ?? arcStageLabel(item.arc_stage)})
-        </span>
+        <span className="font-normal text-muted-foreground"> ({filmParenthetical(item)})</span>
+        {item.events.length === 0 &&
+          item.event_types.length > 0 &&
+          item.event_types.map((eventType) => (
+            <span
+              key={eventType}
+              className="ml-2 inline-block indent-0 rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground"
+            >
+              {eventTypeLabel(eventType)}
+            </span>
+          ))}
       </Link>
       {item.events.length > 0 && (
         <div className="mt-1 space-y-1.5 pl-3">
@@ -44,21 +61,14 @@ function FeedEvent({ event }: { event: FilmEvent }) {
           </span>
         ) : null}
       </p>
-      <FeedEventSources sources={event.sources} provenance={event.provenance} />
+      <FeedEventSources sources={event.sources} />
     </div>
   );
 }
 
-function FeedEventSources({
-  sources,
-  provenance,
-}: {
-  sources: FilmEvent["sources"];
-  provenance: FilmEvent["provenance"];
-}) {
+function FeedEventSources({ sources }: { sources: FilmEvent["sources"] }) {
   if (sources.length === 0) {
-    if (provenance !== "catalog") return null;
-    return <p className="mt-1 text-[11px] text-muted-foreground">via TMDB</p>;
+    return null;
   }
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">

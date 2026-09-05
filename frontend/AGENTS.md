@@ -46,12 +46,12 @@ Before claiming work done, `task test`, `task lint`, `task typecheck` must be gr
 
 ## Sibling repo
 
-The backend lives at `../upcoming-movies-backend`. Read its `AGENTS.md` before working on backend code.
+The backend lives at `../backend`. Read its `AGENTS.md` before working on backend code.
 
 ## Gotchas
 
 - A few pre-existing files (`AuthContext.*`) have Prettier drift on `main`. Don't reformat unrelated files in a PR — format only what you touch.
-- Backend dev API is `https://api.upmovies.localhost` (self-signed TLS via the shared infra). Prod base URL comes from `VITE_API_BASE_URL`.
+- Backend dev API comes from `VITE_API_BASE_URL` (`env.ts`), in dev as in prod. Its fallback is still `https://api.upmovies.localhost`, the retired Traefik host, so the variable has to be set in the workspace -- unset, every request goes to a name that does not resolve.
 
 ## Commits / PRs
 

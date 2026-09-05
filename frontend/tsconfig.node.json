@@ -7,7 +7,13 @@
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "strict": true,
-    "composite": true
+    "composite": true,
+    // Without these, `tsc -b` emits vite.config.js / vitest.config.js next to their
+    // sources -- and Vite resolves vite.config.js BEFORE vite.config.ts, so the dev
+    // server silently runs the last compiled output instead of the file you edited.
+    // Same placement as tsconfig.cloudflare.json, which already does this.
+    "outDir": ".tsc-out/node",
+    "declarationDir": ".tsc-out/node-types"
   },
   "include": ["vite.config.ts", "vitest.config.ts"]
 }
