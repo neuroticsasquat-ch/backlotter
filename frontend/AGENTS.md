@@ -4,7 +4,7 @@ React + TypeScript SPA for the Upcoming Movies Tracker. Vite, react-router, TanS
 
 ## Branching
 
-- `loop_base`: main — v0.3.0 shipped 2026-08-11 and `release/v0.3.0` is fully merged, so work branches from `main` again. **Repoint this when the next release branch is cut**, and back to `main` when it merges; a stale value here silently forks new work off a dead branch.
+- `loop_base`: release/v1.0.0 — cut from `main` on 2026-09-15 for the consumer pivot (Linear project "bl: Consumer Pivot"); every ticket in that project branches from and PRs to it. **Repoint this when the next release branch is cut**, and back to `main` when it merges; a stale value here silently forks new work off a dead branch.
 
 ## Golden rule: everything runs in the container via `task`
 
