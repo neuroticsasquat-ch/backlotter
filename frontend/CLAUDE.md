@@ -26,6 +26,7 @@ dependency changes require `task build`.
 |---|---|
 | `task up` / `task down` / `task build` | container lifecycle (`build` also reinstalls deps) |
 | `task test` | `vitest run` (`task test -- src/routes/film.test.tsx` to scope to one file) |
+| `task release-notes -- v0.4.1` | Prepend a tag's notes to `RELEASE_NOTES.md` (runs on the host) |
 | `task lint` | `oxlint src --max-warnings 0` |
 | `task typecheck` | `react-router typegen && tsc -b` (typegen must run first — routes use generated `+types/*` imports) |
 | `task format` | `prettier --write` |
@@ -110,6 +111,14 @@ There are two separate DSN/env-var sets: `VITE_SENTRY_DSN` (build-time, browser)
 ## Conventions
 
 - Path alias `@/` → `src/`.
-- Conventional commits with a trailing Linear ID: `feat: add X (NEU-123)`. No `Co-Authored-By`.
+- Conventional commits with a **scope** and a trailing Linear ID: `feat(auth): add X (NEU-123)`.
+  No `Co-Authored-By`. The scope is the component (`auth`, `feed`, `onboarding`, …), not the Linear
+  project, and it is load-bearing: `cliff.toml` groups `RELEASE_NOTES.md` by scope, so a scopeless
+  commit lands under a catch-all "General" heading.
   Branch per ticket using Linear's generated name. The GitHub↔Linear connector moves ticket status
   automatically — don't touch it.
+- Release notes: tag the release, then `task release-notes -- v0.4.1`. git-cliff renders only
+  user-facing types (`feat`/`fix`/`perf`/`revert`) and **prepends** the new section —
+  `RELEASE_NOTES.md` accumulates per-release chunks and is never rebuilt wholesale. It runs on the
+  host, not in the container, because git-cliff reads git history and tags; don't call `git-cliff`
+  directly.

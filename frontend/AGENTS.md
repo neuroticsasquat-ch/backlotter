@@ -55,4 +55,10 @@ The backend lives at `../backend`. Read its `AGENTS.md` before working on backen
 
 ## Commits / PRs
 
-Conventional commits with the Linear ID as a trailing parenthetical: `feat: add X (NEU-123)`. **No** `Co-Authored-By`. The GitHub↔Linear connector moves ticket status automatically — don't touch it. Branch per ticket (Linear gives the branch name).
+Conventional commits with a **scope** and the Linear ID as a trailing parenthetical: `feat(auth): add X (NEU-123)`. **No** `Co-Authored-By`. The GitHub↔Linear connector moves ticket status automatically — don't touch it. Branch per ticket (Linear gives the branch name).
+
+The scope is the component (`auth`, `feed`, `onboarding`, …), not the Linear project, and it is load-bearing rather than decorative: `cliff.toml` groups `RELEASE_NOTES.md` by scope, so a scopeless commit lands under a catch-all "General" heading.
+
+## Release notes
+
+Tag the release, then `task release-notes -- v0.4.1`. git-cliff renders only user-facing types (`feat`/`fix`/`perf`/`revert`) and **prepends** the new section — `RELEASE_NOTES.md` accumulates per-release chunks and is never rebuilt wholesale. It runs on the host rather than in the container, because git-cliff reads git history and tags, and neither it nor a usable `.git` is in the image. Don't call `git-cliff` directly.
