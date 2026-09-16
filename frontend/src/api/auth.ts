@@ -3,11 +3,16 @@ import type { AuthedUser } from "./types";
 
 export const fetchMe = () => apiFetch<AuthedUser>("/me");
 
+// Since NEU-1343 the door is held by Turnstile, not by an invite: `turnstile_token` is
+// required and `invite_code` is the optional admin comp path. Supplied, a code is still
+// validated and consumed -- a bad one fails the signup rather than being ignored -- so the
+// field is omitted entirely rather than sent empty when the user didn't enter one.
 export const signup = (body: {
   email: string;
   password: string;
   display_name: string;
-  invite_code: string;
+  turnstile_token: string;
+  invite_code?: string;
 }) => apiFetch<AuthedUser>("/auth/signup", { method: "POST", body: JSON.stringify(body) });
 
 export const login = (body: { email: string; password: string }) =>

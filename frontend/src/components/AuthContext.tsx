@@ -4,16 +4,25 @@ import * as authApi from "@/api/auth";
 import { ApiError, setCsrfToken } from "@/api/client";
 import type { AuthedUser } from "@/api/types";
 
+/**
+ * Named rather than positional because since NEU-1345 two of the five are opaque strings --
+ * a Turnstile token and an optional invite code -- and `signup(a, b, c, d, e)` gives a reader
+ * no way to tell which is which, or to leave the optional one out without a placeholder.
+ */
+export type SignupArgs = {
+  email: string;
+  password: string;
+  displayName: string;
+  turnstileToken: string;
+  /** The admin comp path (D-18); omitted when the user didn't enter one. */
+  inviteCode?: string;
+};
+
 type AuthContextValue = {
   user: AuthedUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (
-    email: string,
-    password: string,
-    displayName: string,
-    inviteCode: string,
-  ) => Promise<void>;
+  signup: (args: SignupArgs) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -57,7 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: string;
       password: string;
       display_name: string;
-      invite_code: string;
+      turnstile_token: string;
+      invite_code?: string;
     }) => authApi.signup(vars),
     onSuccess: (user) => {
       setCsrfToken(user.csrf_token);
@@ -79,12 +89,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login: async (email, password) => {
         await loginMut.mutateAsync({ email, password });
       },
-      signup: async (email, password, displayName, inviteCode) => {
+      signup: async ({ email, password, displayName, turnstileToken, inviteCode }) => {
         await signupMut.mutateAsync({
           email,
           password,
           display_name: displayName,
-          invite_code: inviteCode,
+          turnstile_token: turnstileToken,
+          // Omitted, not sent empty: the backend validates any code it is given, so a
+          // blank string would fail a signup the user never meant to gate on an invite.
+          ...(inviteCode ? { invite_code: inviteCode } : {}),
         });
       },
       logout: async () => {
