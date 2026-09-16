@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/msw/server";
+import { meHandler } from "@/test/msw/me";
 import { env } from "@/env";
 import { AuthProvider, useAuth } from "./AuthContext";
 
@@ -11,6 +12,8 @@ const AUTHED_USER = {
   id: "u1",
   email: "alice@example.com",
   display_name: "Alice",
+  is_admin: false,
+  email_verified: false,
   created_at: new Date().toISOString(),
   csrf_token: "tok-abc",
 };
@@ -19,6 +22,14 @@ function ProbeUser() {
   const { user, loading } = useAuth();
   if (loading) return <div>loading</div>;
   return <div>{user ? user.email : "anon"}</div>;
+}
+
+/** `email_verified` rides every authed response, not just `/me` — the banner reads it off
+ *  the context straight after login, with no second round trip. */
+function ProbeVerified() {
+  const { user } = useAuth();
+  if (!user) return null;
+  return <div>verified: {String(user.email_verified)}</div>;
 }
 
 function LoginButton() {
@@ -58,5 +69,25 @@ describe("AuthContext", () => {
     await userEvent.click(screen.getByRole("button", { name: "login" }));
 
     await waitFor(() => expect(screen.getByText("alice@example.com")).toBeInTheDocument());
+  });
+
+  it("carries email_verified from the login reply, without re-reading /me", async () => {
+    server.use(http.post(`${env.apiBaseUrl}/auth/login`, () => HttpResponse.json(AUTHED_USER)));
+
+    renderWithProviders(
+      <>
+        <ProbeVerified />
+        <LoginButton />
+      </>,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "login" }));
+
+    expect(await screen.findByText("verified: false")).toBeInTheDocument();
+  });
+
+  it("reflects a verified address from /me", async () => {
+    server.use(meHandler({ email_verified: true }));
+    renderWithProviders(<ProbeVerified />);
+    expect(await screen.findByText("verified: true")).toBeInTheDocument();
   });
 });

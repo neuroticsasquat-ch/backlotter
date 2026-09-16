@@ -73,6 +73,11 @@ export function Login() {
         </button>
       </form>
       <p className="mt-4 text-sm">
+        <Link to="/forgot" className="underline">
+          Forgot your password?
+        </Link>
+      </p>
+      <p className="mt-2 text-sm">
         New here?{" "}
         <Link to="/signup" className="underline">
           Sign up

@@ -15,6 +15,9 @@ export default [
   layout("routes/spa-layout.tsx", [
     route("login", "pages/Login.tsx"),
     route("signup", "pages/Signup.tsx"),
+    route("forgot", "pages/Forgot.tsx"),
+    route("reset", "pages/Reset.tsx"),
+    route("verify", "pages/Verify.tsx"),
     layout("components/RequireAuth.tsx", [
       layout("components/RequireAdmin.tsx", [
         layout("components/layout/AdminLayout.tsx", [

@@ -3,6 +3,10 @@ export interface AuthedUser {
   email: string;
   display_name: string;
   is_admin: boolean;
+  // Derived server-side from `email_verified_at` — the backend deliberately exposes the
+  // yes/no and not the timestamp (M1 contract). Present on every authed response, so the
+  // signup and login replies populate it too, not just `GET /me`.
+  email_verified: boolean;
   created_at: string;
   csrf_token: string;
 }

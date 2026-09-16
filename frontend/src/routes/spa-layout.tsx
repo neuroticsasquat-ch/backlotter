@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import { AuthProvider } from "@/components/AuthContext";
 import { GlobalHeader } from "@/components/layout/GlobalHeader";
 import { GlobalFooter } from "@/components/layout/GlobalFooter";
+import { VerifyEmailBanner } from "@/components/VerifyEmailBanner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +36,7 @@ export default function SpaLayout() {
             signup, and admin pages match the rest of the site. */}
         <div className="flex min-h-screen flex-col">
           <GlobalHeader />
+          <VerifyEmailBanner />
           <main className="flex-1">
             <Sentry.ErrorBoundary
               fallback={<div>Something went wrong. Please refresh the page.</div>}
