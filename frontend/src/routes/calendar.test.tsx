@@ -4,11 +4,14 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
-import { cloudflareContext } from "@/lib/load-context";
+import { cloudflareContext, type AppEnv } from "@/lib/load-context";
 import CalendarPage, { loader, meta, ErrorBoundary } from "@/routes/calendar";
 import type { CalendarResponse } from "@/api/types";
 
 const BACKEND = "https://api.upmovies.localhost";
+
+/** Overrides for one `callLoader` call: Worker env extras and inbound request headers. */
+type LoaderCall = { env?: Partial<AppEnv>; headers?: Record<string, string> };
 
 const calendarTwoDates: CalendarResponse = {
   items: [
@@ -51,21 +54,50 @@ const calendarTwoDates: CalendarResponse = {
   offset: 0,
 };
 
-function contextWithEnv() {
+function contextWithEnv(env: Partial<AppEnv> = {}) {
   const context = new RouterContextProvider();
-  context.set(cloudflareContext, { env: { API_BASE_URL: BACKEND } });
+  context.set(cloudflareContext, { env: { API_BASE_URL: BACKEND, ...env } });
   return context;
 }
 
-function callLoader() {
+function callLoader({ env, headers }: LoaderCall = {}) {
   return loader({
-    request: new Request("https://upmovies.example/calendar"),
-    context: contextWithEnv(),
+    request: new Request("https://upmovies.example/calendar", { headers }),
+    context: contextWithEnv(env),
     params: {},
   } as unknown as Parameters<typeof loader>[0]);
 }
 
 describe("calendar route loader", () => {
+  it("signs the fetch and forwards the visitor IP when the secret is set", async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${BACKEND}/calendar`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(calendarTwoDates);
+      }),
+    );
+    await callLoader({
+      env: { SSR_ORIGIN_SECRET: "s3cret" },
+      headers: { "CF-Connecting-IP": "203.0.113.7" },
+    });
+    expect(captured?.get("X-Backlotter-Origin")).toBe("s3cret");
+    expect(captured?.get("X-Backlotter-Client-IP")).toBe("203.0.113.7");
+  });
+
+  it("sends no signing headers when the secret is unset", async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${BACKEND}/calendar`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(calendarTwoDates);
+      }),
+    );
+    await callLoader({ headers: { "CF-Connecting-IP": "203.0.113.7" } });
+    expect(captured?.get("X-Backlotter-Origin")).toBeNull();
+    expect(captured?.get("X-Backlotter-Client-IP")).toBeNull();
+  });
+
   it("fetches the calendar from the backend", async () => {
     server.use(http.get(`${BACKEND}/calendar`, () => HttpResponse.json(calendarTwoDates)));
     const data = await callLoader();
@@ -136,10 +168,17 @@ describe("calendar route render", () => {
       limit: 20,
       offset: 0,
     };
+    let captured: Headers | undefined;
     server.use(
-      http.get(`${BACKEND}/calendar`, () =>
-        HttpResponse.json({ items: [calendarTwoDates.items[2]], total: 2, limit: 20, offset: 1 }),
-      ),
+      http.get(`${BACKEND}/calendar`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json({
+          items: [calendarTwoDates.items[2]],
+          total: 2,
+          limit: 20,
+          offset: 1,
+        });
+      }),
     );
     const Stub = createRoutesStub([
       { path: "/calendar", Component: CalendarPage, loader: () => ({ calendar: page1 }) },
@@ -151,6 +190,9 @@ describe("calendar route render", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /view more/i }));
     expect(await screen.findByText(/July 11, 2026/)).toBeInTheDocument();
+    // Browser-side paging is already per-visitor: it must never send the SSR signing headers.
+    expect(captured?.get("X-Backlotter-Origin")).toBeNull();
+    expect(captured?.get("X-Backlotter-Client-IP")).toBeNull();
   });
 
   it("shows the empty state when there are no releases", async () => {

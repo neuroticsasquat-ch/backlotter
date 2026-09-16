@@ -4,11 +4,14 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
-import { cloudflareContext } from "@/lib/load-context";
+import { cloudflareContext, type AppEnv } from "@/lib/load-context";
 import FeedPage, { loader, meta } from "@/routes/feed";
 import type { FeedDayItem, FeedDayResponse } from "@/api/types";
 
 const BACKEND = "https://api.upmovies.localhost";
+
+/** Overrides for one `callLoader` call: Worker env extras and inbound request headers. */
+type LoaderCall = { env?: Partial<AppEnv>; headers?: Record<string, string> };
 
 const feed: FeedDayResponse = {
   items: [
@@ -83,21 +86,50 @@ function oneDay(...items: FeedDayResponse["items"]): FeedDayResponse {
   return { items, total: 1, limit: 10, offset: 0 };
 }
 
-function contextWithEnv() {
+function contextWithEnv(env: Partial<AppEnv> = {}) {
   const context = new RouterContextProvider();
-  context.set(cloudflareContext, { env: { API_BASE_URL: BACKEND } });
+  context.set(cloudflareContext, { env: { API_BASE_URL: BACKEND, ...env } });
   return context;
 }
 
-function callLoader() {
+function callLoader({ env, headers }: LoaderCall = {}) {
   return loader({
-    request: new Request("https://upmovies.example/"),
-    context: contextWithEnv(),
+    request: new Request("https://upmovies.example/", { headers }),
+    context: contextWithEnv(env),
     params: {},
   } as unknown as Parameters<typeof loader>[0]);
 }
 
 describe("feed route loader", () => {
+  it("signs the fetch and forwards the visitor IP when the secret is set", async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${BACKEND}/feed/grouped`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(feed);
+      }),
+    );
+    await callLoader({
+      env: { SSR_ORIGIN_SECRET: "s3cret" },
+      headers: { "CF-Connecting-IP": "203.0.113.7" },
+    });
+    expect(captured?.get("X-Backlotter-Origin")).toBe("s3cret");
+    expect(captured?.get("X-Backlotter-Client-IP")).toBe("203.0.113.7");
+  });
+
+  it("sends no signing headers when the secret is unset", async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${BACKEND}/feed/grouped`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(feed);
+      }),
+    );
+    await callLoader({ headers: { "CF-Connecting-IP": "203.0.113.7" } });
+    expect(captured?.get("X-Backlotter-Origin")).toBeNull();
+    expect(captured?.get("X-Backlotter-Client-IP")).toBeNull();
+  });
+
   it("fetches the grouped feed from the backend", async () => {
     server.use(http.get(`${BACKEND}/feed/grouped`, () => HttpResponse.json(feed)));
     const data = await callLoader();
@@ -186,10 +218,12 @@ describe("feed route render", () => {
   it("loads the next page of days when 'View more' is clicked (no autoload)", async () => {
     // Page 1 has one day but total=2, so 'View more' shows; clicking fetches page 2.
     const page1: FeedDayResponse = { items: [feed.items[0]], total: 2, limit: 10, offset: 0 };
+    let captured: Headers | undefined;
     server.use(
-      http.get(`${BACKEND}/feed/grouped`, () =>
-        HttpResponse.json({ items: [feed.items[1]], total: 2, limit: 10, offset: 1 }),
-      ),
+      http.get(`${BACKEND}/feed/grouped`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json({ items: [feed.items[1]], total: 2, limit: 10, offset: 1 });
+      }),
     );
     const Stub = createRoutesStub([
       { path: "/", Component: FeedPage, loader: () => ({ feed: page1 }) },
@@ -200,6 +234,9 @@ describe("feed route render", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /view more/i }));
     expect(await screen.findByText(/June 22, 2026/)).toBeInTheDocument();
+    // Browser-side paging is already per-visitor: it must never send the SSR signing headers.
+    expect(captured?.get("X-Backlotter-Origin")).toBeNull();
+    expect(captured?.get("X-Backlotter-Client-IP")).toBeNull();
   });
 });
 

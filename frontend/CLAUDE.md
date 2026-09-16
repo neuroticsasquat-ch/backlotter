@@ -60,6 +60,23 @@ vice versa):
   mutations. Auth guards (`RequireAuth`, `RequireAdmin`) are **layout routes** in `routes.ts`, not
   JSX wrappers around page components.
 
+### SSR requests are signed, browser requests are not
+
+The backend rate-limits public reads per visitor IP (backend `NEU-1344` §4). Every SSR fetch leaves
+Cloudflare from a shared egress IP, so loaders sign their fetches: `ssrOriginHeaders(env, request)`
+(`lib/ssr-origin.ts`) returns `X-Backlotter-Origin: <SSR_ORIGIN_SECRET>` plus
+`X-Backlotter-Client-IP: <CF-Connecting-IP>`, and the public fetchers take them as an optional
+`headers` argument. Browser-side calls to the same fetchers pass nothing — they already arrive with
+the visitor's own IP. `sitemap.ts` is the one unsigned loader: the backend excludes `/sitemap.xml`
+from the rate-limit bucket (crawlers, cached upstream), so it has no visitor to key on.
+
+A **dedicated header, never `X-Forwarded-For`**: Traefik strips forwarded headers from senders
+outside its trusted set and the Worker is not in it, so an `X-Forwarded-For` from here dies at the
+hop. `SSR_ORIGIN_SECRET` is an ASCII Wrangler secret (`wrangler secret put SSR_ORIGIN_SECRET`), not a var
+in `wrangler.jsonc`; unset, loaders send nothing and the backend falls back to the egress IP. Deploy
+order matters — backend first, then this secret + the frontend, then flip
+`RATE_LIMIT_PUBLIC_ENABLED=true` in Coolify.
+
 ### SSR-safety invariant
 
 `publicQueryClient` (`routes/public-layout.tsx`) is a module-level `QueryClient` shared across the

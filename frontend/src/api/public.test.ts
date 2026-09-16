@@ -205,3 +205,47 @@ describe("getFilmSearch", () => {
     await expect(getFilmSearch(BACKEND, "matrix", { signal: controller.signal })).rejects.toThrow();
   });
 });
+
+describe("SSR signing headers", () => {
+  const signed = { "X-Backlotter-Origin": "s3cret", "X-Backlotter-Client-IP": "203.0.113.7" };
+
+  function captureHeaders(path: string, body: FilmDetail | FeedDayResponse | CalendarResponse) {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${BACKEND}${path}`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(body);
+      }),
+    );
+    return () => captured;
+  }
+
+  it("forwards them on getFilm", async () => {
+    const headers = captureHeaders("/films/the-odyssey-2026", sample);
+    await getFilm(BACKEND, "the-odyssey-2026", { headers: signed });
+    expect(headers()?.get("X-Backlotter-Origin")).toBe("s3cret");
+    expect(headers()?.get("X-Backlotter-Client-IP")).toBe("203.0.113.7");
+    expect(headers()?.get("Accept")).toBe("application/json");
+  });
+
+  it("forwards them on getFeedGrouped", async () => {
+    const headers = captureHeaders("/feed/grouped", sampleGrouped);
+    await getFeedGrouped(BACKEND, { headers: signed });
+    expect(headers()?.get("X-Backlotter-Origin")).toBe("s3cret");
+    expect(headers()?.get("X-Backlotter-Client-IP")).toBe("203.0.113.7");
+  });
+
+  it("forwards them on getCalendar", async () => {
+    const headers = captureHeaders("/calendar", sampleCalendar);
+    await getCalendar(BACKEND, { headers: signed });
+    expect(headers()?.get("X-Backlotter-Origin")).toBe("s3cret");
+    expect(headers()?.get("X-Backlotter-Client-IP")).toBe("203.0.113.7");
+  });
+
+  it("sends neither header when the caller omits them (the browser-side path)", async () => {
+    const headers = captureHeaders("/feed/grouped", sampleGrouped);
+    await getFeedGrouped(BACKEND);
+    expect(headers()?.get("X-Backlotter-Origin")).toBeNull();
+    expect(headers()?.get("X-Backlotter-Client-IP")).toBeNull();
+  });
+});

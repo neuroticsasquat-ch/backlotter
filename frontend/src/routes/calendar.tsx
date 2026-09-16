@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import type { Route } from "./+types/calendar";
 import { getCalendar } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
+import { ssrOriginHeaders } from "@/lib/ssr-origin";
 import { env } from "@/env";
 import { buildMeta } from "@/lib/seo";
 import { groupByReleaseDate, nestByYearMonth } from "@/lib/calendar-groups";
@@ -13,9 +14,12 @@ import { CalendarFilmRow } from "@/components/calendar/CalendarFilmRow";
 // of dates (manual — never auto-loads — so the footer stays reachable).
 const DATES_PER_PAGE = 20;
 
-export async function loader({ context }: Route.LoaderArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
-  const calendar = await getCalendar(env.API_BASE_URL, { limit: DATES_PER_PAGE });
+  const calendar = await getCalendar(env.API_BASE_URL, {
+    limit: DATES_PER_PAGE,
+    headers: ssrOriginHeaders(env, request),
+  });
   return { calendar };
 }
 

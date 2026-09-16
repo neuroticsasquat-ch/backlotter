@@ -3,6 +3,7 @@ import { isRouteErrorResponse, Link, redirect } from "react-router";
 import type { Route } from "./+types/film";
 import { getFilm } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
+import { ssrOriginHeaders } from "@/lib/ssr-origin";
 import { buildMeta } from "@/lib/seo";
 import { posterUrl } from "@/lib/poster";
 import { truncate } from "@/lib/format";
@@ -17,7 +18,9 @@ import type { FilmEvent } from "@/api/types";
 
 export async function loader({ params, request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
-  const film = await getFilm(env.API_BASE_URL, params.ref);
+  const film = await getFilm(env.API_BASE_URL, params.ref, {
+    headers: ssrOriginHeaders(env, request),
+  });
   if (!film) {
     throw new Response(null, { status: 404, statusText: "Film not found" });
   }

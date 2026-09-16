@@ -1,6 +1,13 @@
 import type { CalendarResponse, FeedDayResponse, FilmDetail, FilmIndexResponse } from "./types";
 
 /**
+ * Extra request headers. SSR loaders pass the signing headers from `lib/ssr-origin.ts` so the
+ * backend rate limiter keys on the visitor rather than on the Worker's egress IP (NEU-1344 §4);
+ * browser-side callers omit them.
+ */
+type ExtraHeaders = { headers?: Record<string, string> };
+
+/**
  * Fetch a film's public detail from the no-auth backend. The base URL is injected by the
  * caller (the SSR loader reads it from the Worker env), so this stays pure and runs in the
  * Workers runtime and under test. No credentials/CSRF — the public API is unauthenticated.
@@ -8,15 +15,21 @@ import type { CalendarResponse, FeedDayResponse, FilmDetail, FilmIndexResponse }
  */
 /** Fetch a film by URL ref. A legacy slug, a bare id, or a stale decorative half all resolve;
  *  the returned `ref` is the canonical one, which the caller redirects to. */
-export async function getFilm(baseUrl: string, ref: string): Promise<FilmDetail | null> {
+export async function getFilm(
+  baseUrl: string,
+  ref: string,
+  { headers }: ExtraHeaders = {},
+): Promise<FilmDetail | null> {
   const res = await fetch(new URL(`/films/${encodeURIComponent(ref)}`, baseUrl), {
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...headers },
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`GET /films/${encodeURIComponent(ref)} failed: ${res.status}`);
   return (await res.json()) as FilmDetail;
 }
 
+/** No `headers` option: search runs only from the browser (the type-ahead in `SearchBox`), which
+ *  already reaches the backend with the visitor's own IP. An SSR caller would need to add one. */
 export async function getFilmSearch(
   baseUrl: string,
   q: string,
@@ -42,12 +55,12 @@ export async function getFilmSearch(
  */
 export async function getFeedGrouped(
   baseUrl: string,
-  { limit = 50, offset = 0 }: { limit?: number; offset?: number } = {},
+  { limit = 50, offset = 0, headers }: { limit?: number; offset?: number } & ExtraHeaders = {},
 ): Promise<FeedDayResponse> {
   const url = new URL("/feed/grouped", baseUrl);
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("offset", String(offset));
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const res = await fetch(url, { headers: { Accept: "application/json", ...headers } });
   if (!res.ok) throw new Error(`GET /feed/grouped failed: ${res.status}`);
   return (await res.json()) as FeedDayResponse;
 }
@@ -60,12 +73,12 @@ export async function getFeedGrouped(
  */
 export async function getCalendar(
   baseUrl: string,
-  { limit = 100, offset = 0 }: { limit?: number; offset?: number } = {},
+  { limit = 100, offset = 0, headers }: { limit?: number; offset?: number } & ExtraHeaders = {},
 ): Promise<CalendarResponse> {
   const url = new URL("/calendar", baseUrl);
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("offset", String(offset));
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const res = await fetch(url, { headers: { Accept: "application/json", ...headers } });
   if (!res.ok) throw new Error(`GET /calendar failed: ${res.status}`);
   return (await res.json()) as CalendarResponse;
 }

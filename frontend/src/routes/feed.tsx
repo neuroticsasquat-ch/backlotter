@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import type { Route } from "./+types/feed";
 import { getFeedGrouped } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
+import { ssrOriginHeaders } from "@/lib/ssr-origin";
 import { env } from "@/env";
 import { buildMeta } from "@/lib/seo";
 import { groupByDay, splitByNewsBacked } from "@/lib/feed-groups";
@@ -22,9 +23,12 @@ const SECTION_BREAK = "border-t border-border pt-4 [&:not(:first-child)]:mt-5";
 // (manual — never auto-loads — so the footer stays reachable).
 const DAYS_PER_PAGE = 10;
 
-export async function loader({ context }: Route.LoaderArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
-  const feed = await getFeedGrouped(env.API_BASE_URL, { limit: DAYS_PER_PAGE });
+  const feed = await getFeedGrouped(env.API_BASE_URL, {
+    limit: DAYS_PER_PAGE,
+    headers: ssrOriginHeaders(env, request),
+  });
   return { feed };
 }
 

@@ -5,11 +5,14 @@ import { describe, expect, it } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/components/AuthContext";
 import { server } from "@/test/msw/server";
-import { cloudflareContext } from "@/lib/load-context";
+import { cloudflareContext, type AppEnv } from "@/lib/load-context";
 import FilmPage, { ErrorBoundary, loader, meta } from "@/routes/film";
 import type { FilmDetail } from "@/api/types";
 
 const BACKEND = "https://api.upmovies.localhost";
+
+/** Overrides for one `callLoader` call: Worker env extras and inbound request headers. */
+type LoaderCall = { env?: Partial<AppEnv>; headers?: Record<string, string> };
 
 const film: FilmDetail = {
   ref: "12345-the-odyssey",
@@ -78,21 +81,50 @@ const film: FilmDetail = {
   imdb_id: "tt0133093",
 };
 
-function contextWithEnv() {
+function contextWithEnv(env: Partial<AppEnv> = {}) {
   const context = new RouterContextProvider();
-  context.set(cloudflareContext, { env: { API_BASE_URL: BACKEND } });
+  context.set(cloudflareContext, { env: { API_BASE_URL: BACKEND, ...env } });
   return context;
 }
 
-function callLoader(ref: string, search = "") {
+function callLoader(ref: string, search = "", { env, headers }: LoaderCall = {}) {
   return loader({
-    request: new Request(`https://upmovies.example/film/${ref}${search}`),
-    context: contextWithEnv(),
+    request: new Request(`https://upmovies.example/film/${ref}${search}`, { headers }),
+    context: contextWithEnv(env),
     params: { ref },
   } as unknown as Parameters<typeof loader>[0]);
 }
 
 describe("film route loader", () => {
+  it("signs the fetch and forwards the visitor IP when the secret is set", async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${BACKEND}/films/12345-the-odyssey`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(film);
+      }),
+    );
+    await callLoader("12345-the-odyssey", "", {
+      env: { SSR_ORIGIN_SECRET: "s3cret" },
+      headers: { "CF-Connecting-IP": "203.0.113.7" },
+    });
+    expect(captured?.get("X-Backlotter-Origin")).toBe("s3cret");
+    expect(captured?.get("X-Backlotter-Client-IP")).toBe("203.0.113.7");
+  });
+
+  it("sends no signing headers when the secret is unset", async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${BACKEND}/films/12345-the-odyssey`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(film);
+      }),
+    );
+    await callLoader("12345-the-odyssey", "", { headers: { "CF-Connecting-IP": "203.0.113.7" } });
+    expect(captured?.get("X-Backlotter-Origin")).toBeNull();
+    expect(captured?.get("X-Backlotter-Client-IP")).toBeNull();
+  });
+
   it("fetches the film detail by ref", async () => {
     server.use(http.get(`${BACKEND}/films/12345-the-odyssey`, () => HttpResponse.json(film)));
     const data = await callLoader("12345-the-odyssey");
