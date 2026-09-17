@@ -4,7 +4,7 @@ import type { AlertPref, WatchlistItem } from "@/api/types";
 import { AlertPrefChips } from "@/components/follow/AlertPrefChips";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { formatEventDate } from "@/lib/format";
+import { formatHeadlineRelease } from "@/lib/format";
 import { posterSrcSet, posterUrl } from "@/lib/poster";
 
 /**
@@ -67,7 +67,7 @@ function WatchlistRow({ item }: { item: WatchlistItem }) {
           {film.title}
         </Link>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {film.release_date ? formatEventDate(film.release_date) : "No date yet"}
+          {formatHeadlineRelease(film.headline_release)}
           {derived ? " · added by a follow" : ""}
         </p>
         <div className="mt-2">

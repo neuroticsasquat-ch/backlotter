@@ -39,8 +39,54 @@ describe("MyWatchlist", () => {
     expect(screen.getByText(/Jul 17, 2026/)).toBeInTheDocument();
   });
 
+  // The four headline-release kinds (NEU-1398). They have to be distinguishable on sight — the
+  // whole point of NEU-1397 was that one row was quietly citing a date the film page never
+  // showed, so a `primary` date that reads like a confirmed opening would reintroduce it.
+  it("gives an upcoming release a future tense, its bucket and its country", async () => {
+    renderPage([
+      makeWatchlistItem({
+        film: {
+          headline_release: {
+            date: "2026-10-03",
+            kind: "upcoming",
+            country: "US",
+            bucket: "limited",
+          },
+        },
+      }),
+    ]);
+
+    expect(await screen.findByText(/Opens Oct 3, 2026 · Limited · US/)).toBeInTheDocument();
+  });
+
+  it("puts a film that has already opened in the past tense", async () => {
+    renderPage([
+      makeWatchlistItem({
+        film: {
+          headline_release: { date: "2026-03-03", kind: "released", country: "US", bucket: "wide" },
+        },
+      }),
+    ]);
+
+    expect(await screen.findByText(/Opened Mar 3, 2026 · Wide · US/)).toBeInTheDocument();
+  });
+
+  it("marks a primary-date fallback unconfirmed, with no bucket or country to imply otherwise", async () => {
+    renderPage([
+      makeWatchlistItem({
+        film: {
+          headline_release: { date: "2026-10-03", kind: "primary", country: null, bucket: null },
+        },
+      }),
+    ]);
+
+    const line = await screen.findByText(/Oct 3, 2026 \(unconfirmed\)/);
+    expect(line).toBeInTheDocument();
+    expect(line).not.toHaveTextContent(/Opens|Opened/);
+  });
+
   it("says so rather than blanking when a film has no date yet", async () => {
-    renderPage([makeWatchlistItem({ film: { release_date: null } })]);
+    renderPage([makeWatchlistItem({ film: { headline_release: null } })]);
     expect(await screen.findByText(/no date yet/i)).toBeInTheDocument();
   });
 

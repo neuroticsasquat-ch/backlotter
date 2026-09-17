@@ -334,6 +334,28 @@ export interface FollowListResponse {
 /** Which availability beats a watchlist item alerts on (D-14). */
 export type AlertPref = "buy" | "rent" | "stream";
 
+/**
+ * The one release date a watchlist row shows, chosen by the backend (NEU-1397).
+ *
+ * Not `film.release_date`: that is TMDB's primary date — the earliest release anywhere, of any
+ * type — which the film page never lists, so a row citing it could disagree with the page it
+ * links to. `kind` says which of three things this date is, and the row renders each one
+ * differently:
+ *
+ * - `upcoming` / `released` — a real theatrical date the film page also lists, the next one
+ *   ahead or, when they have all passed, the most recent behind. Carries its `country` and
+ *   its `bucket`.
+ * - `primary` — the TMDB primary date after all, shown only because the film has no
+ *   displayable theatrical date at all. `country` and `bucket` are null, and the row must not
+ *   render it as a confirmed opening.
+ */
+export interface HeadlineRelease {
+  date: string; // "YYYY-MM-DD"
+  kind: "upcoming" | "released" | "primary";
+  country: string | null; // ISO 3166-1 alpha-2; null when kind === "primary"
+  bucket: string | null; // "limited" | "wide" — rendered via releaseBucketLabel; null when primary
+}
+
 /** Enough of a film to render a watchlist row without a request per item. */
 export interface WatchlistFilm {
   id: string;
@@ -341,7 +363,7 @@ export interface WatchlistFilm {
   slug: string | null;
   title: string;
   poster_path: string | null;
-  release_date: string | null;
+  headline_release: HeadlineRelease | null;
 }
 
 export interface WatchlistItem {

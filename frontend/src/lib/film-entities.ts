@@ -81,6 +81,10 @@ export function watchlistFilm(film: FilmDetail): WatchlistFilm | null {
     slug: dash === -1 ? null : film.ref.slice(dash + 1),
     title: film.title,
     poster_path: film.poster_path,
-    release_date: film.release_date,
+    // No headline release: choosing one is the backend's job (NEU-1397), over per-country rows
+    // and a tie-break the film page would have to reimplement to guess at. The row reads "No
+    // date yet" for the moment the optimistic entry is up, and the refetch supplies the real
+    // one — the same deal `source` and `alert_prefs` already take.
+    headline_release: null,
   };
 }

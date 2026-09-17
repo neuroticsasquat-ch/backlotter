@@ -1,4 +1,5 @@
-import type { ArcStage, ReleaseDate } from "@/api/types";
+import type { ArcStage, HeadlineRelease, ReleaseDate } from "@/api/types";
+import { releaseBucketLabel } from "@/components/calendar/release-labels";
 import { arcStageLabel } from "@/components/film/labels";
 
 const DATE_FMT = new Intl.DateTimeFormat("en-US", {
@@ -152,4 +153,29 @@ export function filmParenthetical(input: FilmParentheticalInput): string {
 
   if (parts.length === 0) return arcStageLabel(input.arc_stage);
   return parts.join(", ");
+}
+
+/**
+ * The watchlist row's date line (NEU-1398) — one string per {@link HeadlineRelease} kind.
+ *
+ * The three kinds are not interchangeable and must not render alike. `upcoming` and `released`
+ * are theatrical dates the film page lists too, so they carry their bucket and country and can
+ * be stated plainly; only the tense separates them. `primary` is TMDB's earliest-anywhere date,
+ * surfaced only because the film has no displayable theatrical date at all — it is the date the
+ * film page itself falls back to, and it gets an explicit "(unconfirmed)" rather than a verb,
+ * because reading it as an opening is exactly the mistake NEU-1397 removed from this row.
+ *
+ * Bucket and country are null by contract when `kind` is `primary`; they are dropped rather
+ * than spaced over if they go missing on the other two, so the line never ends in a separator.
+ */
+export function formatHeadlineRelease(release: HeadlineRelease | null): string {
+  if (release === null) return "No date yet";
+
+  const date = formatEventDate(release.date);
+  if (release.kind === "primary") return `${date} (unconfirmed)`;
+
+  const parts = [`${release.kind === "upcoming" ? "Opens" : "Opened"} ${date}`];
+  if (release.bucket) parts.push(releaseBucketLabel(release.bucket));
+  if (release.country) parts.push(release.country);
+  return parts.join(" · ");
 }

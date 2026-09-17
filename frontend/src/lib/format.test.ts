@@ -5,13 +5,14 @@ import {
   formatCountryList,
   formatDayHeading,
   formatEventDate,
+  formatHeadlineRelease,
   formatLanguage,
   formatRuntime,
   formatUsd,
   pickRating,
   truncate,
 } from "@/lib/format";
-import type { ReleaseDate } from "@/api/types";
+import type { HeadlineRelease, ReleaseDate } from "@/api/types";
 
 function rd(over: Partial<ReleaseDate> = {}): ReleaseDate {
   return {
@@ -288,5 +289,50 @@ describe("filmParenthetical", () => {
         input({ production_countries: nine, directors: ["Apichatpong Weerasethakul"] }),
       ),
     ).toBe("Canada/Colombia/France +6, Dir: Apichatpong Weerasethakul");
+  });
+});
+
+describe("formatHeadlineRelease", () => {
+  const upcoming = {
+    date: "2026-10-03",
+    kind: "upcoming",
+    country: "US",
+    bucket: "limited",
+  } satisfies HeadlineRelease;
+
+  it("says a film has no date yet rather than blanking the line", () => {
+    expect(formatHeadlineRelease(null)).toBe("No date yet");
+  });
+
+  it("opens an upcoming release with its bucket and country", () => {
+    expect(formatHeadlineRelease(upcoming)).toBe("Opens Oct 3, 2026 · Limited · US");
+  });
+
+  it("puts a released date in the past tense, so it does not read as a date to wait for", () => {
+    expect(
+      formatHeadlineRelease({
+        date: "2026-03-03",
+        kind: "released",
+        country: "US",
+        bucket: "wide",
+      }),
+    ).toBe("Opened Mar 3, 2026 · Wide · US");
+  });
+
+  it("marks a primary date unconfirmed and claims no bucket or country for it", () => {
+    expect(
+      formatHeadlineRelease({ date: "2026-10-03", kind: "primary", country: null, bucket: null }),
+    ).toBe("Oct 3, 2026 (unconfirmed)");
+  });
+
+  it("renders the date in UTC, so a YYYY-MM-DD never slips a day west of Greenwich", () => {
+    expect(formatHeadlineRelease({ ...upcoming, date: "2026-01-01" })).toContain("Jan 1, 2026");
+  });
+
+  it("drops a missing bucket or country instead of leaving an empty separator", () => {
+    expect(formatHeadlineRelease({ ...upcoming, bucket: null })).toBe("Opens Oct 3, 2026 · US");
+    expect(formatHeadlineRelease({ ...upcoming, country: null })).toBe(
+      "Opens Oct 3, 2026 · Limited",
+    );
   });
 });

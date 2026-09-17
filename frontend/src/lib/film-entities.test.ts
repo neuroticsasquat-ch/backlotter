@@ -118,7 +118,9 @@ describe("watchlistFilm", () => {
       slug: "the-odyssey",
       title: "The Odyssey",
       poster_path: "/poster.jpg",
-      release_date: "2026-07-17",
+      // Not `film.release_date`: the headline release is the backend's choice (NEU-1397), and
+      // the optimistic row waits for the refetch rather than guessing at it.
+      headline_release: null,
     });
   });
 

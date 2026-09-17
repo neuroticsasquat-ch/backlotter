@@ -106,7 +106,9 @@ export function makeWatchlistFilm(overrides: Partial<WatchlistFilm> = {}): Watch
     slug: "the-odyssey",
     title: "The Odyssey",
     poster_path: "/poster.jpg",
-    release_date: "2026-07-17",
+    // An upcoming wide US opening — the ordinary case, so a test naming no headline release
+    // gets the row that renders every part of the line.
+    headline_release: { date: "2026-07-17", kind: "upcoming", country: "US", bucket: "wide" },
     ...overrides,
   };
 }
