@@ -7,6 +7,7 @@ import type {
   FilmDetail,
   FilmIndexResponse,
   PersonSearchItem,
+  PopularPeopleResponse,
 } from "./types";
 
 /**
@@ -88,6 +89,20 @@ function entitySearch<T>(path: string) {
 export const getPeopleSearch = entitySearch<PersonSearchItem>("/people/search");
 export const getCompaniesSearch = entitySearch<CompanySearchItem>("/companies/search");
 export const getCollectionsSearch = entitySearch<CollectionSearchItem>("/collections/search");
+
+/** The faces the onboarding grid offers (D-17): the most popular people who have a profile
+ *  photo, capped rather than paged. Public like the searches above — step 2 of `/welcome`
+ *  renders before the follow graph is read, and the endpoint has no auth of its own. */
+export async function getPopularPeople(
+  baseUrl: string,
+  { limit = 30, signal }: { limit?: number; signal?: AbortSignal } = {},
+): Promise<PopularPeopleResponse> {
+  const url = new URL("/people/popular", baseUrl);
+  url.searchParams.set("limit", String(limit));
+  const res = await fetch(url, { headers: { Accept: "application/json" }, signal });
+  if (!res.ok) throw new Error(`GET /people/popular failed: ${res.status}`);
+  return (await res.json()) as PopularPeopleResponse;
+}
 
 /**
  * Fetch the per-(film, day) grouped public feed from the no-auth backend (NEU-364). The base URL is

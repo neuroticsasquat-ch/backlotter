@@ -19,6 +19,7 @@ function renderAt(path: string) {
           <Routes>
             <Route path="/signup" element={<Signup />} />
             <Route path="/" element={<div>home feed</div>} />
+            <Route path="/welcome" element={<div>onboarding</div>} />
           </Routes>
         </MemoryRouter>
       </AuthProvider>
@@ -60,7 +61,7 @@ describe("Signup", () => {
   });
   afterEach(() => turnstile.uninstall());
 
-  it("creates an account without an invite code and redirects to the home feed", async () => {
+  it("creates an account without an invite code and lands on onboarding (D-17)", async () => {
     let body: Record<string, unknown> | undefined;
     server.use(
       loggedOut(),
@@ -72,7 +73,7 @@ describe("Signup", () => {
     renderAt("/signup");
     await fillCommonFields();
     await submit();
-    await waitFor(() => expect(screen.getByText("home feed")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("onboarding")).toBeInTheDocument());
     expect(body).toMatchObject({
       email: "x@y.com",
       display_name: "X",
@@ -96,7 +97,7 @@ describe("Signup", () => {
     await userEvent.click(screen.getByRole("button", { name: /have an invite code/i }));
     await userEvent.type(screen.getByLabelText(/invite code/i), "comp-code");
     await submit();
-    await waitFor(() => expect(screen.getByText("home feed")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("onboarding")).toBeInTheDocument());
     expect(body).toMatchObject({ invite_code: "comp-code" });
   });
 
@@ -131,7 +132,7 @@ describe("Signup", () => {
     await fillCommonFields();
     await submit();
     expect(await screen.findByRole("alert")).toHaveTextContent(/not a robot/i);
-    expect(screen.queryByText("home feed")).not.toBeInTheDocument();
+    expect(screen.queryByText("onboarding")).not.toBeInTheDocument();
   });
 
   it("surfaces a refused bot check (403 invalid_turnstile) and raises a fresh challenge", async () => {

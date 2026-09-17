@@ -83,9 +83,10 @@ export function Signup() {
         turnstileToken,
         inviteCode: inviteCode.trim() || undefined,
       });
-      // M3's onboarding takes over this landing at `/welcome` (D-17); until it exists the
-      // new account goes straight to the feed.
-      navigate("/");
+      // Onboarding, not the feed (D-17). An account without a grant is not bounced back
+      // from there — `/welcome` renders the locked state itself (D-41), which is what a new
+      // signup needs to be told before it goes looking for a timeline.
+      navigate("/welcome");
       return;
     } catch (err) {
       if (err instanceof ApiError) {

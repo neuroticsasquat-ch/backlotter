@@ -413,3 +413,48 @@ export interface EntitySearchResponse<T> {
   limit: number;
   offset: number;
 }
+
+/** The onboarding grid's page (NEU-1350). Deliberately not an {@link EntitySearchResponse}:
+ *  the backend answers a capped list with no `total` or `offset`, because the grid never
+ *  scrolls past the first `limit` faces. */
+export interface PopularPeopleResponse {
+  items: PersonSearchItem[];
+  limit: number;
+}
+
+/** Where a terminal import job ended up, or how far along a live one is. The UI polls while
+ *  the status is `queued` or `running` and stops on either terminal value (D-15). */
+export type ImportJobStatus = "queued" | "running" | "succeeded" | "failed";
+
+/** A title the import could not place, verbatim from the user's own export so they can find
+ *  it there. `rating` and `watchlist` say which file the row came from; `tmdb_missing` is the
+ *  TMDB import's only failure (NEU-1357) and carries no resolution step. */
+export interface ImportUnmatched {
+  name: string;
+  year: number | null;
+  kind: "watchlist" | "rating" | "tmdb_missing";
+}
+
+/** One row of `app.import_job`, as `GET /me/import/{id}` answers it. Mirrors the backend
+ *  `ImportJobOut` (NEU-1356 §1). `error` is set only on a `failed` job and is a one-line cause
+ *  to show the user, never something to branch on. */
+export interface ImportJob {
+  id: string;
+  source: string;
+  status: ImportJobStatus;
+  rows_total: number;
+  rows_done: number;
+  watchlist_created: number;
+  follows_created: number;
+  unmatched: ImportUnmatched[];
+  tmdb_username: string | null;
+  error: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+/** The 202 from an upload: the id to poll, and nothing else — the job has not run yet. */
+export interface ImportJobStarted {
+  job_id: string;
+}

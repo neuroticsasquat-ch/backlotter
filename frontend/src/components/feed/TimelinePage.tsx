@@ -146,11 +146,8 @@ function EmptyTimeline() {
         Search for a film above, or start from what is coming out.
       </p>
       <div className="mt-4 flex flex-wrap gap-3">
-        {/* NEU-1358's `/welcome` is the destination this button is meant to have; until that
-            route exists it points at the calendar, which is the browse surface that actually
-            ships today. Sending them to a 404 would be worse than sending them one hop wide. */}
         <Button asChild size="sm">
-          <Link to="/calendar">Get started</Link>
+          <Link to="/welcome">Get started</Link>
         </Button>
         <Button asChild size="sm" variant="outline">
           <Link to="/feed">Browse all updates</Link>

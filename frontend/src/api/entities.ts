@@ -1,6 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { env } from "@/env";
-import { getCollectionsSearch, getCompaniesSearch, getPeopleSearch } from "./public";
+import {
+  getCollectionsSearch,
+  getCompaniesSearch,
+  getPeopleSearch,
+  getPopularPeople,
+} from "./public";
 import type {
   CollectionSearchItem,
   CompanySearchItem,
@@ -109,5 +114,37 @@ export function useEntitySearch(entityType: SearchableEntityType, q: string) {
     queryFn: ({ signal }) => search(env.apiBaseUrl, q, signal),
     enabled: q.length >= MIN_QUERY_LEN,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** How many faces the onboarding grid asks for (D-17: "~30"). The endpoint's own default is
+ *  the same number; it is spelled here so the cache key says what was requested. */
+export const POPULAR_PEOPLE_LIMIT = 30;
+
+export const popularPeopleKey = (limit: number) => ["popular-people", limit] as const;
+
+/**
+ * The faces step 2 of `/welcome` offers, flattened to the same {@link EntityResult} the search
+ * box produces so one card component renders a row from either source.
+ *
+ * An hour of `staleTime` because popularity is recomputed by the nightly catalog pass, not by
+ * anything the reader does: re-fetching this on every mount would spend a request to be told
+ * the same thirty names. Following someone does not change the grid either — the card flips
+ * from the follows list, which is a separate query.
+ */
+export function usePopularPeople(limit: number = POPULAR_PEOPLE_LIMIT) {
+  return useQuery({
+    queryKey: popularPeopleKey(limit),
+    queryFn: async ({ signal }) => {
+      const res = await getPopularPeople(env.apiBaseUrl, { limit, signal });
+      return res.items.map((item): EntityResult => ({
+        entityType: "person",
+        entityId: String(item.id),
+        label: item.name,
+        imagePath: item.profile_path,
+        secondary: item.known_for_department,
+      }));
+    },
+    staleTime: 60 * 60 * 1000,
   });
 }

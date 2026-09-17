@@ -1,5 +1,5 @@
-import { Link, Outlet } from "react-router";
-import { useFollowAccess } from "./access";
+import { Outlet } from "react-router";
+import { LockedPanel, useFollowAccess } from "./access";
 
 /**
  * The entitlement gate for the account pages, as a layout route beside `RequireAuth` and
@@ -22,30 +22,17 @@ export function RequireEntitled() {
 
 function LockedAccountPanel() {
   return (
-    <div className="mx-auto max-w-3xl p-8">
-      <section
-        aria-labelledby="locked-account-heading"
-        className="rounded-lg border border-border bg-muted/40 p-6"
-      >
-        <h1 id="locked-account-heading" className="text-lg font-semibold text-foreground">
-          Your follows are not open yet
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Following people, studios and collections — and the watchlist that builds itself from them
-          — is part of the subscription. Access is limited while we build that tier, so there is
-          nothing to buy yet.
-        </p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Anything you have followed before is kept. If your access is restored, your follows and
-          watchlist come back exactly as you left them.
-        </p>
-        <p className="mt-4 text-sm">
-          <Link to="/feed" className="underline underline-offset-4 hover:text-foreground">
-            Browse everything we track
-          </Link>
-        </p>
-      </section>
-    </div>
+    <LockedPanel heading="Your follows are not open yet">
+      <p className="mt-2 text-sm text-muted-foreground">
+        Following people, studios and collections — and the watchlist that builds itself from them —
+        is part of the subscription. Access is limited while we build that tier, so there is nothing
+        to buy yet.
+      </p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Anything you have followed before is kept. If your access is restored, your follows and
+        watchlist come back exactly as you left them.
+      </p>
+    </LockedPanel>
   );
 }
 

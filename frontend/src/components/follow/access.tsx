@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { useAuth } from "@/components/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -55,5 +55,37 @@ export function LockedToggle({ label, name }: { label: string; name: string }) {
         {LOCKED_COPY}
       </span>
     </span>
+  );
+}
+
+/**
+ * The full-page counterpart to {@link LockedToggle}: what a signed-in account without a grant
+ * is shown *instead of* a subscriber surface, rather than beside one (D-41).
+ *
+ * The heading and the explanation are the caller's, because they are the honest part — a
+ * locked `/me/follows` and a locked `/welcome` are missing different things and saying "your
+ * follows are not open yet" on the onboarding route would not tell the user what they came
+ * for. The shell and the way out are shared: every locked panel ends by offering the public
+ * feed, which is the one thing the account can still do.
+ */
+export function LockedPanel({ heading, children }: { heading: string; children: ReactNode }) {
+  const headingId = useId();
+  return (
+    <div className="mx-auto max-w-3xl p-8">
+      <section
+        aria-labelledby={headingId}
+        className="rounded-lg border border-border bg-muted/40 p-6"
+      >
+        <h1 id={headingId} className="text-lg font-semibold text-foreground">
+          {heading}
+        </h1>
+        {children}
+        <p className="mt-4 text-sm">
+          <Link to="/feed" className="underline underline-offset-4 hover:text-foreground">
+            Browse everything we track
+          </Link>
+        </p>
+      </section>
+    </div>
   );
 }

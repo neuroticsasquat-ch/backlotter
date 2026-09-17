@@ -30,7 +30,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     if (_csrfToken) headers.set("X-CSRF-Token", _csrfToken);
   }
 
-  if (init?.body && !headers.has("Content-Type")) {
+  // A `FormData` body is the one case where the header must be left alone: the runtime
+  // writes `multipart/form-data` with the boundary it generated, and stamping
+  // `application/json` over it hands the server a body it cannot split (the Letterboxd
+  // upload, NEU-1358).
+  if (init?.body && !headers.has("Content-Type") && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
 

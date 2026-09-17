@@ -249,7 +249,9 @@ describe("home route — signed in and entitled", () => {
 
     await timelineHeading();
     expect(await screen.findByText(/your timeline is empty/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /get started/i })).toHaveAttribute("href", "/calendar");
+    // `/welcome` now that NEU-1358 has built it — the card used to point one hop wide, at the
+    // calendar, because the onboarding route did not exist yet.
+    expect(screen.getByRole("link", { name: /get started/i })).toHaveAttribute("href", "/welcome");
     expect(screen.getByRole("link", { name: /browse all updates/i })).toHaveAttribute(
       "href",
       "/feed",

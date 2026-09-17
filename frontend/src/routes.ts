@@ -20,6 +20,10 @@ export default [
     route("reset", "pages/Reset.tsx"),
     route("verify", "pages/Verify.tsx"),
     layout("components/RequireAuth.tsx", [
+      // Signed-in but deliberately *not* under `RequireEntitled`: the page renders its own
+      // locked state (D-41), because an account sent here by signup needs to be told the
+      // onboarding is not open to it, not that its follows page is.
+      route("welcome", "pages/Welcome.tsx"),
       // The account pages sit behind entitlement as well as sign-in (D-41). The gate renders
       // the locked panel instead of redirecting, so an ungranted account is told what it is
       // missing rather than bounced.

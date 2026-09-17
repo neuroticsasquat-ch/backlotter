@@ -74,6 +74,12 @@ export function AccountArea({ variant = "menu" }: { variant?: "menu" | "inline" 
           <Link to="/me/watchlist" className={itemClass}>
             Watchlist
           </Link>
+          {/* The way back into onboarding (D-17). Beside the two collections it fills rather
+              than buried somewhere else, and gated on `entitled` with them: for an account
+              without a grant it would only ever reach the locked panel. */}
+          <Link to="/welcome" className={itemClass}>
+            Redo onboarding
+          </Link>
         </>
       )}
       {user.is_admin && (

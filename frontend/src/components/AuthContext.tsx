@@ -22,7 +22,9 @@ export type SignupArgs = {
 type AuthContextValue = {
   user: AuthedUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** Answers with the account it just signed in, which the `user` field does not yet hold
+   *  when the caller's handler resumes — `/login` branches its landing on `entitled`. */
+  login: (email: string, password: string) => Promise<AuthedUser>;
   signup: (args: SignupArgs) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -91,9 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user: meQuery.data ?? null,
       loading: meQuery.isLoading,
-      login: async (email, password) => {
-        await loginMut.mutateAsync({ email, password });
-      },
+      login: (email, password) => loginMut.mutateAsync({ email, password }),
       signup: async ({ email, password, displayName, turnstileToken, inviteCode }) => {
         await signupMut.mutateAsync({
           email,

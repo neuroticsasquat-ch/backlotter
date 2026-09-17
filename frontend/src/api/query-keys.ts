@@ -19,3 +19,9 @@ export const timelineKey = ["timeline"] as const;
  *  invalidating that one key refreshes all of them. */
 export const timelinePageKey = (limit: number, offset: number) =>
   [...timelineKey, limit, offset] as const;
+
+/** One import job's poll key (NEU-1356). Outside the `["me"]` prefix deliberately: a job is a
+ *  one-off piece of work with its own lifecycle, and a refresh of the account — which the
+ *  import itself triggers when it finishes — must not cancel or restart the poll that is
+ *  watching it. */
+export const importJobKey = (jobId: string) => ["import-job", jobId] as const;
