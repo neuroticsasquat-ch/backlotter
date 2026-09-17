@@ -52,7 +52,12 @@ const film: FilmDetail = {
           summary_edited: false,
           provenance: "story",
           sources: [
-            { url: "https://deadline.com/a", source: "Deadline", title: "Cast", published_at: null },
+            {
+              url: "https://deadline.com/a",
+              source: "Deadline",
+              title: "Cast",
+              published_at: null,
+            },
           ],
         },
       ],

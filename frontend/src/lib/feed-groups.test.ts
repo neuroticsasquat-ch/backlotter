@@ -205,10 +205,7 @@ describe("dayPosterLeads", () => {
   });
 
   it("deduplicates same film appearing in both news and TMDB sections", () => {
-    const leads = dayPosterLeads([
-      poster("batman", { news_backed: true }),
-      poster("batman"),
-    ]);
+    const leads = dayPosterLeads([poster("batman", { news_backed: true }), poster("batman")]);
     expect(leads).toHaveLength(1);
     expect(leads[0].film_ref).toBe("batman");
     expect(leads[0].news_backed).toBe(true);
@@ -226,18 +223,12 @@ describe("dayPosterLeads", () => {
   });
 
   it("does not affect distinct films", () => {
-    const leads = dayPosterLeads([
-      poster("a"),
-      poster("b"),
-      poster("c"),
-    ]);
+    const leads = dayPosterLeads([poster("a"), poster("b"), poster("c")]);
     expect(leads.map((i) => i.film_ref)).toEqual(["a", "b", "c"]);
   });
 
   it("caps after dedup", () => {
-    const items = Array.from({ length: 20 }, (_, i) =>
-      poster(`film-${i % 8}`),
-    );
+    const items = Array.from({ length: 20 }, (_, i) => poster(`film-${i % 8}`));
     expect(dayPosterLeads(items)).toHaveLength(8);
   });
 });

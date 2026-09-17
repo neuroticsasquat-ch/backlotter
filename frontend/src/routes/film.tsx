@@ -49,11 +49,11 @@ export function meta({ loaderData, location }: Route.MetaArgs): Route.MetaDescri
   const { film } = loaderData;
   const title = film.release_year ? `${film.title} (${film.release_year})` : film.title;
   // Flatten day_groups to find the newest event by created_at for SEO description.
-  const allEvents: FilmEvent[] = film.day_groups.flatMap(
-    (g) => [...g.news_events, ...g.tmdb_events],
-  );
-  const latest = allEvents.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0]
-    ?.summary;
+  const allEvents: FilmEvent[] = film.day_groups.flatMap((g) => [
+    ...g.news_events,
+    ...g.tmdb_events,
+  ]);
+  const latest = allEvents.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0]?.summary;
   const description = latest
     ? truncate(latest)
     : `Release dates, casting, trailers, and the full update timeline for ${title}.`;
