@@ -54,6 +54,31 @@ describe("HeaderAccount", () => {
     expect(adminLink).toHaveAttribute("href", "/admin/ingest");
   });
 
+  it("shows the Follows and Watchlist links to an entitled account", async () => {
+    server.use(meHandler({ entitled: true }));
+    renderAccountArea();
+
+    expect(await screen.findByRole("link", { name: "Follows" })).toHaveAttribute(
+      "href",
+      "/me/follows",
+    );
+    expect(screen.getByRole("link", { name: "Watchlist" })).toHaveAttribute(
+      "href",
+      "/me/watchlist",
+    );
+  });
+
+  it("hides them from an account without a grant rather than rendering them dead (D-41)", async () => {
+    server.use(meHandler({ entitled: false }));
+    renderAccountArea();
+
+    // Keyed off a post-auth control, so this is not passing merely because auth has not
+    // resolved: the account is signed in and the links are still absent.
+    await screen.findByRole("button", { name: /log out/i });
+    expect(screen.queryByRole("link", { name: "Follows" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Watchlist" })).not.toBeInTheDocument();
+  });
+
   it("clears the account UI after logout", async () => {
     server.use(
       meHandler({ is_admin: false }),

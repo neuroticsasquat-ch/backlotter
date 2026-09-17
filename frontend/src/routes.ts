@@ -20,6 +20,13 @@ export default [
     route("reset", "pages/Reset.tsx"),
     route("verify", "pages/Verify.tsx"),
     layout("components/RequireAuth.tsx", [
+      // The account pages sit behind entitlement as well as sign-in (D-41). The gate renders
+      // the locked panel instead of redirecting, so an ungranted account is told what it is
+      // missing rather than bounced.
+      layout("components/follow/RequireEntitled.tsx", [
+        route("me/follows", "pages/MyFollows.tsx"),
+        route("me/watchlist", "pages/MyWatchlist.tsx"),
+      ]),
       layout("components/RequireAdmin.tsx", [
         layout("components/layout/AdminLayout.tsx", [
           route("admin/ingest", "pages/AdminIngest.tsx"),

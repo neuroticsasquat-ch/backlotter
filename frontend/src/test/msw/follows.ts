@@ -1,6 +1,6 @@
 import { HttpResponse, http } from "msw";
 import { env } from "@/env";
-import type { Follow, WatchlistFilm, WatchlistItem } from "@/api/types";
+import type { AlertPref, Follow, WatchlistFilm, WatchlistItem } from "@/api/types";
 
 const base = env.apiBaseUrl;
 
@@ -64,6 +64,14 @@ export function followGraphHandlers(
       return HttpResponse.json(item, { status: 201 });
     }),
 
+    http.patch(`${base}/me/watchlist/:filmId`, async ({ params, request }) => {
+      const body = (await request.json()) as { alert_prefs: AlertPref[] };
+      const item = watchlist.find((row) => row.film.id === params.filmId);
+      if (!item) return HttpResponse.json({ detail: "watchlist_item_not_found" }, { status: 404 });
+      item.alert_prefs = body.alert_prefs;
+      return HttpResponse.json(item, { status: 200 });
+    }),
+
     http.delete(`${base}/me/watchlist/:filmId`, ({ params }) => {
       const i = watchlist.findIndex((item) => item.film.id === params.filmId);
       if (i === -1)
@@ -86,6 +94,7 @@ export function entitlementRequiredHandlers() {
     http.delete(`${base}/me/follows/:entityType/:entityId`, deny),
     http.get(`${base}/me/watchlist`, deny),
     http.post(`${base}/me/watchlist`, deny),
+    http.patch(`${base}/me/watchlist/:filmId`, deny),
     http.delete(`${base}/me/watchlist/:filmId`, deny),
   ];
 }
@@ -100,4 +109,57 @@ export function makeWatchlistFilm(overrides: Partial<WatchlistFilm> = {}): Watch
     release_date: "2026-07-17",
     ...overrides,
   };
+}
+
+/** `makeWatchlistFilm`'s counterpart for a whole row. `source` defaults to `manual` because a
+ *  derived item is the case a test opts into — its removal is the one that needs a confirm. */
+export function makeWatchlistItem(
+  overrides: Partial<Omit<WatchlistItem, "film">> & { film?: Partial<WatchlistFilm> } = {},
+): WatchlistItem {
+  const { film, ...rest } = overrides;
+  return {
+    film: makeWatchlistFilm(film),
+    source: "manual",
+    alert_prefs: ["stream"],
+    created_at: "2026-09-01T00:00:00Z",
+    ...rest,
+  };
+}
+
+/** The three public entity searches (NEU-1350). One handler per endpoint, each answering the
+ *  same paged envelope, so a test names the items it wants back and nothing else. */
+export function entitySearchHandlers(
+  items: {
+    people?: { id: number; name: string; known_for_department?: string | null }[];
+    companies?: { id: number; name: string; origin_country?: string | null }[];
+    collections?: { id: number; name: string }[];
+  } = {},
+) {
+  const page = <T>(rows: T[]) =>
+    HttpResponse.json({ items: rows, total: rows.length, limit: 10, offset: 0 });
+  return [
+    http.get(`${base}/people/search`, () =>
+      page(
+        (items.people ?? []).map((p) => ({
+          id: p.id,
+          name: p.name,
+          known_for_department: p.known_for_department ?? "Directing",
+          profile_path: null,
+        })),
+      ),
+    ),
+    http.get(`${base}/companies/search`, () =>
+      page(
+        (items.companies ?? []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          logo_path: null,
+          origin_country: c.origin_country ?? "US",
+        })),
+      ),
+    ),
+    http.get(`${base}/collections/search`, () =>
+      page((items.collections ?? []).map((c) => ({ id: c.id, name: c.name, poster_path: null }))),
+    ),
+  ];
 }

@@ -1,4 +1,13 @@
-import type { CalendarResponse, FeedDayResponse, FilmDetail, FilmIndexResponse } from "./types";
+import type {
+  CalendarResponse,
+  CollectionSearchItem,
+  CompanySearchItem,
+  EntitySearchResponse,
+  FeedDayResponse,
+  FilmDetail,
+  FilmIndexResponse,
+  PersonSearchItem,
+} from "./types";
 
 /**
  * Extra request headers. SSR loaders pass the signing headers from `lib/ssr-origin.ts` so the
@@ -47,6 +56,38 @@ export async function getFilmSearch(
   if (!res.ok) throw new Error(`GET /films/search failed: ${res.status}`);
   return (await res.json()) as FilmIndexResponse;
 }
+
+/** The entity searches behind the "follow something" box (NEU-1350). Public, like film search
+ *  and for the same reason — the film page's follow buttons and the onboarding grid render
+ *  before anyone knows whether the visitor is entitled — so they go through these pure fetchers
+ *  rather than `apiFetch`, and carry no credentials.
+ *
+ *  One builder for three endpoints that differ only in their path and item type: the backend
+ *  answers the same `{items, total, limit, offset}` envelope for all three, and giving each its
+ *  own copy of this function would mean three places to change when that envelope moves. */
+function entitySearch<T>(path: string) {
+  return async (
+    baseUrl: string,
+    q: string,
+    {
+      limit = 20,
+      offset = 0,
+      signal,
+    }: { limit?: number; offset?: number; signal?: AbortSignal } = {},
+  ): Promise<EntitySearchResponse<T>> => {
+    const url = new URL(path, baseUrl);
+    url.searchParams.set("q", q);
+    url.searchParams.set("limit", String(limit));
+    url.searchParams.set("offset", String(offset));
+    const res = await fetch(url, { headers: { Accept: "application/json" }, signal });
+    if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+    return (await res.json()) as EntitySearchResponse<T>;
+  };
+}
+
+export const getPeopleSearch = entitySearch<PersonSearchItem>("/people/search");
+export const getCompaniesSearch = entitySearch<CompanySearchItem>("/companies/search");
+export const getCollectionsSearch = entitySearch<CollectionSearchItem>("/collections/search");
 
 /**
  * Fetch the per-(film, day) grouped public feed from the no-auth backend (NEU-364). The base URL is

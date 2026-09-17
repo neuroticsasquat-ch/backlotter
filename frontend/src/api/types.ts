@@ -356,3 +356,38 @@ export interface WatchlistItem {
 export interface WatchlistListResponse {
   items: WatchlistItem[];
 }
+
+// --- Entity search, the follow graph's add path (NEU-1350 contracts) ---
+
+/** A person who can be followed. `id` is TMDB's person id; stringified it is the `entity_id`
+ *  `POST /me/follows` takes for `entity_type=person`. Mirrors the backend `PersonSearchItem`. */
+export interface PersonSearchItem {
+  id: number;
+  name: string;
+  known_for_department: string | null;
+  profile_path: string | null;
+}
+
+/** Mirrors the backend `CompanySearchItem`; `id` follows as `entity_type=company`. */
+export interface CompanySearchItem {
+  id: number;
+  name: string;
+  logo_path: string | null;
+  origin_country: string | null;
+}
+
+/** A TMDB collection. Mirrors `CollectionSearchItem`; `id` follows as `entity_type=franchise`
+ *  — the API calls the entity type "franchise" and the catalog table "collection" (D-10). */
+export interface CollectionSearchItem {
+  id: number;
+  name: string;
+  poster_path: string | null;
+}
+
+/** The three search endpoints answer the same paged envelope. */
+export interface EntitySearchResponse<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}

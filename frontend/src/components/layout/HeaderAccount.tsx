@@ -63,6 +63,19 @@ export function AccountArea({ variant = "menu" }: { variant?: "menu" | "inline" 
       >
         {user.display_name}
       </span>
+      {/* Hidden rather than rendered dead for an account without access (D-41): the follow
+          buttons on a film page are the surface that argues for the subscription, and they do
+          it in context. A nav entry that only ever leads to a locked panel would not. */}
+      {user.entitled && (
+        <>
+          <Link to="/me/follows" className={itemClass}>
+            Follows
+          </Link>
+          <Link to="/me/watchlist" className={itemClass}>
+            Watchlist
+          </Link>
+        </>
+      )}
       {user.is_admin && (
         <Link to="/admin/ingest" className={itemClass}>
           Admin

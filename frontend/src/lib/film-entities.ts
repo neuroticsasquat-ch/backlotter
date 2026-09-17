@@ -15,6 +15,11 @@ export interface FollowTarget {
   entityId: string;
   /** The entity's own name — "Christopher Nolan", not "Follow Christopher Nolan". */
   label: string;
+  /** TMDB image path for the entity, where the source that built this target had one. Carried
+   *  so that following remembers a face as well as a name (`lib/follow-labels.ts`); the film
+   *  page's builders below leave it undefined, which costs the follows page an avatar and
+   *  nothing else. */
+  imagePath?: string | null;
 }
 
 /** Every target builder answers `null` for an entity the film payload cannot identify, and

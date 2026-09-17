@@ -13,6 +13,7 @@ import {
   addToWatchlist,
   isEntitlementError,
   removeFromWatchlist,
+  updateAlertPrefs,
 } from "./me";
 
 const base = env.apiBaseUrl;
@@ -115,6 +116,40 @@ describe("watchlist fetchers", () => {
     server.use(...entitlementRequiredHandlers());
 
     await expect(addToWatchlist(FILM_ID)).rejects.toSatisfy(isEntitlementError);
+  });
+
+  it("PATCHes the whole prefs set, which is how an empty one is expressible", async () => {
+    let body: unknown;
+    server.use(
+      http.patch(`${base}/me/watchlist/:filmId`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({}, { status: 200 });
+      }),
+    );
+
+    await updateAlertPrefs(FILM_ID, []);
+
+    // Not a delta and not an omission: `{}` would mean "unchanged" to a PATCH, while an
+    // explicit empty list is the user asking for no availability alerts at all (D-14).
+    expect(body).toEqual({ alert_prefs: [] });
+  });
+
+  it("round-trips a prefs change through the list", async () => {
+    const graph = followGraphHandlers();
+    server.use(...graph.handlers);
+
+    await addToWatchlist(FILM_ID);
+    await updateAlertPrefs(FILM_ID, ["buy", "rent"]);
+
+    expect((await fetchWatchlist()).items).toEqual([
+      expect.objectContaining({ alert_prefs: ["buy", "rent"] }),
+    ]);
+  });
+
+  it("surfaces the entitlement 403 on a prefs change too", async () => {
+    server.use(...entitlementRequiredHandlers());
+
+    await expect(updateAlertPrefs(FILM_ID, ["stream"])).rejects.toSatisfy(isEntitlementError);
   });
 });
 

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import { toast } from "sonner";
 import { useAuth } from "@/components/AuthContext";
 import type { FollowTarget } from "@/lib/film-entities";
+import { rememberFollowLabel } from "@/lib/follow-labels";
 import { ApiError, apiFetch } from "./client";
 import { followsKey, timelineKey, timelinePageKey, watchlistKey } from "./query-keys";
 import type {
@@ -37,6 +38,15 @@ export const addToWatchlist = (filmId: string) =>
 
 export const removeFromWatchlist = (filmId: string) =>
   apiFetch<void>(`/me/watchlist/${encodeURIComponent(filmId)}`, { method: "DELETE" });
+
+/** Replace an item's alert preferences (D-14). PATCH takes the whole set, not a delta — an
+ *  empty list is "no availability alerts", which is a real choice and distinct from the
+ *  `{stream}` default an item is created with. */
+export const updateAlertPrefs = (filmId: string, alertPrefs: AlertPref[]) =>
+  apiFetch<WatchlistItem>(`/me/watchlist/${encodeURIComponent(filmId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ alert_prefs: alertPrefs }),
+  });
 
 /** The 403 the `/me/*` routes answer with for a signed-in account that has not been granted
  *  access (D-39). It is a state to render, not a failure to report: the user is told what
@@ -145,6 +155,18 @@ export function useToggleFollow() {
       const removed = qc
         .getQueryData<FollowListResponse>(followsKey)
         ?.items.find((f) => sameEntity(f, target));
+      // The one place the app learns a name for an entity id, whichever button was pressed:
+      // `GET /me/follows` answers with ids alone, so without this the follows page has
+      // nothing to call its rows (`lib/follow-labels.ts`). Written on follow rather than on
+      // unfollow, and never removed, so re-following does not cost the name.
+      if (!following) {
+        rememberFollowLabel(
+          target.entityType,
+          target.entityId,
+          target.label,
+          target.imagePath ?? null,
+        );
+      }
       qc.setQueryData<FollowListResponse>(followsKey, (old) => {
         const items = old?.items ?? [];
         if (following) return { items: items.filter((f) => !sameEntity(f, target)) };
@@ -225,6 +247,44 @@ export function useToggleWatchlist() {
         return;
       }
       toast.error(error instanceof Error ? error.message : "Failed to update your watchlist");
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: watchlistKey }),
+  });
+}
+
+/** Change one item's alert preferences. The chips flip immediately and the refetch confirms;
+ *  a failure puts the old set back, because a pref chip that silently stays on when the server
+ *  rejected it is worse than one that visibly snaps back. */
+export function useUpdateAlertPrefs() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ filmId, alertPrefs }: { filmId: string; alertPrefs: AlertPref[] }) =>
+      updateAlertPrefs(filmId, alertPrefs),
+    onMutate: async ({ filmId, alertPrefs }) => {
+      await qc.cancelQueries({ queryKey: watchlistKey });
+      const previous = qc
+        .getQueryData<WatchlistListResponse>(watchlistKey)
+        ?.items.find((item) => item.film.id === filmId)?.alert_prefs;
+      qc.setQueryData<WatchlistListResponse>(watchlistKey, (old) => ({
+        items: (old?.items ?? []).map((item) =>
+          item.film.id === filmId ? { ...item, alert_prefs: alertPrefs } : item,
+        ),
+      }));
+      return { previous };
+    },
+    onError: (error, { filmId }, context) => {
+      if (context?.previous) {
+        qc.setQueryData<WatchlistListResponse>(watchlistKey, (old) => ({
+          items: (old?.items ?? []).map((item) =>
+            item.film.id === filmId ? { ...item, alert_prefs: context.previous! } : item,
+          ),
+        }));
+      }
+      if (isEntitlementError(error)) {
+        void refreshAccount(qc);
+        return;
+      }
+      toast.error(error instanceof Error ? error.message : "Failed to update your alerts");
     },
     onSettled: () => qc.invalidateQueries({ queryKey: watchlistKey }),
   });
