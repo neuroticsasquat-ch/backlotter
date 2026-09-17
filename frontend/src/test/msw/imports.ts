@@ -86,3 +86,48 @@ export function popularPeopleHandler(
     }),
   );
 }
+
+const TMDB_JOB_ID = "44444444-4444-4444-8444-444444444444";
+
+/** A TMDB job row. The shape is the Letterboxd one with the two fields that only a TMDB import
+ *  fills: `source` and the account it read (NEU-1357 §3). */
+export function makeTmdbJob(overrides: Partial<ImportJob> = {}): ImportJob {
+  return makeImportJob({
+    id: TMDB_JOB_ID,
+    source: "tmdb",
+    tmdb_username: "cinephile",
+    ...overrides,
+  });
+}
+
+/**
+ * `POST /me/import/tmdb/callback` — the 202 that turns an approved request token into a job
+ * (NEU-1357 §2). Records what was posted so a test can assert the token TMDB appended actually
+ * rode along, and that it was only spent once.
+ *
+ * `failWith` answers a refusal instead while still recording the attempt, which is the only way
+ * to test the case that matters most: a grant that lapsed mid-flow must *still* reach this
+ * route, because posting is what makes the backend delete the live TMDB session.
+ */
+export function tmdbCallbackHandler(
+  options: { jobId?: string; failWith?: { status: number; detail: string } } = {},
+) {
+  const { jobId = TMDB_JOB_ID, failWith } = options;
+  const posted: { request_token: string; approved: boolean }[] = [];
+
+  const handler = http.post(`${base}/me/import/tmdb/callback`, async ({ request }) => {
+    posted.push((await request.json()) as { request_token: string; approved: boolean });
+    return failWith
+      ? HttpResponse.json({ detail: failWith.detail }, { status: failWith.status })
+      : HttpResponse.json({ job_id: jobId }, { status: 202 });
+  });
+
+  return { handler, posted };
+}
+
+/** The callback's refusals, when a test only cares about the message they produce: a token that
+ *  is not this user's (403), one that expired or was never approved (400), a grant that lapsed
+ *  mid-flow (403), and a second import (409). */
+export function tmdbCallbackFailure(status: number, detail: string) {
+  return tmdbCallbackHandler({ failWith: { status, detail } }).handler;
+}

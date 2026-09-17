@@ -4,6 +4,7 @@ import { MAX_UPLOAD_BYTES, useStartLetterboxdImport } from "@/api/imports";
 import type { ImportJob } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { ImportProgress } from "./ImportProgress";
+import { TmdbConnect } from "./TmdbConnect";
 
 /** What the upload route accepts (NEU-1356 §1): the whole export zip, or either CSV out of it.
  *  Filtered here as well as on the picker's `accept`, because a drop bypasses `accept`
@@ -150,16 +151,7 @@ export function ImportStep({
 
       {job && <ImportProgress job={job} />}
 
-      <div className="mt-4 rounded-lg border border-border p-4">
-        <p className="text-sm font-medium text-foreground">Import from TMDB instead</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Connecting your TMDB account will bring over your watchlist and favourites. We are still
-          building it.
-        </p>
-        <Button type="button" variant="outline" size="sm" className="mt-3" disabled>
-          Connect TMDB
-        </Button>
-      </div>
+      <TmdbConnect job={job} />
 
       <div className="mt-6 flex items-center gap-4">
         <Button type="button" onClick={onContinue}>

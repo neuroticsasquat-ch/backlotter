@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/components/AuthContext";
+import { env } from "@/env";
 import { server } from "@/test/msw/server";
 import { meHandler } from "@/test/msw/me";
 import { importJobHandlers, importUploadFailure } from "@/test/msw/imports";
@@ -115,11 +116,16 @@ describe("ImportStep", () => {
     expect(alert).not.toHaveTextContent("rate_limited");
   });
 
-  it("offers TMDB as a placeholder, disabled until the flow exists (NEU-1359)", () => {
+  it("offers the TMDB approve flow as a live link (NEU-1359)", () => {
     server.use(meHandler({ entitled: true }));
     renderStep();
 
-    expect(screen.getByRole("button", { name: /connect tmdb/i })).toBeDisabled();
+    // The panel's own behaviour is covered in `TmdbConnect.test.tsx`; what this step owes is
+    // that it is mounted and no longer the disabled placeholder it shipped as.
+    expect(screen.getByRole("link", { name: /connect tmdb/i })).toHaveAttribute(
+      "href",
+      `${env.apiBaseUrl}/me/import/tmdb/start`,
+    );
   });
 
   it("skips and continues to the same place — the step is optional either way (D-17)", async () => {

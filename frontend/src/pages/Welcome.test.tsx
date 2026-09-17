@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRoutesStub } from "react-router";
+import { createRoutesStub, useLocation } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/components/AuthContext";
 import type { Follow } from "@/api/types";
@@ -11,7 +11,15 @@ import { env } from "@/env";
 import { server } from "@/test/msw/server";
 import { meHandler } from "@/test/msw/me";
 import { entitySearchHandlers, followGraphHandlers } from "@/test/msw/follows";
-import { importJobHandlers, makeImportJob, popularPeopleHandler } from "@/test/msw/imports";
+import {
+  importJobHandlers,
+  makeImportJob,
+  makeTmdbJob,
+  popularPeopleHandler,
+  tmdbCallbackFailure,
+  tmdbCallbackHandler,
+} from "@/test/msw/imports";
+import { readTmdbImport } from "@/lib/tmdb-import";
 import { Welcome } from "./Welcome";
 
 const POPULAR = [
@@ -19,11 +27,24 @@ const POPULAR = [
   { id: 1892, name: "Matt Damon" },
 ];
 
+/** Welcome plus the one thing a test cannot otherwise see: the query the router is left
+ *  holding. The TMDB return has to clear it, and "the token is no longer in the URL" is the
+ *  assertion that a refresh cannot respend it. */
+function WelcomeProbe() {
+  return (
+    <>
+      <Welcome />
+      <span data-testid="location-search">{useLocation().search}</span>
+    </>
+  );
+}
+
 function renderWelcome(
   opts: {
     entitled?: boolean;
     follows?: Follow[];
     extraHandlers?: Parameters<typeof server.use>;
+    entry?: string;
   } = {},
 ) {
   const graph = followGraphHandlers({ follows: opts.follows ?? [] });
@@ -36,14 +57,14 @@ function renderWelcome(
   );
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const Stub = createRoutesStub([
-    { path: "/welcome", Component: Welcome },
+    { path: "/welcome", Component: WelcomeProbe },
     { path: "/", Component: () => <p>Timeline</p> },
     { path: "/feed", Component: () => <p>Global feed</p> },
   ]);
   render(
     <QueryClientProvider client={qc}>
       <AuthProvider>
-        <Stub initialEntries={["/welcome"]} />
+        <Stub initialEntries={[opts.entry ?? "/welcome"]} />
       </AuthProvider>
     </QueryClientProvider>,
   );
@@ -202,5 +223,124 @@ describe("Welcome", () => {
       "href",
       "/feed",
     );
+  });
+
+  describe("returning from TMDB's approve screen (NEU-1359)", () => {
+    const RETURN = (params = "request_token=rt-123&approved=true") =>
+      `/welcome?tmdb=callback&${params}`;
+
+    it("spends the approved token and polls the job it starts", async () => {
+      const callback = tmdbCallbackHandler();
+      const job = makeTmdbJob({ status: "succeeded", follows_created: 4, watchlist_created: 3 });
+      renderWelcome({
+        entry: RETURN(),
+        extraHandlers: [callback.handler, ...importJobHandlers([job]).handlers] as never,
+      });
+
+      expect(await screen.findByText(/import finished, from @cinephile/i)).toBeInTheDocument();
+      expect(screen.getByText(/4 follows and 3 watchlist films added/i)).toBeInTheDocument();
+      expect(callback.posted).toEqual([{ request_token: "rt-123", approved: true }]);
+    });
+
+    // The token is single-use and deleted server-side on first sight, so a second POST of the
+    // same one — StrictMode's replayed effect, or a refresh of the URL TMDB sent — comes back
+    // 403 and would replace a running import with an error message.
+    it("spends it exactly once, and leaves it out of the URL afterwards", async () => {
+      const callback = tmdbCallbackHandler();
+      renderWelcome({
+        entry: RETURN(),
+        extraHandlers: [
+          callback.handler,
+          ...importJobHandlers([makeTmdbJob({ status: "running" })]).handlers,
+        ] as never,
+      });
+
+      await waitFor(() => expect(callback.posted).toHaveLength(1));
+      await waitFor(() => expect(screen.getByTestId("location-search")).toHaveTextContent(""));
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("remembers the job so the panel can report it on a later visit", async () => {
+      const job = makeTmdbJob({ status: "succeeded" });
+      renderWelcome({
+        entry: RETURN(),
+        extraHandlers: [
+          tmdbCallbackHandler({ jobId: job.id }).handler,
+          ...importJobHandlers([job]).handlers,
+        ] as never,
+      });
+
+      await waitFor(() => expect(readTmdbImport()).toBe(job.id));
+    });
+
+    it("says so plainly when the user declined at TMDB", async () => {
+      renderWelcome({
+        entry: RETURN("request_token=rt-123&approved=false"),
+        extraHandlers: [tmdbCallbackFailure(400, "tmdb_token_not_approved")] as never,
+      });
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/did not approve the connection/i);
+    });
+
+    it("tells the user to start over when the approval expired", async () => {
+      renderWelcome({
+        entry: RETURN(),
+        extraHandlers: [tmdbCallbackFailure(400, "tmdb_token_expired")] as never,
+      });
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/expired/i);
+    });
+
+    it("distinguishes a lapsed grant from a token that is not this account's", async () => {
+      renderWelcome({
+        entry: RETURN(),
+        extraHandlers: [tmdbCallbackFailure(403, "entitlement_required")] as never,
+      });
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/part of the subscription/i);
+    });
+
+    it("refuses a return that carries no token at all", async () => {
+      const callback = tmdbCallbackHandler();
+      renderWelcome({
+        entry: "/welcome?tmdb=callback",
+        extraHandlers: [callback.handler] as never,
+      });
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/did not carry an approval/i);
+      expect(callback.posted).toHaveLength(0);
+    });
+
+    // The one case where a locked account must still reach the API: the session id created at
+    // TMDB is live, and the callback is what deletes it (NEU-1357, D-39). Refusing to call it
+    // from the locked screen would strand the credential.
+    it("still posts the callback for an account whose grant lapsed mid-flow", async () => {
+      const callback = tmdbCallbackHandler({
+        failWith: { status: 403, detail: "entitlement_required" },
+      });
+      renderWelcome({
+        entitled: false,
+        entry: RETURN(),
+        extraHandlers: [callback.handler] as never,
+      });
+
+      expect(
+        await screen.findByRole("heading", { name: /not open to everyone yet/i }),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(callback.posted).toHaveLength(1));
+      // And having spent the approval, the locked panel owns up to it rather than leaving the
+      // user to guess what happened to the thing they just approved at TMDB (D-41).
+      expect(await screen.findByRole("alert")).toHaveTextContent(/part of the subscription/i);
+    });
+
+    it("leaves an ordinary visit alone", async () => {
+      const callback = tmdbCallbackHandler();
+      renderWelcome({ extraHandlers: [callback.handler] as never });
+
+      expect(
+        await screen.findByRole("heading", { name: /bring your films with you/i }),
+      ).toBeInTheDocument();
+      expect(callback.posted).toHaveLength(0);
+    });
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { makeImportJob } from "@/test/msw/imports";
+import { makeImportJob, makeTmdbJob } from "@/test/msw/imports";
 import { ImportProgress } from "./ImportProgress";
 
 describe("ImportProgress", () => {
@@ -68,5 +68,49 @@ describe("ImportProgress", () => {
     expect(screen.getByText(/could not finish that import/i)).toBeInTheDocument();
     expect(screen.getByText(/TMDB timed out/)).toBeInTheDocument();
     expect(screen.getByText(/anything imported before it stopped is kept/i)).toBeInTheDocument();
+  });
+
+  describe("a TMDB job, which does no title matching at all (NEU-1357 §3)", () => {
+    it("credits the account it read on the finished line", () => {
+      render(<ImportProgress job={makeTmdbJob({ status: "succeeded" })} />);
+
+      expect(screen.getByText(/import finished, from @cinephile/i)).toBeInTheDocument();
+    });
+
+    it("does not describe the running job as looking titles up", () => {
+      render(
+        <ImportProgress job={makeTmdbJob({ status: "running", rows_total: 20, rows_done: 5 })} />,
+      );
+
+      expect(screen.getByText(/5 of 20 films read/i)).toBeInTheDocument();
+      expect(screen.getByText(/watchlist and favourites a page at a time/i)).toBeInTheDocument();
+      expect(screen.queryByText(/every title is looked up against TMDB/i)).not.toBeInTheDocument();
+    });
+
+    // `kind=tmdb_missing` is a film TMDB itself 404s for, not a title we declined to guess at:
+    // the ids came from TMDB, so there was never any matching to be exact about.
+    it("explains an unbrought title as TMDB having nothing behind it", () => {
+      render(
+        <ImportProgress
+          job={makeTmdbJob({
+            status: "succeeded",
+            unmatched: [{ name: "Deleted From TMDB", year: 2019, kind: "tmdb_missing" }],
+          })}
+        />,
+      );
+
+      expect(screen.getByText(/1 title we could not bring over/i)).toBeInTheDocument();
+      expect(screen.getByText(/TMDB no longer has a film behind them/i)).toBeInTheDocument();
+      expect(
+        screen.queryByText(/we only match a film when the title and year line up/i),
+      ).not.toBeInTheDocument();
+    });
+
+    it("points a failed job back at the approve flow, not at a file", () => {
+      render(<ImportProgress job={makeTmdbJob({ status: "failed", error: "TMDB timed out" })} />);
+
+      expect(screen.getByText(/connect TMDB again to pick up the rest/i)).toBeInTheDocument();
+      expect(screen.queryByText(/upload the file again/i)).not.toBeInTheDocument();
+    });
   });
 });

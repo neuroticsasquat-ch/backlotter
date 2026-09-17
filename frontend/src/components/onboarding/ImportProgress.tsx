@@ -1,3 +1,4 @@
+import { TMDB_SOURCE } from "@/api/imports";
 import type { ImportJob } from "@/api/types";
 
 /** Report on one import job, whatever state it is in (NEU-1356 §1).
@@ -24,7 +25,10 @@ export function ImportProgress({ job }: { job: ImportJob }) {
           <p className="text-sm font-medium text-red-600">We could not finish that import.</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {job.error ?? "The import stopped before it finished."} Anything imported before it
-            stopped is kept — you can upload the file again to pick up the rest.
+            stopped is kept —{" "}
+            {job.source === TMDB_SOURCE
+              ? "connect TMDB again to pick up the rest."
+              : "you can upload the file again to pick up the rest."}
           </p>
         </>
       )}
@@ -57,8 +61,14 @@ function RunningProgress({ job }: { job: ImportJob }) {
         />
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        {job.rows_done} of {job.rows_total} films checked. Every title is looked up against TMDB, so
-        a large library takes a few minutes — you can carry on and it will keep going.
+        {job.rows_done} of {job.rows_total} films {job.source === TMDB_SOURCE ? "read" : "checked"}.{" "}
+        {job.source === TMDB_SOURCE
+          ? // A TMDB import needs no title resolution — the ids are already TMDB's (NEU-1357 §3)
+            // — so the minutes go on reading paged lists and crediting the favourites, not on
+            // matching. Saying "looked up against TMDB" here would describe work that is not
+            // happening.
+            "We are reading your watchlist and favourites a page at a time — you can carry on and it will keep going."
+          : "Every title is looked up against TMDB, so a large library takes a few minutes — you can carry on and it will keep going."}
       </p>
     </>
   );
@@ -67,29 +77,48 @@ function RunningProgress({ job }: { job: ImportJob }) {
 function SucceededReport({ job }: { job: ImportJob }) {
   return (
     <>
-      <p className="text-sm font-medium text-foreground">Import finished.</p>
+      <p className="text-sm font-medium text-foreground">
+        {job.source === TMDB_SOURCE && job.tmdb_username !== null
+          ? `Import finished, from @${job.tmdb_username}.`
+          : "Import finished."}
+      </p>
       <p className="mt-1 text-sm text-muted-foreground">
         {job.follows_created} {job.follows_created === 1 ? "follow" : "follows"} and{" "}
         {job.watchlist_created} {job.watchlist_created === 1 ? "watchlist film" : "watchlist films"}{" "}
         added.
       </p>
-      {job.unmatched.length > 0 && <UnmatchedList unmatched={job.unmatched} />}
+      {job.unmatched.length > 0 && <UnmatchedList unmatched={job.unmatched} source={job.source} />}
     </>
   );
 }
 
-/** The titles the import refused to guess at (D-15). Listed in full rather than counted: the
- *  point of reporting them is that the user can go and find those few films by hand, which a
- *  number alone does not let them do. */
-function UnmatchedList({ unmatched }: { unmatched: ImportJob["unmatched"] }) {
+/** The titles the import could not bring in. Listed in full rather than counted: the point of
+ *  reporting them is that the user can go and find those few films by hand, which a number alone
+ *  does not let them do.
+ *
+ *  The two sources leave rows here for opposite reasons, so they cannot share a sentence. A
+ *  Letterboxd row is a title we declined to guess at (D-15). A TMDB row is a film TMDB itself
+ *  answered 404 for (`kind=tmdb_missing`, NEU-1357 §3) — there was no matching to decline,
+ *  because the ids were TMDB's own to begin with. */
+function UnmatchedList({
+  unmatched,
+  source,
+}: {
+  unmatched: ImportJob["unmatched"];
+  source: string;
+}) {
+  const fromTmdb = source === TMDB_SOURCE;
+
   return (
     <details className="mt-3">
       <summary className="cursor-pointer text-sm text-foreground">
-        {unmatched.length} {unmatched.length === 1 ? "title" : "titles"} we could not match
+        {unmatched.length} {unmatched.length === 1 ? "title" : "titles"} we could not{" "}
+        {fromTmdb ? "bring over" : "match"}
       </summary>
       <p className="mt-1 text-xs text-muted-foreground">
-        We only match a film when the title and year line up exactly, so these were left alone
-        rather than guessed at. You can search for them here and follow them yourself.
+        {fromTmdb
+          ? "These are on your TMDB account, but TMDB no longer has a film behind them — so there was nothing to import. They are listed rather than dropped quietly."
+          : "We only match a film when the title and year line up exactly, so these were left alone rather than guessed at. You can search for them here and follow them yourself."}
       </p>
       <ul className="mt-2 space-y-1">
         {unmatched.map((row) => (
