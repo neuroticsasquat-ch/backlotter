@@ -16,16 +16,21 @@ const event: FilmEvent = {
   event_type: "casting",
   confidence: "confirmed",
   created_at: "2026-06-30T00:00:00Z",
+  occurred_at: "2026-06-30T00:00:00Z",
   summary: "Bogus recast.",
   summary_edited: false,
+  status: "published",
+  superseded_by: null,
   provenance: "story",
   sources: [{ url: "https://x.test/a", source: "ScreenRant", title: "t", published_at: null }],
 };
 
-function renderCard(overrides: Partial<FilmEvent> = {}) {
+function renderCard(overrides: Partial<FilmEvent> = {}, day?: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const cardEvent = { ...event, ...overrides };
-  const router = createMemoryRouter([{ path: "/", element: <EventCard event={cardEvent} /> }]);
+  const router = createMemoryRouter([
+    { path: "/", element: <EventCard event={cardEvent} day={day} /> },
+  ]);
   render(
     <QueryClientProvider client={qc}>
       <AuthProvider>
@@ -35,13 +40,75 @@ function renderCard(overrides: Partial<FilmEvent> = {}) {
   );
 }
 
-it("omits the per-event date and confidence (the day heading carries the date)", async () => {
+it("omits the per-event date when the event falls on the heading's day", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard({}, "2026-06-30");
+  await waitFor(() => expect(screen.getByText("Bogus recast.")).toBeInTheDocument());
+  expect(screen.queryByText(/first seen/)).toBeNull();
+  expect(document.querySelector("time")).toBeNull();
+});
+
+it("badges a confirmed event as confirmed (D-9: confidence is visible on every card)", async () => {
   server.use(meHandler({ is_admin: false }));
   renderCard();
-  await waitFor(() => expect(screen.getByText("Bogus recast.")).toBeInTheDocument());
-  expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
-  expect(screen.queryByText("Rumored")).not.toBeInTheDocument();
-  expect(document.querySelector("time")).toBeNull();
+  await screen.findByText("Bogus recast.");
+  expect(screen.getByText("confirmed")).toBeInTheDocument();
+  expect(screen.queryByText("unconfirmed")).toBeNull();
+});
+
+it("badges a rumored event as unconfirmed", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard({ confidence: "rumored" });
+  await screen.findByText("Bogus recast.");
+  expect(screen.getByText("unconfirmed")).toBeInTheDocument();
+});
+
+it("anchors every card by event id so a retraction marker can point at it", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard();
+  await screen.findByText("Bogus recast.");
+  expect(document.getElementById("event-evt-1")?.tagName).toBe("ARTICLE");
+});
+
+it("marks a superseded event 'later retracted', linked to the retraction on the page", async () => {
+  // D-2: the original stays in place on every surface; the marker is the only change.
+  server.use(meHandler({ is_admin: false }));
+  renderCard({ status: "superseded", superseded_by: "evt-9" });
+  await screen.findByText("Bogus recast.");
+  const marker = screen.getByRole("link", { name: /later retracted/i });
+  expect(marker).toHaveAttribute("href", "#event-evt-9");
+});
+
+it("still marks a superseded event whose retraction id is missing, without a link", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard({ status: "superseded", superseded_by: null });
+  await screen.findByText("Bogus recast.");
+  expect(screen.getByText(/later retracted/i)).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /later retracted/i })).toBeNull();
+});
+
+it("renders no retraction marker on a published event", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard();
+  await screen.findByText("Bogus recast.");
+  expect(screen.queryByText(/later retracted/i)).toBeNull();
+});
+
+it("discloses 'first seen <occurred_at>' when the beat falls outside the heading's day", async () => {
+  // The ADR-0016 residual: a backdated beat carries no other hint of the gap.
+  server.use(meHandler({ is_admin: false }));
+  renderCard({ occurred_at: "2026-06-23T09:00:00Z" }, "2026-06-30");
+  await screen.findByText("Bogus recast.");
+  const line = screen.getByText(/first seen/);
+  expect(line).toHaveTextContent("first seen Jun 23, 2026");
+  expect(line.querySelector("time")).toHaveAttribute("dateTime", "2026-06-23T09:00:00Z");
+});
+
+it("never discloses first seen without a day to compare against", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard({ occurred_at: "2026-06-23T09:00:00Z" });
+  await screen.findByText("Bogus recast.");
+  expect(screen.queryByText(/first seen/)).toBeNull();
 });
 
 it("hides admin controls for non-admins", async () => {

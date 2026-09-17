@@ -12,8 +12,11 @@ function makeEvent(overrides: Partial<FilmEvent>): FilmEvent {
     event_type: "casting",
     confidence: "confirmed",
     created_at: "2025-01-01T00:00:00Z",
+    occurred_at: "2025-01-01T00:00:00Z",
     summary: "Summary.",
     summary_edited: false,
+    status: "published",
+    superseded_by: null,
     provenance: "story",
     sources: [],
     ...overrides,
@@ -57,6 +60,7 @@ describe("EventTimeline", () => {
           summary: "Trailer dropped.",
           event_type: "trailer",
           created_at: "2026-06-01T00:00:00Z",
+          occurred_at: "2026-06-01T00:00:00Z",
         }),
       ]),
       makeDayGroup("2025-01-01", "Wednesday, January 1, 2025", [
@@ -77,6 +81,7 @@ describe("EventTimeline", () => {
           summary: "Trailer dropped.",
           event_type: "trailer",
           created_at: "2026-06-01T00:00:00Z",
+          occurred_at: "2026-06-01T00:00:00Z",
         }),
       ]),
       makeDayGroup("2025-01-01", "Wednesday, January 1, 2025", [
@@ -147,6 +152,25 @@ describe("EventTimeline", () => {
     expect(screen.getByText(/TMDB event/)).toBeInTheDocument();
     expect(screen.getByText(/In the news/i)).toBeInTheDocument();
     expect(screen.getByText(/unconfirmed updates/i)).toBeInTheDocument();
+  });
+
+  it("hands each card its day, so only a backdated beat discloses first seen", async () => {
+    renderTimeline([
+      {
+        day: "2026-06-01",
+        heading: "Monday, June 1, 2026",
+        news_events: [
+          makeEvent({ summary: "Same-day beat.", occurred_at: "2026-06-01T08:00:00Z" }),
+        ],
+        tmdb_events: [
+          makeEvent({ summary: "Backdated beat.", occurred_at: "2026-05-25T12:00:00Z" }),
+        ],
+      },
+    ]);
+    await screen.findByText(/Backdated beat/);
+    const lines = screen.getAllByText(/first seen/);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toHaveTextContent("first seen May 25, 2026");
   });
 
   it("renders section label even when only one subgroup is present", async () => {

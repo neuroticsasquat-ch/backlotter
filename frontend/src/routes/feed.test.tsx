@@ -34,8 +34,11 @@ const feed: FeedDayResponse = {
           event_type: "trailer",
           confidence: "confirmed",
           created_at: "2026-06-23T12:00:00Z",
+          occurred_at: "2026-06-23T12:00:00Z",
           summary: "The first trailer for The Odyssey was released.",
           summary_edited: false,
+          status: "published",
+          superseded_by: null,
           provenance: "story",
           sources: [],
         },
@@ -326,8 +329,11 @@ describe("feed day sections", () => {
               event_type: "trailer",
               confidence: "confirmed",
               created_at: "2026-06-23T10:00:00Z",
+              occurred_at: "2026-06-23T10:00:00Z",
               summary: "First trailer released.",
               summary_edited: false,
+              status: "published",
+              superseded_by: null,
               provenance: "story",
               sources: [
                 {

@@ -111,8 +111,11 @@ describe("FeedDayCard", () => {
           event_type: "trailer",
           confidence: "confirmed",
           created_at: "2026-06-23T12:00:00Z",
+          occurred_at: "2026-06-23T12:00:00Z",
           summary: "Trailer released.",
           summary_edited: false,
+          status: "published",
+          superseded_by: null,
           provenance: "story",
           sources: [],
         },
@@ -121,8 +124,11 @@ describe("FeedDayCard", () => {
           event_type: "casting",
           confidence: "rumored",
           created_at: "2026-06-23T12:00:00Z",
+          occurred_at: "2026-06-23T12:00:00Z",
           summary: "Actor cast.",
           summary_edited: false,
+          status: "published",
+          superseded_by: null,
           provenance: "story",
           sources: [],
         },
@@ -140,8 +146,11 @@ describe("FeedDayCard", () => {
           event_type: "release_date",
           confidence: "confirmed",
           created_at: "2026-06-23T12:00:00Z",
+          occurred_at: "2026-06-23T12:00:00Z",
           summary: "Date set.",
           summary_edited: false,
+          status: "published",
+          superseded_by: null,
           provenance: "story",
           sources: [],
         },
@@ -185,8 +194,11 @@ describe("FeedDayCard", () => {
           event_type: "release_date",
           confidence: "confirmed",
           created_at: "2026-06-23T12:00:00Z",
+          occurred_at: "2026-06-23T12:00:00Z",
           summary: "Date set.",
           summary_edited: false,
+          status: "published",
+          superseded_by: null,
           provenance: "story",
           sources: [],
         },
@@ -265,8 +277,11 @@ describe("FeedDayCard", () => {
           event_type: "trailer",
           confidence: "confirmed",
           created_at: "2026-06-23T12:00:00Z",
+          occurred_at: "2026-06-23T12:00:00Z",
           summary: "Trailer released.",
           summary_edited: false,
+          status: "published",
+          superseded_by: null,
           provenance: "story",
           sources: [],
         },
@@ -292,8 +307,11 @@ describe("FeedDayCard", () => {
           event_type: "trailer",
           confidence: "confirmed",
           created_at: "2026-06-23T12:00:00Z",
+          occurred_at: "2026-06-23T12:00:00Z",
           summary: "The official trailer was released.",
           summary_edited: false,
+          status: "published",
+          superseded_by: null,
           provenance: "story",
           sources: [],
         },
@@ -301,6 +319,89 @@ describe("FeedDayCard", () => {
     });
     expect(screen.getByText("Trailer")).toBeInTheDocument();
     expect(screen.getByText("The official trailer was released.")).toBeInTheDocument();
+  });
+
+  it("badges every event's confidence (D-9)", () => {
+    renderCard({
+      events: [
+        {
+          event_id: "evt-c",
+          event_type: "trailer",
+          confidence: "confirmed",
+          created_at: "2026-06-23T12:00:00Z",
+          occurred_at: "2026-06-23T12:00:00Z",
+          summary: "Trailer released.",
+          summary_edited: false,
+          status: "published",
+          superseded_by: null,
+          provenance: "story",
+          sources: [],
+        },
+        {
+          event_id: "evt-r",
+          event_type: "casting",
+          confidence: "rumored",
+          created_at: "2026-06-23T12:00:00Z",
+          occurred_at: "2026-06-23T12:00:00Z",
+          summary: "Actor cast.",
+          summary_edited: false,
+          status: "published",
+          superseded_by: null,
+          provenance: "story",
+          sources: [],
+        },
+      ],
+    });
+    expect(screen.getByText("confirmed")).toBeInTheDocument();
+    expect(screen.getByText("unconfirmed")).toBeInTheDocument();
+  });
+
+  it("links a superseded event's 'later retracted' marker to the retraction on the film page", () => {
+    // The feed row ships only this day's events, so the retraction is not on this page (D-2).
+    renderCard({
+      events: [
+        {
+          event_id: "evt-old",
+          event_type: "casting",
+          confidence: "confirmed",
+          created_at: "2026-06-23T12:00:00Z",
+          occurred_at: "2026-06-23T12:00:00Z",
+          summary: "Actor cast.",
+          summary_edited: false,
+          status: "superseded",
+          superseded_by: "evt-removal",
+          provenance: "catalog",
+          sources: [],
+        },
+      ],
+    });
+    const marker = screen.getByRole("link", { name: /later retracted/i });
+    expect(marker).toHaveAttribute("href", "/film/the-odyssey-2026#event-evt-removal");
+    expect(screen.getByText("Actor cast.")).toBeInTheDocument();
+  });
+
+  it("renders no retraction marker or first-seen line on a published feed event", () => {
+    // The feed is a publication log (ADR-0016): the day heading is when it was published, and
+    // the first-seen disclosure is the film page's alone.
+    renderCard({
+      events: [
+        {
+          event_id: "evt-p",
+          event_type: "casting",
+          confidence: "confirmed",
+          created_at: "2026-06-23T12:00:00Z",
+          occurred_at: "2026-06-16T12:00:00Z",
+          summary: "Actor cast.",
+          summary_edited: false,
+          status: "published",
+          superseded_by: null,
+          provenance: "story",
+          sources: [],
+        },
+      ],
+    });
+    expect(screen.queryByText(/later retracted/i)).toBeNull();
+    expect(screen.queryByText(/first seen/i)).toBeNull();
   });
 
   it("renders source chips for an event with sources", () => {
@@ -311,8 +412,11 @@ describe("FeedDayCard", () => {
           event_type: "casting",
           confidence: "rumored",
           created_at: "2026-06-23T12:00:00Z",
+          occurred_at: "2026-06-23T12:00:00Z",
           summary: "New actor cast.",
           summary_edited: false,
+          status: "published",
+          superseded_by: null,
           provenance: "story",
           sources: [
             {

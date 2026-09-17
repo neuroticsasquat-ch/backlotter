@@ -44,3 +44,21 @@ export function eventTypeLabel(eventType: string): string {
       .join(" ")
   );
 }
+
+/** Display label for an event's confidence (D-9). The backend's vocabulary is `confirmed` |
+ *  `rumored`; the card reads `confirmed` / `unconfirmed`, matching UNCONFIRMED_UPDATES_LABEL.
+ *  Anything that is not `confirmed` reads as unconfirmed — a value the frontend doesn't know
+ *  must never be promoted to confirmed. */
+export function confidenceLabel(confidence: string): "confirmed" | "unconfirmed" {
+  return confidence === "confirmed" ? "confirmed" : "unconfirmed";
+}
+
+/** Marker on an event a later event retracted (D-2). The original stays in place on every
+ *  surface; this is the whole of the change to it. */
+export const RETRACTED_LABEL = "later retracted";
+
+/** The DOM id every event card carries, so a retraction marker can anchor to the card that
+ *  superseded it — on the same film page, or from the feed via `/film/<ref>#<id>`. */
+export function eventAnchorId(eventId: string): string {
+  return `event-${eventId}`;
+}

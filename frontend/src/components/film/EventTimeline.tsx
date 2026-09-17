@@ -5,18 +5,19 @@ import { EventCard } from "./EventCard";
 
 const SECTION_BREAK = "border-t border-border pt-4 [&:not(:first-child)]:mt-5";
 
-function TmdbSubSection({ events }: { events: FilmEvent[] }) {
+function TmdbSubSection({ events, day }: { events: FilmEvent[]; day: string }) {
   return (
     <div className={SECTION_BREAK}>
       <h4 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
         {UNCONFIRMED_UPDATES_LABEL}
       </h4>
-      <EventList events={events} />
+      <EventList events={events} day={day} />
     </div>
   );
 }
 
-function EventList({ events }: { events: FilmEvent[] }) {
+/** `day` is the group's heading date, handed to each card for its first-seen disclosure. */
+function EventList({ events, day }: { events: FilmEvent[]; day: string }) {
   return (
     <ol className="mt-2 space-y-4">
       {events.map((event, i) => (
@@ -24,7 +25,7 @@ function EventList({ events }: { events: FilmEvent[] }) {
           key={`${event.event_type}-${event.created_at}-${i}`}
           className="border-l-2 border-border pl-3"
         >
-          <EventCard event={event} />
+          <EventCard event={event} day={day} />
         </li>
       ))}
     </ol>
@@ -56,10 +57,10 @@ export function EventTimeline({ dayGroups }: { dayGroups: FilmDayGroup[] }) {
                       <h4 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
                         In the news
                       </h4>
-                      <EventList events={group.news_events} />
+                      <EventList events={group.news_events} day={group.day} />
                     </div>
                   )}
-                  {hasTmdb && <TmdbSubSection events={group.tmdb_events} />}
+                  {hasTmdb && <TmdbSubSection events={group.tmdb_events} day={group.day} />}
                 </div>
               </section>
             );

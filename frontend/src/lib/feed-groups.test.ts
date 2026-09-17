@@ -126,8 +126,11 @@ function event(created_at: string, summary: string): FilmEvent {
     event_type: "casting",
     confidence: "confirmed",
     created_at,
+    occurred_at: created_at,
     summary,
     summary_edited: false,
+    status: "published",
+    superseded_by: null,
     provenance: "story",
     sources: [],
   };

@@ -85,14 +85,25 @@ export interface FilmSource {
  *  change with no story behind it, so its `sources` may legitimately be empty. */
 export type EventProvenance = "story" | "catalog";
 
+/** Whether a claim still stands. A `superseded` event was later retracted by the event in
+ *  `superseded_by` (D-2). It still renders in place on every surface — marked, never hidden. */
+export type EventStatus = "published" | "superseded";
+
 export interface FilmEvent {
   event_id: string;
   event_type: string;
-  confidence: string; // "confirmed" | "rumored" (backend free text; rendered via a map)
+  confidence: string; // "confirmed" | "rumored" (backend free text; rendered via confidenceLabel)
   created_at: string;
+  // When the beat itself happened, as against `created_at` when it was carded. The film page
+  // discloses it as a "first seen" line when it falls outside the day heading (D-9, ADR-0016).
+  occurred_at: string;
   summary: string;
   summary_edited: boolean;
   provenance: EventProvenance;
+  status: EventStatus;
+  // The event_id of the retraction that superseded this one; null unless `status` is
+  // "superseded". The card anchors its "later retracted" marker to that event.
+  superseded_by: string | null;
   sources: FilmSource[];
 }
 
