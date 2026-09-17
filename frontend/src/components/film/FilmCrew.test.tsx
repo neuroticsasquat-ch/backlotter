@@ -1,5 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createRoutesStub } from "react-router";
+import { AuthProvider } from "@/components/AuthContext";
 import { FilmCrew } from "@/components/film/FilmCrew";
 import type { CrewMember } from "@/api/types";
 
@@ -27,5 +30,44 @@ describe("FilmCrew", () => {
   it("renders nothing when crew is empty", () => {
     const { container } = render(<FilmCrew crew={[]} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  describe("follow buttons", () => {
+    const identified: CrewMember[] = [
+      { name: "Greta Gerwig", job: "Director", department: "Directing", person_id: 45400 },
+      {
+        name: "Linus Sandgren",
+        job: "Director of Photography",
+        department: "Camera",
+        person_id: 1,
+      },
+    ];
+
+    it("offers one on a seed-grade credit and none on the rest", async () => {
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const Stub = createRoutesStub([
+        { path: "/", Component: () => <FilmCrew crew={identified} /> },
+      ]);
+      render(
+        <QueryClientProvider client={qc}>
+          <AuthProvider>
+            <Stub initialEntries={["/"]} />
+          </AuthProvider>
+        </QueryClientProvider>,
+      );
+
+      // A director follow puts this film's events on the timeline (D-11); a cinematographer
+      // follow would not, so that row stays a name.
+      expect(
+        await screen.findByRole("link", { name: /sign in to follow greta gerwig/i }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /linus sandgren/i })).not.toBeInTheDocument();
+    });
+
+    it("renders no button for crew the payload does not identify", () => {
+      const { container } = render(<FilmCrew crew={crew} />);
+      expect(container.querySelectorAll("a")).toHaveLength(0);
+      expect(container.querySelectorAll("button")).toHaveLength(0);
+    });
   });
 });

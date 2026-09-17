@@ -121,6 +121,18 @@ export interface EditSummaryResponse {
 
 export interface FilmCollection {
   name: string;
+  // TMDB collection id — the `franchise` entity id in the follow graph (D-10). Optional
+  // for the same reason as the other ids on this DTO; see {@link FilmDetail.id}.
+  id?: number;
+}
+
+/** A production company as the page lists it: the name, plus the TMDB company id a `company`
+ *  follow keys on where the payload carries one. The id is optional for the same reason as the
+ *  rest of them — see {@link FilmDetail.id} — and a company without one renders as a name with
+ *  no follow button. */
+export interface FilmCompany {
+  name: string;
+  id?: number;
 }
 
 export interface ReleaseDate {
@@ -135,12 +147,17 @@ export interface CastMember {
   name: string;
   character: string | null;
   profile_path: string | null; // raw TMDB path; FE builds the URL via profileUrl()
+  // TMDB person id (= `catalog.person`'s PK), the `person` entity id in the follow graph
+  // (D-10). Optional; see {@link FilmDetail.id}.
+  person_id?: number;
 }
 
 export interface CrewMember {
   name: string;
   job: string | null;
   department: string | null;
+  // TMDB person id, as on {@link CastMember}.
+  person_id?: number;
 }
 
 /** A day's events on a film page, split into news-backed and TMDB-only subgroups (NEU-1201). */
@@ -155,6 +172,15 @@ export interface FilmDetail {
   // `<tmdb_id>-<slug-of-current-title>`, the film's canonical URL segment. Resolved on the
   // leading id, so the trailing half is decorative and follows the current title (NEU-1143).
   ref: string;
+  // `catalog.film`'s UUID — the id `/me/watchlist` takes and the `title` entity id in the
+  // follow graph (D-10). The public film DTO does not carry it, or any of the other entity
+  // ids on this interface, yet: `/films/{ref}` answers with display names alone, so the film
+  // page can only offer a follow button for an entity the payload actually identifies. Every
+  // such id is therefore optional and every affordance that needs one renders only when it is
+  // present — today none are, so the page is unchanged until the backend widens the DTO, and
+  // lights up per entity as it does. Deploys are independent in either direction, so this
+  // stays optional even after that lands.
+  id?: string;
   title: string;
   tmdb_id: number;
   imdb_id: string | null;
@@ -175,6 +201,15 @@ export interface FilmDetail {
   original_language: string | null;
   backdrop_path: string | null;
   production_companies: string[];
+  // The same companies as `production_companies`, carrying the TMDB company id that a
+  // `company` follow needs (D-10). Optional; see {@link FilmDetail.id}. The page reads the
+  // names from whichever of the two it is given, never both, so the list is rendered once.
+  //
+  // This spelling — a new field beside the names rather than `production_companies` widened
+  // into objects — is the shape the backend ticket for those ids should implement, and it is
+  // the one that needs no flag day: the names keep their type, so an older frontend and a
+  // newer backend still agree.
+  companies?: FilmCompany[];
   collection: FilmCollection | null;
   release_dates: ReleaseDate[];
   alternative_titles: string[];
@@ -271,4 +306,53 @@ export interface SourceDomain {
   llm_reason: string | null;
   admin_override: SourceOverride;
   updated_at: string;
+}
+
+// --- The follow graph and the watchlist (NEU-1353, M3 contracts) ---
+
+/** What can be followed (D-10). `franchise` is a TMDB collection, `title` a `catalog.film`. */
+export type FollowEntityType = "person" | "company" | "franchise" | "title";
+
+/** How a follow came to exist. `derived` and the two import values are written by the
+ *  backend; anything this app creates is `manual`. */
+export type FollowSource = "manual" | "letterboxd_import" | "tmdb_import" | "derived";
+
+export interface Follow {
+  entity_type: FollowEntityType;
+  // A TMDB id for `person` / `company` / `franchise`, a film UUID for `title` — a string in
+  // every case, because that is how the backend stores and compares them (its
+  // `normalise_entity_id`). Compare as strings here too, never as numbers.
+  entity_id: string;
+  source: FollowSource;
+  created_at: string;
+}
+
+export interface FollowListResponse {
+  items: Follow[];
+}
+
+/** Which availability beats a watchlist item alerts on (D-14). */
+export type AlertPref = "buy" | "rent" | "stream";
+
+/** Enough of a film to render a watchlist row without a request per item. */
+export interface WatchlistFilm {
+  id: string;
+  tmdb_id: number;
+  slug: string | null;
+  title: string;
+  poster_path: string | null;
+  release_date: string | null;
+}
+
+export interface WatchlistItem {
+  film: WatchlistFilm;
+  // `manual` or `derived_from_follow` — the follow graph adds films on its own (D-13), and
+  // removing a derived one records a dismissal so it is not added back.
+  source: string;
+  alert_prefs: AlertPref[];
+  created_at: string;
+}
+
+export interface WatchlistListResponse {
+  items: WatchlistItem[];
 }

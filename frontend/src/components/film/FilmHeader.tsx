@@ -1,6 +1,9 @@
 import type { FilmDetail } from "@/api/types";
 import { formatRuntime, pickRating } from "@/lib/format";
 import { posterUrl } from "@/lib/poster";
+import { collectionTarget, titleTarget, watchlistFilm } from "@/lib/film-entities";
+import { FollowButton } from "@/components/follow/FollowButton";
+import { WatchlistButton } from "@/components/follow/WatchlistButton";
 import { ArcStepper } from "./ArcStepper";
 import { ExternalLinks } from "./ExternalLinks";
 
@@ -13,11 +16,16 @@ import { ExternalLinks } from "./ExternalLinks";
  *  The spec sheet is the complete structured record — it caps nothing, and the title
  *  parenthetical stays year-only here so the director is not repeated 100px above its own
  *  labelled row.
- *  Production companies render in their own collapsible section below the cast. */
+ *  Production companies render in their own collapsible section below the cast.
+ *  The watchlist toggle and the title's follow button sit under the title, and the
+ *  collection gets a labelled row of its own with the franchise follow (NEU-1353). */
 export function FilmHeader({ film }: { film: FilmDetail }) {
   const poster = posterUrl(film.poster_path, "w342");
   const runtime = film.runtime != null && film.runtime > 0 ? formatRuntime(film.runtime) : null;
   const rating = pickRating(film.release_dates);
+  const watchlistRow = watchlistFilm(film);
+  const followTitle = titleTarget(film);
+  const followCollection = collectionTarget(film.collection);
 
   const billing: [string, string[]][] = (
     [
@@ -41,6 +49,13 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
           <span className="text-2xl font-normal text-muted-foreground">({film.release_year})</span>
         )}
       </div>
+
+      {(watchlistRow || followTitle) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {watchlistRow && <WatchlistButton film={watchlistRow} />}
+          {followTitle && <FollowButton target={followTitle} />}
+        </div>
+      )}
 
       <div className="mt-4 flex items-start gap-4">
         {poster && (
@@ -80,6 +95,15 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
             </dd>
           </div>
         ))}
+        {film.collection && (
+          <>
+            <dt className="text-muted-foreground">Collection</dt>
+            <dd className="flex flex-wrap items-center gap-2">
+              <span>{film.collection.name}</span>
+              {followCollection && <FollowButton target={followCollection} />}
+            </dd>
+          </>
+        )}
         {runtime && (
           <>
             <dt className="text-muted-foreground">Runtime</dt>

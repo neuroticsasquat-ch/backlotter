@@ -6,6 +6,7 @@ import { cloudflareContext } from "@/lib/load-context";
 import { ssrOriginHeaders } from "@/lib/ssr-origin";
 import { buildMeta } from "@/lib/seo";
 import { posterUrl } from "@/lib/poster";
+import { filmCompanies } from "@/lib/film-entities";
 import { truncate } from "@/lib/format";
 import { FilmHeader } from "@/components/film/FilmHeader";
 import { FilmCredits } from "@/components/film/FilmCredits";
@@ -76,7 +77,7 @@ export default function FilmPage({ loaderData }: Route.ComponentProps) {
         <FilmPlot overview={film.overview} />
         <FilmCredits cast={film.cast} />
         <FilmCrew crew={film.crew} />
-        <ProductionCompanies companies={film.production_companies} />
+        <ProductionCompanies companies={filmCompanies(film)} />
         <EventTimeline dayGroups={film.day_groups} />
       </div>
     </main>

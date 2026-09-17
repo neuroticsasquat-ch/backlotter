@@ -1,5 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createRoutesStub } from "react-router";
+import { server } from "@/test/msw/server";
+import { meHandler } from "@/test/msw/me";
+import { followGraphHandlers } from "@/test/msw/follows";
+import { AuthProvider } from "@/components/AuthContext";
 import { FilmHeader } from "@/components/film/FilmHeader";
 import type { FilmDetail } from "@/api/types";
 
@@ -160,5 +166,57 @@ describe("FilmHeader", () => {
     render(<FilmHeader film={film} />);
     expect(screen.getByRole("link", { name: /imdb/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /tmdb/i })).toBeInTheDocument();
+  });
+});
+
+describe("FilmHeader follow affordances", () => {
+  const FILM_ID = "11111111-1111-4111-8111-111111111111";
+
+  function renderHeader(overrides: Partial<FilmDetail> = {}) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Stub = createRoutesStub([
+      { path: "/film/:ref", Component: () => <FilmHeader film={{ ...film, ...overrides }} /> },
+    ]);
+    return render(
+      <QueryClientProvider client={qc}>
+        <AuthProvider>
+          <Stub initialEntries={["/film/the-odyssey-2026"]} />
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+  }
+
+  it("offers the watchlist toggle and the title follow once the film carries an id", async () => {
+    server.use(meHandler({ entitled: true }), ...followGraphHandlers().handlers);
+    renderHeader({ id: FILM_ID });
+
+    expect(
+      await screen.findByRole("button", { name: /add the odyssey to your watchlist/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^follow the odyssey$/i })).toBeInTheDocument();
+  });
+
+  it("offers neither while the payload carries no film id", () => {
+    // Today's payload: the affordances are absent rather than inert, so the header reads
+    // exactly as it did before.
+    renderHeader();
+    expect(screen.queryByRole("button", { name: /watchlist/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /watchlist/i })).not.toBeInTheDocument();
+  });
+
+  it("names the collection, with a follow button when it is identified", async () => {
+    server.use(meHandler({ entitled: true }), ...followGraphHandlers().handlers);
+    renderHeader({ collection: { name: "The Odyssey Collection", id: 726871 } });
+
+    expect(screen.getByText("Collection")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /follow the odyssey collection/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("names a collection with no id without offering a follow", () => {
+    renderHeader({ collection: { name: "The Odyssey Collection" } });
+    expect(screen.getByText("The Odyssey Collection")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /follow/i })).not.toBeInTheDocument();
   });
 });
