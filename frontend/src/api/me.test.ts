@@ -8,6 +8,7 @@ import {
   createFollow,
   deleteFollow,
   fetchFollows,
+  fetchTimeline,
   fetchWatchlist,
   addToWatchlist,
   isEntitlementError,
@@ -114,5 +115,53 @@ describe("watchlist fetchers", () => {
     server.use(...entitlementRequiredHandlers());
 
     await expect(addToWatchlist(FILM_ID)).rejects.toSatisfy(isEntitlementError);
+  });
+});
+
+describe("timeline fetcher", () => {
+  it("pages through query parameters the backend's grouped contract understands", async () => {
+    let url: URL | undefined;
+    server.use(
+      http.get(`${base}/me/timeline`, ({ request }) => {
+        url = new URL(request.url);
+        return HttpResponse.json({ items: [], total: 0, limit: 10, offset: 20 });
+      }),
+    );
+
+    await fetchTimeline({ limit: 10, offset: 20 });
+
+    expect(url?.pathname).toBe("/me/timeline");
+    expect(url?.searchParams.get("limit")).toBe("10");
+    expect(url?.searchParams.get("offset")).toBe("20");
+  });
+
+  it("returns the grouped feed shape unchanged, so the feed components can render it", async () => {
+    // NEU-1351's contract: `/me/timeline` answers exactly as `/feed/grouped` does. Anything
+    // that had to be translated here would mean the two surfaces had drifted.
+    server.use(
+      http.get(`${base}/me/timeline`, () =>
+        HttpResponse.json({
+          items: [{ film_ref: "a-film", day: "2026-06-23" }],
+          total: 1,
+          limit: 10,
+          offset: 0,
+        }),
+      ),
+    );
+
+    const page = await fetchTimeline({ limit: 10, offset: 0 });
+
+    expect(page).toMatchObject({ total: 1, limit: 10, offset: 0 });
+    expect(page.items[0]).toMatchObject({ film_ref: "a-film", day: "2026-06-23" });
+  });
+
+  it("surfaces the entitlement 403 as an error the caller can recognise", async () => {
+    server.use(
+      http.get(`${base}/me/timeline`, () =>
+        HttpResponse.json({ detail: "entitlement_required" }, { status: 403 }),
+      ),
+    );
+
+    await expect(fetchTimeline({ limit: 10, offset: 0 })).rejects.toSatisfy(isEntitlementError);
   });
 });

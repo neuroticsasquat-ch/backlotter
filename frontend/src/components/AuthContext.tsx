@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as authApi from "@/api/auth";
 import { ApiError, setCsrfToken } from "@/api/client";
+import { timelineKey } from "@/api/query-keys";
 import type { AuthedUser } from "@/api/types";
 
 /**
@@ -79,6 +80,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     onSuccess: () => {
       setCsrfToken(null);
       qc.setQueryData(["me"], null);
+      // Dropped rather than invalidated: the next render of `/` is the global feed, which the
+      // loader already put in `loaderData`, so there is nothing to refetch — and leaving one
+      // reader's timeline in the cache would hand it to whoever signs in next on this tab.
+      qc.removeQueries({ queryKey: timelineKey });
     },
   });
 

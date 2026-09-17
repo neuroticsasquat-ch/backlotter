@@ -29,11 +29,15 @@ describe("GlobalHeader", () => {
     expect(screen.queryByRole("search")).toBeNull();
   });
 
-  it("renders Updates + Calendar in the inline primary navigation (no Browse/Search)", () => {
+  it("renders Updates + All updates + Calendar in the inline primary navigation (no Browse/Search)", () => {
     server.use(unauthMeHandler());
     renderHeader();
     const nav = screen.getByRole("navigation", { name: /primary navigation/i });
     expect(within(nav).getByRole("link", { name: /^updates$/i })).toHaveAttribute("href", "/");
+    expect(within(nav).getByRole("link", { name: /^all updates$/i })).toHaveAttribute(
+      "href",
+      "/feed",
+    );
     expect(within(nav).getByRole("link", { name: /^calendar$/i })).toHaveAttribute(
       "href",
       "/calendar",

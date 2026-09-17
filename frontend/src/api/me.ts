@@ -3,21 +3,16 @@ import { toast } from "sonner";
 import { useAuth } from "@/components/AuthContext";
 import type { FollowTarget } from "@/lib/film-entities";
 import { ApiError, apiFetch } from "./client";
+import { followsKey, timelineKey, timelinePageKey, watchlistKey } from "./query-keys";
 import type {
   AlertPref,
+  FeedDayResponse,
   Follow,
   FollowListResponse,
   WatchlistFilm,
   WatchlistItem,
   WatchlistListResponse,
 } from "./types";
-
-/** Query keys for the two collections this module owns. Both sit under `["me"]`, the account
- *  query's key, so `AuthContext.refresh()` — which invalidates that prefix — refreshes the
- *  follow graph alongside the account it belongs to. Exported so every caller spells them the
- *  same way; a key built inline at a call site is a cache that never gets updated. */
-export const followsKey = ["me", "follows"] as const;
-export const watchlistKey = ["me", "watchlist"] as const;
 
 export const fetchFollows = () => apiFetch<FollowListResponse>("/me/follows");
 
@@ -92,6 +87,29 @@ export function useWatchlist() {
   });
 }
 
+/** One page of the signed-in user's timeline: the grouped feed restricted to the films their
+ *  follows reach (NEU-1351). The response shape is `/feed/grouped`'s exactly, which is why the
+ *  home page can render it through the same components as the global feed. */
+export const fetchTimeline = ({ limit, offset }: { limit: number; offset: number }) =>
+  apiFetch<FeedDayResponse>(`/me/timeline?limit=${limit}&offset=${offset}`);
+
+/** The timeline page the home route swaps to once the account resolves as entitled.
+ *
+ *  `refetchOnMount: "always"` for the same reason the account query has it: the reader
+ *  navigates away to a film page, follows somebody, and comes back, and the timeline they
+ *  return to has to be the one that follow just changed. The follow mutations invalidate
+ *  `timelineKey` too, which covers the case where they never leave the page. */
+export function useTimeline({ limit, offset }: { limit: number; offset: number }) {
+  const enabled = useFollowGraphEnabled();
+  return useQuery({
+    queryKey: timelinePageKey(limit, offset),
+    queryFn: () => fetchTimeline({ limit, offset }),
+    enabled,
+    staleTime: 60_000,
+    refetchOnMount: "always",
+  });
+}
+
 const sameEntity = (follow: Follow, target: FollowTarget) =>
   follow.entity_type === target.entityType && follow.entity_id === target.entityId;
 
@@ -154,6 +172,13 @@ export function useToggleFollow() {
       }
       toast.error(error instanceof Error ? error.message : "Failed to update your follows");
     },
+    // The timeline is the feed filtered by exactly this list (D-11), so a follow that *lands*
+    // changes which films belong on it. Invalidating every page of it rather than patching one
+    // keeps the reader from having to guess why a newly followed director's day is missing.
+    // On success only, unlike the follows list below: a failed follow is rolled back to the
+    // graph the timeline was already built from, so re-reading it would fetch the same days.
+    // The watchlist has no such line at all — it does not feed the timeline.
+    onSuccess: () => qc.invalidateQueries({ queryKey: timelineKey }),
     onSettled: () => qc.invalidateQueries({ queryKey: followsKey }),
   });
 }

@@ -20,11 +20,15 @@ describe("NavMenu", () => {
     expect(screen.getByLabelText(/open menu/i)).toBeInTheDocument();
   });
 
-  it("renders the collapsed nav links (Updates + Calendar) under the mobile nav landmark", () => {
+  it("renders the collapsed nav links (Updates + All updates + Calendar) under the mobile nav landmark", () => {
     server.use(unauthMeHandler());
     renderMenu();
     const nav = screen.getByRole("navigation", { name: /mobile navigation/i });
     expect(within(nav).getByRole("link", { name: /^updates$/i })).toHaveAttribute("href", "/");
+    expect(within(nav).getByRole("link", { name: /^all updates$/i })).toHaveAttribute(
+      "href",
+      "/feed",
+    );
     expect(within(nav).getByRole("link", { name: /^calendar$/i })).toHaveAttribute(
       "href",
       "/calendar",
