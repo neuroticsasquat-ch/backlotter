@@ -7,8 +7,37 @@ export interface AuthedUser {
   // yes/no and not the timestamp (M1 contract). Present on every authed response, so the
   // signup and login replies populate it too, not just `GET /me`.
   email_verified: boolean;
+  // Derived server-side from `entitled_until` on the same terms and for the same reason
+  // (D-41): the context branches on a yes/no — locked panel or timeline — and the grant's
+  // end date is the admin surface's business, not the account holder's. Rides every authed
+  // response, so a grant made mid-session takes effect on the next `/me` rather than
+  // needing a sign-out.
+  entitled: boolean;
   created_at: string;
   csrf_token: string;
+}
+
+/** One account as the admin grant page sees it. Distinct from {@link AuthedUser}, which is
+ *  the account holder's view of themselves: this carries the raw `entitled_until` and
+ *  `email_verified_at` timestamps rather than the booleans derived from them, because an
+ *  admin deciding whether to extend a grant is asking *when*, not *whether*. Mirrors the
+ *  backend `AdminUserOut` (D-38). */
+export interface AdminUser {
+  id: string;
+  email: string;
+  is_admin: boolean;
+  email_verified_at: string | null;
+  entitled_until: string | null;
+  created_at: string;
+}
+
+/** A page of accounts plus the total it was drawn from, so a search can be paged without
+ *  the caller having to know its result count up front. */
+export interface AdminUserPage {
+  items: AdminUser[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export type IngestRunKind = "tmdb" | "feeds" | "link" | "synthesize" | "sweep";

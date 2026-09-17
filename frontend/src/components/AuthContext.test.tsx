@@ -14,6 +14,7 @@ const AUTHED_USER = {
   display_name: "Alice",
   is_admin: false,
   email_verified: false,
+  entitled: true,
   created_at: new Date().toISOString(),
   csrf_token: "tok-abc",
 };
@@ -30,6 +31,14 @@ function ProbeVerified() {
   const { user } = useAuth();
   if (!user) return null;
   return <div>verified: {String(user.email_verified)}</div>;
+}
+
+/** `entitled` is the flag every gated surface branches on (D-41). Like `email_verified` it
+ *  rides every authed response, so a grant takes effect on the next `/me` without a sign-out. */
+function ProbeEntitled() {
+  const { user } = useAuth();
+  if (!user) return null;
+  return <div>entitled: {String(user.entitled)}</div>;
 }
 
 function LoginButton() {
@@ -89,5 +98,32 @@ describe("AuthContext", () => {
     server.use(meHandler({ email_verified: true }));
     renderWithProviders(<ProbeVerified />);
     expect(await screen.findByText("verified: true")).toBeInTheDocument();
+  });
+
+  it("exposes entitled: false for an account nobody has granted access to", async () => {
+    // The default for every signup (D-37) — closed until an admin grants it by hand.
+    server.use(meHandler());
+    renderWithProviders(<ProbeEntitled />);
+    expect(await screen.findByText("entitled: false")).toBeInTheDocument();
+  });
+
+  it("exposes entitled: true for a granted account", async () => {
+    server.use(meHandler({ entitled: true }));
+    renderWithProviders(<ProbeEntitled />);
+    expect(await screen.findByText("entitled: true")).toBeInTheDocument();
+  });
+
+  it("carries entitled from the login reply, without re-reading /me", async () => {
+    server.use(http.post(`${env.apiBaseUrl}/auth/login`, () => HttpResponse.json(AUTHED_USER)));
+
+    renderWithProviders(
+      <>
+        <ProbeEntitled />
+        <LoginButton />
+      </>,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "login" }));
+
+    expect(await screen.findByText("entitled: true")).toBeInTheDocument();
   });
 });

@@ -23,6 +23,7 @@ export default [
         layout("components/layout/AdminLayout.tsx", [
           route("admin/ingest", "pages/AdminIngest.tsx"),
           route("admin/sources", "pages/AdminSources.tsx"),
+          route("admin/users", "pages/AdminUsers.tsx"),
         ]),
       ]),
     ]),
