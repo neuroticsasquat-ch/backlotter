@@ -14,6 +14,7 @@ import { FilmCrew } from "@/components/film/FilmCrew";
 import { FilmPlot } from "@/components/film/FilmPlot";
 import { ProductionCompanies } from "@/components/film/ProductionCompanies";
 import { ReleaseDates } from "@/components/film/ReleaseDates";
+import { WhereToWatch } from "@/components/film/WhereToWatch";
 import { EventTimeline } from "@/components/film/EventTimeline";
 import type { FilmEvent } from "@/api/types";
 
@@ -74,6 +75,7 @@ export default function FilmPage({ loaderData }: Route.ComponentProps) {
       <FilmHeader film={film} />
       <div className="mt-6">
         <ReleaseDates dates={film.release_dates} />
+        <WhereToWatch box={film.where_to_watch} />
         <FilmPlot overview={film.overview} />
         <FilmCredits cast={film.cast} />
         <FilmCrew crew={film.crew} />

@@ -11,6 +11,12 @@ describe("eventTypeLabel", () => {
   it("maps crew_attached to sentence case, not the title-cased fallback", () => {
     expect(eventTypeLabel("crew_attached")).toBe("Crew attached");
   });
+
+  it("maps now_available to sentence case, not the title-cased fallback", () => {
+    // The home-release beat (D-28). Without the explicit entry the fallback renders
+    // "Now Available", which is the one word of difference the rest of the vocabulary avoids.
+    expect(eventTypeLabel("now_available")).toBe("Now available");
+  });
 });
 
 describe("arcStageLabel", () => {

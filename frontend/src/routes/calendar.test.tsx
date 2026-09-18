@@ -54,6 +54,50 @@ const calendarTwoDates: CalendarResponse = {
   offset: 0,
 };
 
+/** One date carrying all four buckets, in the order the backend returns them: wide, limited,
+ *  then the US home release (D-26). The page groups by adjacency, so the fixture's order is the
+ *  rendered order. */
+const calendarWithHomeRelease: CalendarResponse = {
+  items: [
+    {
+      film_ref: "the-odyssey-2026",
+      film_title: "The Odyssey",
+      release_year: 2026,
+      poster_path: null,
+      release_date: "2026-07-04",
+      release_type: "wide",
+      director: null,
+      stars: [],
+      genres: [],
+    },
+    {
+      film_ref: "dune-3-2026",
+      film_title: "Dune Part Three",
+      release_year: 2026,
+      poster_path: null,
+      release_date: "2026-07-04",
+      release_type: "digital",
+      director: null,
+      stars: [],
+      genres: [],
+    },
+    {
+      film_ref: "avatar-3-2026",
+      film_title: "Avatar 3",
+      release_year: 2025,
+      poster_path: null,
+      release_date: "2026-07-04",
+      release_type: "physical",
+      director: null,
+      stars: [],
+      genres: [],
+    },
+  ],
+  total: 1,
+  limit: 20,
+  offset: 0,
+};
+
 function contextWithEnv(env: Partial<AppEnv> = {}) {
   const context = new RouterContextProvider();
   context.set(cloudflareContext, { env: { API_BASE_URL: BACKEND, ...env } });
@@ -158,6 +202,29 @@ describe("calendar route render", () => {
     const timeEls = container.querySelectorAll("time");
     expect(timeEls[0].textContent).toMatch(/July 4, 2026/);
     expect(timeEls[timeEls.length - 1].textContent).toMatch(/July 11, 2026/);
+  });
+
+  it("renders the home-release buckets with their own labels, in backend order", async () => {
+    const Stub = createRoutesStub([
+      {
+        path: "/calendar",
+        Component: CalendarPage,
+        loader: () => ({ calendar: calendarWithHomeRelease }),
+      },
+      { path: "/film/:slug", Component: () => null },
+    ]);
+    const { container } = render(<Stub initialEntries={["/calendar"]} />);
+
+    expect(await screen.findByText(/July 4, 2026/)).toBeInTheDocument();
+    expect(screen.getByText("Digital")).toBeInTheDocument();
+    expect(screen.getByText("Physical")).toBeInTheDocument();
+    // Each bucket is its own sub-group under the shared date, ordered as the backend sent them.
+    const groupLabels = Array.from(container.querySelectorAll("h5")).map((el) => el.textContent);
+    expect(groupLabels).toEqual(["Wide", "Digital", "Physical"]);
+    expect(screen.getByRole("link", { name: /Dune Part Three/ })).toHaveAttribute(
+      "href",
+      "/film/dune-3-2026",
+    );
   });
 
   it("loads the next page of dates when 'View more' is clicked (no autoload)", async () => {

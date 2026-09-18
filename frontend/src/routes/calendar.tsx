@@ -27,7 +27,7 @@ export function meta({ location }: Route.MetaArgs): Route.MetaDescriptors {
   return buildMeta({
     title: "Release Calendar",
     description:
-      "Upcoming movie releases by date — premieres, limited, and wide theatrical openings for every film we track.",
+      "Upcoming movie releases by date — limited and wide theatrical openings plus US digital and physical home releases for every film we track.",
     pathname: location.pathname,
     type: "website",
   });

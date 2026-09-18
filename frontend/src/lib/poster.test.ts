@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { posterSrcSet, posterUrl, profileUrl } from "@/lib/poster";
+import { logoUrl, posterSrcSet, posterUrl, profileUrl } from "@/lib/poster";
 
 describe("posterUrl", () => {
   it("builds a TMDB URL from a path and size", () => {
@@ -22,6 +22,20 @@ describe("profileUrl", () => {
 
   it("returns null when the path is null", () => {
     expect(profileUrl(null)).toBeNull();
+  });
+});
+
+describe("logoUrl", () => {
+  it("builds a TMDB provider logo URL at the default size", () => {
+    expect(logoUrl("/netflix.jpg")).toBe("https://image.tmdb.org/t/p/w92/netflix.jpg");
+  });
+
+  it("takes a wider size when asked", () => {
+    expect(logoUrl("/netflix.jpg", "w154")).toBe("https://image.tmdb.org/t/p/w154/netflix.jpg");
+  });
+
+  it("returns null for a provider with no logo", () => {
+    expect(logoUrl(null)).toBeNull();
   });
 });
 

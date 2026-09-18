@@ -26,6 +26,10 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   production_start: "Production start",
   production_wrap: "Production wrap",
   release_date: "Release date",
+  // Catalog-sourced, one card per (film, monetization type) the first time a poll sees the film
+  // on a provider (D-28). Spelled out here rather than left to the title-case fallback, which
+  // would render "Now Available".
+  now_available: "Now available",
   trailer: "Trailer",
   first_look: "First look",
   other: "Update",

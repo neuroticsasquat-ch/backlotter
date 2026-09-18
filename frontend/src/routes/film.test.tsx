@@ -90,6 +90,17 @@ const film: FilmDetail = {
   crew: [{ name: "Christopher Nolan", job: "Director", department: "Directing" }],
   tmdb_id: 603,
   imdb_id: "tt0133093",
+  where_to_watch: null,
+};
+
+/** The box the backend sends once a providers poll has found the film (D-29). */
+const whereToWatch: NonNullable<FilmDetail["where_to_watch"]> = {
+  region: "US",
+  flatrate: [{ id: 8, name: "Netflix", logo_path: "/netflix.jpg" }],
+  rent: [{ id: 2, name: "Apple TV", logo_path: "/appletv.jpg" }],
+  buy: [],
+  link: "https://www.themoviedb.org/movie/603/watch?locale=US",
+  attribution: "JustWatch",
 };
 
 function contextWithEnv(env: Partial<AppEnv> = {}) {
@@ -322,7 +333,7 @@ describe("film route render", () => {
         {
           country: "US",
           release_type: 3,
-          type_label: "Theatrical (limited)",
+          type_label: "Wide",
           date: "2026-06-25T00:00:00Z",
           certification: "PG-13",
         },
@@ -333,8 +344,70 @@ describe("film route render", () => {
     ]);
     renderStub(Stub, "/film/the-odyssey-2026");
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
-    expect(screen.getByText("Theatrical (limited)")).toBeInTheDocument();
+    expect(screen.getByText("Wide")).toBeInTheDocument();
     expect(screen.getByText("Jun 25, 2026")).toBeInTheDocument();
+  });
+
+  it("renders the US home-release rows alongside the theatrical ones", async () => {
+    const filmWithHomeRelease: FilmDetail = {
+      ...film,
+      release_dates: [
+        {
+          country: "US",
+          release_type: 3,
+          type_label: "Wide",
+          date: "2026-06-25T00:00:00Z",
+          certification: "PG-13",
+        },
+        {
+          country: "US",
+          release_type: 4,
+          type_label: "Digital",
+          date: "2026-08-12T00:00:00Z",
+          certification: null,
+        },
+        {
+          country: "US",
+          release_type: 5,
+          type_label: "Physical",
+          date: "2026-09-08T00:00:00Z",
+          certification: null,
+        },
+      ],
+    };
+    const Stub = createRoutesStub([
+      { path: "/film/:slug", Component: FilmPage, loader: () => ({ film: filmWithHomeRelease }) },
+    ]);
+    renderStub(Stub, "/film/the-odyssey-2026");
+    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
+    expect(screen.getByText("Digital")).toBeInTheDocument();
+    expect(screen.getByText("Aug 12, 2026")).toBeInTheDocument();
+    expect(screen.getByText("Physical")).toBeInTheDocument();
+    expect(screen.getByText("Sep 8, 2026")).toBeInTheDocument();
+  });
+
+  it("renders the where-to-watch box under the release dates when the film is carried", async () => {
+    const Stub = createRoutesStub([
+      {
+        path: "/film/:slug",
+        Component: FilmPage,
+        loader: () => ({ film: { ...film, where_to_watch: whereToWatch } }),
+      },
+    ]);
+    renderStub(Stub, "/film/the-odyssey-2026");
+    expect(await screen.findByRole("heading", { name: /where to watch/i })).toBeInTheDocument();
+    expect(screen.getByText("Netflix")).toBeInTheDocument();
+    expect(screen.getByText(/JustWatch/)).toBeInTheDocument();
+  });
+
+  it("omits the where-to-watch box when no poll has found the film", async () => {
+    const Stub = createRoutesStub([
+      { path: "/film/:slug", Component: FilmPage, loader: () => ({ film }) },
+    ]);
+    renderStub(Stub, "/film/the-odyssey-2026");
+    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /where to watch/i })).toBeNull();
+    expect(screen.queryByText(/JustWatch/)).toBeNull();
   });
 
   it("omits the release-dates heading when release_dates is empty", async () => {
