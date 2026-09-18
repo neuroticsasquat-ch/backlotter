@@ -223,3 +223,20 @@ it("leaves an ordinary story event unattributed", async () => {
   await screen.findByText("Bogus recast.");
   expect(screen.queryByText("via TMDB")).toBeNull();
 });
+
+// D-28: the body names providers ("Now streaming on Netflix."), so TMDB's terms want the
+// JustWatch credit here too — the film page's where-to-watch box is not the only surface that
+// names them (NEU-1402).
+it("credits JustWatch on a now_available card", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard({ event_type: "now_available", summary: "Now streaming on Netflix." });
+  await screen.findByText("Now streaming on Netflix.");
+  expect(screen.getByText(/JustWatch/)).toBeInTheDocument();
+});
+
+it("leaves every other beat without the attribution line", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard();
+  await screen.findByText("Bogus recast.");
+  expect(screen.queryByText(/JustWatch/)).toBeNull();
+});

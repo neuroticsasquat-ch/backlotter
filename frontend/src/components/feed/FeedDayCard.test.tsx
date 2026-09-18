@@ -431,4 +431,33 @@ describe("FeedDayCard", () => {
     });
     expect(screen.getByText("Deadline")).toBeInTheDocument();
   });
+
+  // D-28 bodies name providers on the feed and the timeline alike — both render through this
+  // card — so the JustWatch credit TMDB's terms require follows them here (NEU-1402). The row
+  // has no per-film TMDB watch link to offer, so the credit renders alone.
+  it("credits JustWatch on a row whose beats include now_available", () => {
+    renderCard({ top_event_type: "now_available", event_types: ["now_available"] });
+    expect(screen.getByText(/JustWatch/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /TMDB/i })).toBeNull();
+  });
+
+  // The real mixed shape, per the backend's feed builder: a film-day is split into a news row
+  // and a catalog row, and each derives `event_types` from its own events — so a now_available
+  // beat always rides the catalog row, which ships no events (NEU-1208) and renders its beats as
+  // badges. The credit belongs to the row, not to a summary line, and lands once either way.
+  it("credits it once on a catalog row carrying now_available alongside another beat", () => {
+    renderCard({
+      top_event_type: "trailer",
+      event_types: ["trailer", "now_available"],
+      event_count: 2,
+      events: [],
+    });
+    expect(screen.getByText("Now available")).toBeInTheDocument();
+    expect(screen.getAllByText(/JustWatch/)).toHaveLength(1);
+  });
+
+  it("leaves a row without now_available unattributed", () => {
+    renderCard();
+    expect(screen.queryByText(/JustWatch/)).toBeNull();
+  });
 });

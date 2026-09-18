@@ -7,6 +7,7 @@ import { deleteEvent, delinkSource, editSummary, resetSummary } from "@/api/mode
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { dayKey, formatEventDate } from "@/lib/format";
 import { RETRACTED_LABEL, confidenceLabel, eventAnchorId, eventTypeLabel } from "./labels";
+import { JustWatchAttribution } from "./JustWatchAttribution";
 import { SourceLinks } from "./SourceLinks";
 import { EditSummaryDialog } from "./EditSummaryDialog";
 
@@ -32,6 +33,11 @@ export function EventCard({ event, day }: { event: FilmEvent; day?: string }) {
   const isEdited = event.summary_edited || summaryOverride !== null;
   const confidence = confidenceLabel(event.confidence);
   const showFirstSeen = day !== undefined && dayKey(event.occurred_at) !== day;
+  // A now_available body names the providers a poll found the film on (D-28), which makes this
+  // card a surface where provider names render — and TMDB's terms want JustWatch credited on
+  // every one of them, not just the where-to-watch box. No link: the box gets TMDB's per-film
+  // watch page from `where_to_watch.link`, and an event carries no such field.
+  const showAttribution = event.event_type === "now_available";
 
   async function run(action: () => Promise<unknown>, ok: string) {
     setBusy(true);
@@ -82,6 +88,7 @@ export function EventCard({ event, day }: { event: FilmEvent; day?: string }) {
           first seen <time dateTime={event.occurred_at}>{formatEventDate(event.occurred_at)}</time>
         </p>
       ) : null}
+      {showAttribution ? <JustWatchAttribution /> : null}
       <SourceLinks
         sources={event.sources}
         admin={isAdmin}

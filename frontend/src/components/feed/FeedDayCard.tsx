@@ -6,6 +6,7 @@ import {
   eventAnchorId,
   eventTypeLabel,
 } from "@/components/film/labels";
+import { JustWatchAttribution } from "@/components/film/JustWatchAttribution";
 import { filmParenthetical } from "@/lib/format";
 
 const PILL =
@@ -30,6 +31,12 @@ const CONFIDENCE_PILL = {
  *  Zebra-striped within its section — a day that carries both news-backed and TMDB-only
  *  updates renders them as two lists, and the stripe restarts under each. */
 export function FeedDayCard({ item }: { item: FeedDayItem }) {
+  // A now_available beat's body names the providers a poll found the film on (D-28), so this row
+  // is a surface where provider names render and TMDB's terms want JustWatch credited on it.
+  // Keyed off `event_types` rather than the row's events, because a catalog row ships none
+  // (NEU-1208) and the badge set is all it has; once per row, whichever shape it takes. The row
+  // has no per-film watch link to pass — that is the film page's `where_to_watch.link`.
+  const showAttribution = item.event_types.includes("now_available");
   return (
     <div className="block rounded px-2 py-1.5 text-sm odd:bg-muted/40 hover:bg-muted">
       <Link
@@ -54,6 +61,11 @@ export function FeedDayCard({ item }: { item: FeedDayItem }) {
           {item.events.map((event) => (
             <FeedEvent key={event.event_id} event={event} filmRef={item.film_ref} />
           ))}
+        </div>
+      )}
+      {showAttribution && (
+        <div className="mt-1 pl-3">
+          <JustWatchAttribution />
         </div>
       )}
     </div>
