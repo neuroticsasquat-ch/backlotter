@@ -458,3 +458,58 @@ export interface ImportJob {
 export interface ImportJobStarted {
   job_id: string;
 }
+
+/** Where the resolver put a mention — `news.story_person.path`'s vocabulary (D-24). The
+ *  `/admin/resolution` filter narrows to exactly one of these; omitting it lists all four. */
+export type ResolutionPath = "accepted" | "tiebreak" | "unlinked" | "not_in_tmdb";
+
+/** The story a mention was extracted from — enough to go and read the sentence yourself. */
+export interface ResolutionStory {
+  id: string;
+  title: string;
+  url: string;
+  outlet: string | null;
+}
+
+/** The film the story is about. Null when the story's link was removed after the mention was
+ *  extracted, which leaves the decision standing and its film gone. */
+export interface ResolutionFilm {
+  id: string;
+  tmdb_id: number;
+  title: string;
+}
+
+/** One person the scorer considered, with the feature breakdown behind their score. Every
+ *  field is nullable because the backend reads these straight out of the `candidates` JSONB
+ *  and degrades an entry it cannot validate to an empty row rather than failing the page. */
+export interface ResolutionCandidate {
+  person_id: number | null;
+  name: string | null;
+  score: number | null;
+  features: Record<string, unknown>;
+}
+
+/** One decided mention, as `GET /admin/resolution` answers it (D-25). Read-only: corrections
+ *  are deliberately absent, because the next run re-derives every path from the scorer. */
+export interface ResolutionDecision {
+  id: string;
+  story: ResolutionStory;
+  film: ResolutionFilm | null;
+  name_as_written: string;
+  role: string | null;
+  department: string | null;
+  evidence_span: string | null;
+  path: ResolutionPath;
+  person_id: number | null;
+  confidence: number | null;
+  features: Record<string, unknown>;
+  candidates: ResolutionCandidate[];
+  resolved_at: string | null;
+}
+
+/** A page of decisions. Cursor-paged with no `total`, because the queue grows while it is
+ *  being read; `next_cursor` is null on the last page. */
+export interface ResolutionDecisionPage {
+  items: ResolutionDecision[];
+  next_cursor: string | null;
+}
