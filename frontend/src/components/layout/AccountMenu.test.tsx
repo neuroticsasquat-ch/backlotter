@@ -28,6 +28,14 @@ function renderMenu(user: Partial<AuthedUser> = {}, onLogout = vi.fn()) {
   return { onLogout };
 }
 
+/** The anonymous case: no account at all. */
+function renderAnonymous(at = "/film/wicked") {
+  const Stub = createRoutesStub([
+    { path: "*", Component: () => <AccountMenu user={null} onLogout={vi.fn()} /> },
+  ]);
+  render(<Stub initialEntries={[at]} />);
+}
+
 const trigger = () => screen.getByRole("button", { name: /account menu/i });
 const openMenu = async () => userEvent.click(trigger());
 
@@ -122,6 +130,42 @@ describe("AccountMenu", () => {
       await openMenu();
       expect(screen.getByRole("navigation", { name: /account navigation/i })).toBeInTheDocument();
       expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
+    });
+  });
+
+  /**
+   * An anonymous visitor gets the same control in the same place. The header used to render
+   * nothing for them, which left no way into the app from the site itself.
+   */
+  describe("an anonymous visitor", () => {
+    it("still gets an account menu", () => {
+      renderAnonymous();
+      expect(screen.getByRole("button", { name: /^account menu$/i })).toBeInTheDocument();
+    });
+
+    // There is no name or address to take initials from, so the avatar is a figure.
+    it("shows no initials on the avatar", () => {
+      renderAnonymous();
+      expect(screen.getByRole("button", { name: /^account menu$/i })).toHaveTextContent("");
+    });
+
+    it("offers Log in, and returns to the page they were on", async () => {
+      renderAnonymous("/film/wicked");
+      await userEvent.click(screen.getByRole("button", { name: /^account menu$/i }));
+
+      const login = screen.getByRole("link", { name: /log in/i });
+      expect(login).toHaveAttribute("href", `/login?next=${encodeURIComponent("/film/wicked")}`);
+    });
+
+    /** Sign up waits for there to be a subscription to sell (NEU-1409); the account links
+     *  obviously have no meaning without an account. */
+    it("offers nothing else", async () => {
+      renderAnonymous();
+      await userEvent.click(screen.getByRole("button", { name: /^account menu$/i }));
+
+      expect(screen.queryByRole("link", { name: /sign up/i })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Settings" })).toBeNull();
+      expect(screen.queryByRole("button", { name: /log out/i })).toBeNull();
     });
   });
 

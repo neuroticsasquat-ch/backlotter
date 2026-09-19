@@ -1,8 +1,13 @@
 import { useRef } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import * as Popover from "@radix-ui/react-popover";
 import type { AuthedUser } from "@/api/types";
 import { Avatar } from "@/components/ui/avatar";
+
+/** Shared by both states so the control does not shift when the account resolves. */
+const triggerClass =
+  "flex shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+const panelClass = "z-50 w-56 rounded-md border border-border bg-background p-1 shadow-lg";
 
 /**
  * The account control in the wide-viewport header: an avatar that opens a menu.
@@ -26,17 +31,49 @@ import { Avatar } from "@/components/ui/avatar";
  * stateless — the alternative, watching the location and calling `setOpen` from an effect,
  * is a cascading render for something the event already tells us.
  */
-export function AccountMenu({ user, onLogout }: { user: AuthedUser; onLogout: () => void }) {
+export function AccountMenu({ user, onLogout }: { user: AuthedUser | null; onLogout: () => void }) {
   const navRef = useRef<HTMLElement>(null);
+  const { pathname, search } = useLocation();
   const itemClass =
     "block w-full rounded px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
 
+  // An anonymous visitor gets the same control in the same place, holding the one thing
+  // they can do. The alternative the header used to take — rendering nothing at all — left
+  // no way into the app from the site itself; the admin had to type /login. A Sign up item
+  // joins this once there is a subscription to sell (NEU-1409).
+  if (!user) {
+    return (
+      <Popover.Root>
+        <Popover.Trigger aria-label="Account menu" className={triggerClass}>
+          <Avatar />
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content align="end" sideOffset={8} className={panelClass}>
+            <nav aria-label="Account navigation" className="py-1">
+              <ul className="flex flex-col">
+                <li>
+                  <Popover.Close asChild>
+                    {/* `next` so signing in returns the reader to the page they were on,
+                        the same contract `SignInToggle` uses on the follow buttons. */}
+                    <Link
+                      to={`/login?next=${encodeURIComponent(pathname + search)}`}
+                      className={itemClass}
+                    >
+                      Log in
+                    </Link>
+                  </Popover.Close>
+                </li>
+              </ul>
+            </nav>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+    );
+  }
+
   return (
     <Popover.Root>
-      <Popover.Trigger
-        aria-label={`${user.display_name} — account menu`}
-        className="flex shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      >
+      <Popover.Trigger aria-label={`${user.display_name} — account menu`} className={triggerClass}>
         <Avatar displayName={user.display_name} email={user.email} />
       </Popover.Trigger>
 
@@ -54,7 +91,7 @@ export function AccountMenu({ user, onLogout }: { user: AuthedUser; onLogout: ()
             event.preventDefault();
             navRef.current?.querySelector<HTMLElement>("a, button")?.focus();
           }}
-          className="z-50 w-56 rounded-md border border-border bg-background p-1 shadow-lg"
+          className={panelClass}
         >
           {/* Who you are signed in as. The email is here rather than in the trigger because
               it is the thing that disambiguates two accounts, and it is too long for a row
