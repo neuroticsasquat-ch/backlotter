@@ -8,6 +8,7 @@ import { useRotateIcalToken, useSettings, useUpdateDigestCadence } from "@/api/m
 import type { AuthedUser, DigestCadence } from "@/api/types";
 import { useAuth } from "@/components/AuthContext";
 import { TmdbConnect } from "@/components/onboarding/TmdbConnect";
+import { PushSection } from "@/components/push/PushSection";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
@@ -67,7 +68,7 @@ export function Settings() {
         <>
           <DigestSection />
           <CalendarSection />
-          <PushPlaceholder />
+          <PushSection className={sectionClass} />
           <LibrarySection />
         </>
       ) : (
@@ -461,21 +462,6 @@ function CalendarSection() {
           </div>
         </>
       )}
-    </section>
-  );
-}
-
-/** NEU-1388 fills this in: the service worker and the subscribe toggle (D-36). */
-function PushPlaceholder() {
-  const headingId = useId();
-  return (
-    <section aria-labelledby={headingId} className={sectionClass}>
-      <h2 id={headingId} className="text-lg font-semibold text-foreground">
-        Push notifications
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Trailer drops and date changes for your watchlist, straight to this device. Coming shortly.
-      </p>
     </section>
   );
 }

@@ -180,9 +180,11 @@ describe("Settings", () => {
       );
       // The TMDB connect control, mounted here as NEU-1359 asked (settings *and* onboarding).
       expect(screen.getByRole("link", { name: /connect tmdb/i })).toBeInTheDocument();
-      // Placeholders for the two sections that are their own tickets.
+      // The two delivery sections that are their own tickets: the calendar feed (NEU-1384)
+      // and the push toggle (NEU-1388). Under jsdom the latter finds no push APIs and says
+      // so, which is its "unsupported" branch — exercised properly in `PushSection.test.tsx`.
       expect(screen.getByRole("heading", { name: /calendar/i })).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: /push/i })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /browser notifications/i })).toBeInTheDocument();
     });
 
     it("shows the account basics and a locked panel instead of the delivery block without a grant", async () => {

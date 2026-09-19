@@ -578,3 +578,19 @@ export interface ResolutionDecisionPage {
   items: ResolutionDecision[];
   next_cursor: string | null;
 }
+
+/** One browser's registration as `POST /me/push` takes it, mirroring the backend
+ *  `PushSubscribeRequest` (D-36). This is `PushSubscription.toJSON()` minus `expirationTime`,
+ *  which the backend deliberately neither models nor stores — it is null in every current
+ *  implementation, and a field nothing writes is one a reader would eventually trust. */
+export interface PushSubscriptionPayload {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
+/** `GET /me/push/vapid-public-key` — the application server key the browser subscribes with.
+ *  Served rather than bundled because it is a property of the deployment: staging and
+ *  production hold different keypairs. */
+export interface VapidPublicKey {
+  public_key: string;
+}
