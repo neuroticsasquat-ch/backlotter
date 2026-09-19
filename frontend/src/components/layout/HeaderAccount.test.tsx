@@ -79,6 +79,16 @@ describe("HeaderAccount", () => {
     expect(screen.queryByRole("link", { name: "Watchlist" })).not.toBeInTheDocument();
   });
 
+  it("shows the Settings link to every signed-in account, grant or not", async () => {
+    server.use(meHandler({ entitled: false }));
+    renderAccountArea();
+
+    expect(await screen.findByRole("link", { name: "Settings" })).toHaveAttribute(
+      "href",
+      "/me/settings",
+    );
+  });
+
   it("clears the account UI after logout", async () => {
     server.use(
       meHandler({ is_admin: false }),

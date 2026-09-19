@@ -82,6 +82,11 @@ export function AccountArea({ variant = "menu" }: { variant?: "menu" | "inline" 
           </Link>
         </>
       )}
+      {/* Not gated: the address and password on that page belong to every signed-in
+          account, and it is the one place an account without a grant can change them. */}
+      <Link to="/me/settings" className={itemClass}>
+        Settings
+      </Link>
       {user.is_admin && (
         <Link to="/admin/ingest" className={itemClass}>
           Admin

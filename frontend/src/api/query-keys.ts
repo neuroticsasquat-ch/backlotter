@@ -13,6 +13,10 @@
  */
 export const followsKey = ["me", "follows"] as const;
 export const watchlistKey = ["me", "watchlist"] as const;
+/** Under `["me"]` with the two collections: the settings row is subscriber-only (D-39), so a
+ *  refresh of the account — which is what flips `entitled` — is exactly when it needs
+ *  re-reading. */
+export const settingsKey = ["me", "settings"] as const;
 export const timelineKey = ["timeline"] as const;
 
 /** The key for one page of `GET /me/timeline`. Every page shares the `timelineKey` prefix, so

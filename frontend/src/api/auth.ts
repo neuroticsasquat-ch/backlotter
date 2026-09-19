@@ -39,3 +39,26 @@ export const requestPasswordReset = (body: { email: string }) =>
 
 export const resetPassword = (body: { token: string; new_password: string }) =>
   apiFetch<void>("/auth/reset", { method: "POST", body: JSON.stringify(body) });
+
+// --- Account changes from the settings page (NEU-1382) ---
+
+/** Set a new password against the current one. The backend rotates the session as it does
+ *  so and answers with the account plus a fresh CSRF token; the caller has to install that
+ *  token (`setCsrfToken`) or every later mutation from this tab fails its CSRF check. 401
+ *  `invalid_credentials` for a wrong current password. */
+export const changePassword = (body: { current_password: string; new_password: string }) =>
+  apiFetch<AuthedUser>("/auth/password", { method: "POST", body: JSON.stringify(body) });
+
+/** Ask to move the account to a new address (NEU-1341). 202 with no body: nothing has
+ *  changed yet — the new address gets a confirmation link, and the account moves when that
+ *  link is opened at `/email-change`. Unlike the anonymous request routes this one does say
+ *  why it refused: 401 `invalid_credentials` for the password, 409 `email_in_use` for an
+ *  address someone already holds. */
+export const requestEmailChange = (body: { new_email: string; current_password: string }) =>
+  apiFetch<void>("/auth/email-change/request", { method: "POST", body: JSON.stringify(body) });
+
+/** Spend the token from the confirmation mail. 204; 400 `invalid_token` for a spent or
+ *  expired link, 409 `email_in_use` if the address was taken between the mail going out and
+ *  the link being opened. No session needed — the token is the credential. */
+export const confirmEmailChange = (body: { token: string }) =>
+  apiFetch<void>("/auth/email-change/confirm", { method: "POST", body: JSON.stringify(body) });

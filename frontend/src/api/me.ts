@@ -4,12 +4,14 @@ import { useAuth } from "@/components/AuthContext";
 import type { FollowTarget } from "@/lib/film-entities";
 import { rememberFollowLabel } from "@/lib/follow-labels";
 import { ApiError, apiFetch } from "./client";
-import { followsKey, timelineKey, timelinePageKey, watchlistKey } from "./query-keys";
+import { followsKey, settingsKey, timelineKey, timelinePageKey, watchlistKey } from "./query-keys";
 import type {
   AlertPref,
+  DigestCadence,
   FeedDayResponse,
   Follow,
   FollowListResponse,
+  UserSettings,
   WatchlistFilm,
   WatchlistItem,
   WatchlistListResponse,
@@ -287,5 +289,57 @@ export function useUpdateAlertPrefs() {
       toast.error(error instanceof Error ? error.message : "Failed to update your alerts");
     },
     onSettled: () => qc.invalidateQueries({ queryKey: watchlistKey }),
+  });
+}
+
+// --- Settings (NEU-1382) ---
+
+export const fetchSettings = () => apiFetch<UserSettings>("/me/settings");
+
+/** PATCH takes the cadence alone — the backend's request model has one required field, and a
+ *  PATCH with nothing in it is a client bug it refuses (NEU-1378). Answers with the whole row. */
+export const updateDigestCadence = (digestCadence: DigestCadence) =>
+  apiFetch<UserSettings>("/me/settings", {
+    method: "PATCH",
+    body: JSON.stringify({ digest_cadence: digestCadence }),
+  });
+
+/** The settings row, which the first read creates with its defaults (D-33). Gated on
+ *  `entitled` like the follow graph: the route is subscriber-only (D-39) and an ungranted
+ *  account would only ever get the 403. */
+export function useSettings() {
+  const enabled = useFollowGraphEnabled();
+  return useQuery({
+    queryKey: settingsKey,
+    queryFn: fetchSettings,
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+/** Change the digest cadence. Optimistic like the follow toggles: a radio that stays on the
+ *  old option until the round trip returns reads as a click that did not take. The response
+ *  is the row as saved, so it goes straight into the cache; a refusal puts the old row back. */
+export function useUpdateDigestCadence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: updateDigestCadence,
+    onMutate: async (digestCadence) => {
+      await qc.cancelQueries({ queryKey: settingsKey });
+      const previous = qc.getQueryData<UserSettings>(settingsKey);
+      if (previous) qc.setQueryData(settingsKey, { ...previous, digest_cadence: digestCadence });
+      return { previous };
+    },
+    onSuccess: (settings) => {
+      qc.setQueryData(settingsKey, settings);
+    },
+    onError: (error, _cadence, context) => {
+      if (context?.previous) qc.setQueryData(settingsKey, context.previous);
+      if (isEntitlementError(error)) {
+        void refreshAccount(qc);
+        return;
+      }
+      toast.error("We could not save that. Please try again.");
+    },
   });
 }

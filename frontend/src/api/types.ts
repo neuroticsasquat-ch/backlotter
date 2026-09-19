@@ -17,6 +17,21 @@ export interface AuthedUser {
   csrf_token: string;
 }
 
+/** How often the digest mail goes out (D-33). `off` is a real choice, distinct from never
+ *  having chosen: the row exists with `weekly` from the first read of `/me/settings`. */
+export type DigestCadence = "daily" | "weekly" | "off";
+
+/** The whole of `/me/settings`, mirroring the backend `UserSettingsOut`. Subscriber-only
+ *  (D-39): an account without a grant never gets a row, so the hooks that read this are
+ *  gated on `entitled` and never ask. `ical_token` is here for NEU-1384's calendar section;
+ *  this page does not render it. */
+export interface UserSettings {
+  digest_cadence: DigestCadence;
+  ical_token: string;
+  created_at: string;
+  updated_at: string;
+}
+
 /** One account as the admin grant page sees it. Distinct from {@link AuthedUser}, which is
  *  the account holder's view of themselves: this carries the raw `entitled_until` and
  *  `email_verified_at` timestamps rather than the booleans derived from them, because an
