@@ -33,6 +33,12 @@ function renderPage(
   return settings;
 }
 
+/** The link the calendar panel shows: the API origin under the `webcal:` scheme. Spelled out
+ *  here rather than imported from `lib/ical-url`, so a test would notice that module changing
+ *  its mind about the shape of the URL. */
+const webcalUrl = (token: string) =>
+  `${env.apiBaseUrl.replace(/^https?:/, "webcal:")}/calendar/${token}.ics`;
+
 describe("Settings", () => {
   describe("digest cadence", () => {
     it("shows the saved cadence as the checked option", async () => {
@@ -80,6 +86,81 @@ describe("Settings", () => {
       // has failed rather than keep showing a choice that did not land.
       await waitFor(() => expect(screen.getByRole("radio", { name: /weekly/i })).toBeChecked());
       expect(screen.queryByText(/saved/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("calendar (D-34)", () => {
+    it("shows the tokenised webcal link and offers it to a calendar app", async () => {
+      renderPage({ entitled: true }, settingsHandlers({ ical_token: "tok-mine" }));
+
+      expect(await screen.findByLabelText(/your calendar link/i)).toHaveValue(
+        webcalUrl("tok-mine"),
+      );
+      expect(screen.getByRole("link", { name: /subscribe/i })).toHaveAttribute(
+        "href",
+        webcalUrl("tok-mine"),
+      );
+      // The https spelling for the calendar apps that will not take an unknown scheme.
+      expect(screen.getByRole("link", { name: /https version/i })).toHaveAttribute(
+        "href",
+        `${env.apiBaseUrl}/calendar/tok-mine.ics`,
+      );
+    });
+
+    it("copies the link", async () => {
+      const user = userEvent.setup();
+      renderPage({ entitled: true }, settingsHandlers({ ical_token: "tok-mine" }));
+
+      await user.click(await screen.findByRole("button", { name: /^copy$/i }));
+
+      expect(await navigator.clipboard.readText()).toBe(webcalUrl("tok-mine"));
+      expect(await screen.findByText(/copied/i)).toBeInTheDocument();
+    });
+
+    it("rotates the link behind a confirm, and the URL changes", async () => {
+      const settings = renderPage({ entitled: true }, settingsHandlers({ ical_token: "tok-old" }));
+
+      const field = await screen.findByLabelText(/your calendar link/i);
+      expect(field).toHaveValue(webcalUrl("tok-old"));
+
+      await userEvent.click(screen.getByRole("button", { name: /rotate link/i }));
+      const dialog = await screen.findByRole("dialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: "Rotate" }));
+
+      await waitFor(() => expect(settings.rotations()).toBe(1));
+      await waitFor(() =>
+        expect(screen.getByLabelText(/your calendar link/i)).toHaveValue(
+          webcalUrl("tok-rotated-1"),
+        ),
+      );
+      expect(settings.current().ical_token).toBe("tok-rotated-1");
+    });
+
+    it("sends nothing when the rotate confirm is cancelled", async () => {
+      const settings = renderPage({ entitled: true }, settingsHandlers({ ical_token: "tok-old" }));
+
+      await userEvent.click(await screen.findByRole("button", { name: /rotate link/i }));
+      const dialog = await screen.findByRole("dialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+      expect(settings.rotations()).toBe(0);
+      expect(screen.getByLabelText(/your calendar link/i)).toHaveValue(webcalUrl("tok-old"));
+    });
+
+    it("takes 'Copied.' back down once the link it refers to has been rotated away", async () => {
+      const user = userEvent.setup();
+      renderPage({ entitled: true }, settingsHandlers({ ical_token: "tok-old" }));
+
+      await user.click(await screen.findByRole("button", { name: /^copy$/i }));
+      expect(await screen.findByText(/copied/i)).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /rotate link/i }));
+      const dialog = await screen.findByRole("dialog");
+      await user.click(within(dialog).getByRole("button", { name: "Rotate" }));
+
+      // The clipboard still holds the old URL, which is now dead — the page must not keep
+      // claiming the link on screen is the one that was copied.
+      await waitFor(() => expect(screen.queryByText(/copied/i)).not.toBeInTheDocument());
     });
   });
 

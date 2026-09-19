@@ -4,13 +4,15 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import * as authApi from "@/api/auth";
 import { ApiError, setCsrfToken } from "@/api/client";
-import { useSettings, useUpdateDigestCadence } from "@/api/me";
+import { useRotateIcalToken, useSettings, useUpdateDigestCadence } from "@/api/me";
 import type { AuthedUser, DigestCadence } from "@/api/types";
 import { useAuth } from "@/components/AuthContext";
 import { TmdbConnect } from "@/components/onboarding/TmdbConnect";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { calendarFeedUrls } from "@/lib/ical-url";
 
 /** Mirror `PasswordChangeRequest.new_password` on the backend, as `/reset` mirrors its own
  *  request model: the three ways a password gets set share one policy. */
@@ -64,7 +66,7 @@ export function Settings() {
       {user.entitled ? (
         <>
           <DigestSection />
-          <CalendarPlaceholder />
+          <CalendarSection />
           <PushPlaceholder />
           <LibrarySection />
         </>
@@ -351,18 +353,114 @@ function CadenceOption({
   );
 }
 
-/** NEU-1384 fills this in: the tokenised `webcal:` URL, a copy control and the rotate action
- *  (D-34). The row already carries `ical_token`; only the section is missing. */
-function CalendarPlaceholder() {
+/**
+ * The calendar subscription (D-34, NEU-1384): the user's tokenised feed URL, a way to copy it,
+ * a `webcal:` link that hands it to the calendar app, and the rotate that breaks every
+ * subscription made from the old one.
+ *
+ * The token is the whole credential — `/calendar/{token}.ics` takes no cookie — so the URL is
+ * treated as a secret in the copy that surrounds it, and rotation is behind a confirm.
+ */
+function CalendarSection() {
   const headingId = useId();
+  const urlId = useId();
+  const { data, isLoading, isError } = useSettings();
+  const rotate = useRotateIcalToken();
+  // The URL that was copied, not a boolean: a rotate makes the clipboard's contents dead, and
+  // comparing against the current token is what takes "Copied." back down when that happens.
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
+
+  const urls = data ? calendarFeedUrls(data.ical_token) : null;
+
+  async function copy(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedUrl(url);
+      setCopyFailed(false);
+    } catch {
+      // No clipboard access (an insecure origin, or a browser that asks and was refused). The
+      // URL is on screen in a field the user can select, so say that rather than fail silently.
+      setCopiedUrl(null);
+      setCopyFailed(true);
+    }
+  }
+
   return (
     <section aria-labelledby={headingId} className={sectionClass}>
       <h2 id={headingId} className="text-lg font-semibold text-foreground">
         Calendar
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Subscribe your calendar app to your watchlist&apos;s dates. Coming shortly.
+        Subscribe your calendar to your watchlist&apos;s release dates — in theaters, digital and
+        disc, each as an all-day event that moves when the date does.
       </p>
+
+      {isLoading && <p className="mt-3 text-sm text-muted-foreground">Loading…</p>}
+      {isError && <p className="mt-3 text-sm text-red-600">We could not load your settings.</p>}
+
+      {urls && (
+        <>
+          <div className="mt-4">
+            <Label htmlFor={urlId}>Your calendar link</Label>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <Input id={urlId} readOnly value={urls.webcal} className="min-w-0 flex-1 font-mono" />
+              <Button type="button" variant="outline" onClick={() => copy(urls.webcal)}>
+                Copy
+              </Button>
+              <Button asChild>
+                <a href={urls.webcal}>Subscribe</a>
+              </Button>
+            </div>
+            <p role="status" aria-live="polite" className="mt-2 text-xs text-muted-foreground">
+              {copiedUrl === urls.webcal ? "Copied." : ""}
+            </p>
+            {copyFailed && (
+              <p role="alert" className="mt-1 text-xs text-red-600">
+                We could not reach your clipboard. Select the link above and copy it yourself.
+              </p>
+            )}
+          </div>
+
+          <div className="mt-4 text-xs text-muted-foreground">
+            <p>
+              <strong className="font-medium text-foreground">Apple Calendar</strong> — Subscribe
+              opens it directly. Or File → New Calendar Subscription, and paste the link.
+            </p>
+            <p className="mt-1">
+              <strong className="font-medium text-foreground">Google Calendar</strong> — Other
+              calendars → From URL, and paste{" "}
+              <a href={urls.https} className={linkClass}>
+                the https version
+              </a>{" "}
+              of the same link.
+            </p>
+            <p className="mt-2">
+              Anyone with this link can read your watchlist&apos;s dates, so keep it to yourself.
+            </p>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <ConfirmDialog
+              trigger={
+                <Button type="button" variant="destructive" size="sm" disabled={rotate.isPending}>
+                  Rotate link
+                </Button>
+              }
+              title="Rotate your calendar link?"
+              description="Every calendar already subscribed to the old link stops updating, and you will need to subscribe again with the new one. There is no way back to the old link."
+              confirmLabel="Rotate"
+              onConfirm={() => rotate.mutate()}
+            />
+            {rotate.isPending && <span className="text-xs text-muted-foreground">Rotating…</span>}
+            {rotate.isSuccess && !rotate.isPending && (
+              <span role="status" className="text-xs text-muted-foreground">
+                New link ready. Subscribe again to keep getting dates.
+              </span>
+            )}
+          </div>
+        </>
+      )}
     </section>
   );
 }

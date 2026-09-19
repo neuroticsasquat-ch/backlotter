@@ -22,6 +22,7 @@ export function makeSettings(overrides: Partial<UserSettings> = {}): UserSetting
 export function settingsHandlers(initial: Partial<UserSettings> = {}) {
   let row = makeSettings(initial);
   const patches: { digest_cadence: DigestCadence }[] = [];
+  let rotations = 0;
 
   const handlers = [
     http.get(`${base}/me/settings`, () => HttpResponse.json(row)),
@@ -31,7 +32,18 @@ export function settingsHandlers(initial: Partial<UserSettings> = {}) {
       row = { ...row, digest_cadence: body.digest_cadence, updated_at: new Date().toISOString() };
       return HttpResponse.json(row);
     }),
+    // The rotate answers with the whole row, as the backend's does, and the new token is one
+    // the caller could not have guessed — which is the property the panel's redraw rests on.
+    http.post(`${base}/me/settings/ical-token/rotate`, () => {
+      rotations += 1;
+      row = {
+        ...row,
+        ical_token: `tok-rotated-${rotations}`,
+        updated_at: new Date().toISOString(),
+      };
+      return HttpResponse.json(row);
+    }),
   ];
 
-  return { handlers, patches, current: () => row };
+  return { handlers, patches, rotations: () => rotations, current: () => row };
 }

@@ -317,6 +317,34 @@ export function useSettings() {
   });
 }
 
+/** Issue a new calendar token (D-34). A POST rather than a PATCH because the caller does not
+ *  choose the new value; it answers with the whole settings row, so the calendar panel redraws
+ *  from one response. */
+export const rotateIcalToken = () =>
+  apiFetch<UserSettings>("/me/settings/ical-token/rotate", { method: "POST" });
+
+/** Rotate the calendar token. Deliberately *not* optimistic, unlike the cadence beside it:
+ *  there is no next value to render until the server has picked one, and a URL that flickered
+ *  to a guess would be a URL somebody could copy and subscribe to. The row the rotate answers
+ *  with is authoritative, so it goes straight into the cache and every old subscription is
+ *  dead from that moment. */
+export function useRotateIcalToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: rotateIcalToken,
+    onSuccess: (settings) => {
+      qc.setQueryData(settingsKey, settings);
+    },
+    onError: (error) => {
+      if (isEntitlementError(error)) {
+        void refreshAccount(qc);
+        return;
+      }
+      toast.error("We could not change your calendar link. Please try again.");
+    },
+  });
+}
+
 /** Change the digest cadence. Optimistic like the follow toggles: a radio that stays on the
  *  old option until the round trip returns reads as a click that did not take. The response
  *  is the row as saved, so it goes straight into the cache; a refusal puts the old row back. */
