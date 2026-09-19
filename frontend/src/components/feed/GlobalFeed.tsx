@@ -7,27 +7,32 @@ import { groupByDay } from "@/lib/feed-groups";
 import { DAYS_PER_PAGE } from "@/lib/global-feed";
 import { FeedDayGroups, ViewMoreButton } from "@/components/feed/FeedDayGroups";
 
+/** The page's name, matching the nav item that leads to it (NEU-1410). */
+export const GLOBAL_FEED_HEADING = "All updates";
+
+/**
+ * The line under the heading.
+ *
+ * It carries the phrase the old home-page `<h1>` existed to put in front of a crawler — that
+ * heading was "Latest Updates for Upcoming Movies" precisely because only the anonymous render
+ * of `/` is indexed. Naming the page after its nav item costs that `<h1>`, so the words move
+ * here, where they are still indexable body copy on the same document.
+ */
+export const GLOBAL_FEED_STANDFIRST =
+  "Every casting change, trailer and release date across every film we track.";
+
 /**
  * The global grouped feed: every film we track, newest day first.
  *
- * Rendered by both `/` (for anonymous and unentitled visitors) and `/feed` (for everyone), which
- * is why the heading is a prop — the two routes are the same page under two names and two
- * `meta()` exports, not two implementations that have to be kept in step.
+ * Rendered by `/` (for anonymous and unentitled visitors) and by `/feed` (for everyone).
  *
- * `intro` is whatever the home route wants to say above the days: a sign-in line for an anonymous
- * visitor, the locked-timeline panel for a signed-in one without access. `/feed` passes nothing.
- * It renders inside the page rather than around it so the heading stays the first thing in the
- * document, and so neither branch can shift the header, search bar or footer.
+ * **It takes no heading prop, deliberately.** It used to, so the two routes could label
+ * themselves differently — `/` said "Latest Updates for Upcoming Movies" and `/feed` said "All
+ * updates" — which made one page look like two depending on how you arrived. The heading and
+ * standfirst are constants here instead, so the two routes cannot drift apart again: they are
+ * the same page under two URLs and two `meta()` exports, and nothing about the body differs.
  */
-export function GlobalFeed({
-  feed,
-  heading,
-  intro,
-}: {
-  feed: FeedDayResponse;
-  heading: string;
-  intro?: React.ReactNode;
-}) {
+export function GlobalFeed({ feed }: { feed: FeedDayResponse }) {
   const [items, setItems] = useState(feed.items);
   const [loading, setLoading] = useState(false);
   const groups = groupByDay(items);
@@ -51,8 +56,8 @@ export function GlobalFeed({
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-semibold">{heading}</h1>
-      {intro}
+      <h1 className="text-2xl font-semibold">{GLOBAL_FEED_HEADING}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">{GLOBAL_FEED_STANDFIRST}</p>
       {groups.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">No updates yet — check back soon.</p>
       ) : (

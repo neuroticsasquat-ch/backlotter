@@ -80,7 +80,7 @@ export function TimelinePage() {
 function TimelineHeading() {
   return (
     <div className="flex items-baseline justify-between gap-4">
-      <h1 className="text-2xl font-semibold">Your timeline</h1>
+      <h1 className="text-2xl font-semibold">My feed</h1>
       <Link
         to="/feed"
         className="shrink-0 text-sm text-muted-foreground transition-colors hover:text-foreground"

@@ -28,7 +28,7 @@ export function meta({ location }: Route.MetaArgs): Route.MetaDescriptors {
 }
 
 export default function AllUpdatesPage({ loaderData }: Route.ComponentProps) {
-  return <GlobalFeed feed={loaderData.feed} heading="All updates" />;
+  return <GlobalFeed feed={loaderData.feed} />;
 }
 
 export function ErrorBoundary() {

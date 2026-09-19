@@ -98,7 +98,7 @@ describe("all-updates route render", () => {
     renderAllUpdates();
 
     expect(await screen.findByRole("heading", { name: "All updates" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Your timeline" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "My feed" })).toBeNull();
     expect(screen.getByText("The Odyssey")).toBeInTheDocument();
   });
 });

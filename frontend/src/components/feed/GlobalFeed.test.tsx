@@ -9,15 +9,13 @@ import { env } from "@/env";
 import type { FeedDayResponse } from "@/api/types";
 import { GlobalFeed } from "@/components/feed/GlobalFeed";
 
-const HEADING = "Latest Updates for Upcoming Movies";
+const HEADING = "All updates";
 
 /** Renders the feed body on its own. No auth providers: `GlobalFeed` is the half of the home
  *  page that does not know who is looking — the deciding is `TimelineOrFeed`'s job, and is
  *  covered in `routes/feed.test.tsx`. */
-function renderFeed(data: FeedDayResponse, heading = HEADING) {
-  const Stub = createRoutesStub([
-    { path: "/", Component: () => <GlobalFeed feed={data} heading={heading} /> },
-  ]);
+function renderFeed(data: FeedDayResponse) {
+  const Stub = createRoutesStub([{ path: "/", Component: () => <GlobalFeed feed={data} /> }]);
   return render(<Stub initialEntries={["/"]} />);
 }
 
@@ -44,10 +42,21 @@ describe("global feed render", () => {
     );
   });
 
-  it("takes its heading from the route, so / and /feed differ by name only", async () => {
-    renderFeed(feed, "All updates");
+  /** The heading used to be a prop so `/` and `/feed` could label themselves differently.
+   *  It is a constant now, which is what makes them one page rather than two (NEU-1410). */
+  it("names itself the same on every route, so / and /feed cannot drift apart", async () => {
+    renderFeed(feed);
     expect(await screen.findByRole("heading", { name: "All updates" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: HEADING })).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: /latest updates for upcoming movies/i }),
+    ).toBeNull();
+  });
+
+  it("carries the standfirst that replaced the old SEO heading", async () => {
+    renderFeed(feed);
+    expect(
+      await screen.findByText(/every casting change, trailer and release date/i),
+    ).toBeInTheDocument();
   });
 
   it("gives each day a poster strip and links every poster to its film", async () => {

@@ -122,22 +122,37 @@ function renderHome(loaderFeed = feed) {
   );
 }
 
-const GLOBAL_HEADING = "Latest Updates for Upcoming Movies";
-const timelineHeading = () => screen.findByRole("heading", { name: "Your timeline" });
+const GLOBAL_HEADING = "All updates";
+const timelineHeading = () => screen.findByRole("heading", { name: "My feed" });
 
 describe("home route — anonymous", () => {
-  it("renders the SSR'd global feed with a line offering the timeline", async () => {
+  it("renders the SSR'd global feed, named the way the nav names it", async () => {
     server.use(unauthMeHandler());
     renderHome();
 
     expect(await screen.findByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
-    expect(screen.getByText(/see a timeline of the people you follow/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /^sign in$/i })).toHaveAttribute(
-      "href",
-      "/login?next=/",
-    );
     // The feed itself is the one the loader already fetched.
     expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
+  });
+
+  /** The only way to `/login` is the header's account menu now (NEU-1407/1410). */
+  it("offers no sign-in link of its own", async () => {
+    server.use(unauthMeHandler());
+    renderHome();
+
+    await screen.findByRole("heading", { name: GLOBAL_HEADING });
+    expect(screen.queryByRole("link", { name: /^sign in$/i })).toBeNull();
+    expect(screen.queryByText(/see a timeline of the people you follow/i)).toBeNull();
+  });
+
+  /** The words the old SEO heading carried, kept as body copy on the same document. */
+  it("carries the descriptive standfirst under the heading", async () => {
+    server.use(unauthMeHandler());
+    renderHome();
+
+    expect(
+      await screen.findByText(/every casting change, trailer and release date/i),
+    ).toBeInTheDocument();
   });
 
   it("shows no loading state while /me is still in flight", async () => {
@@ -168,23 +183,34 @@ describe("home route — anonymous", () => {
       }),
     );
     renderHome();
-    await screen.findByText(/see a timeline of the people you follow/i);
+    await screen.findByRole("heading", { name: GLOBAL_HEADING });
     expect(asked).toBe(false);
   });
 });
 
 describe("home route — signed in without a grant", () => {
-  it("keeps the global feed and explains why there is no timeline yet", async () => {
+  /**
+   * The point of NEU-1410: this reader gets the same page an anonymous one gets, and the same
+   * page `/feed` gives them. The "Your timeline is not open yet" panel that used to sit here
+   * is gone — its copy said there was nothing to buy, and NEU-1409 replaces it with the real
+   * subscription offer, shown on both routes rather than only this one.
+   */
+  it("renders the global feed with nothing added and nothing withheld", async () => {
     server.use(meHandler({ entitled: false }), lockedTimelineHandler());
     renderHome();
 
-    expect(
-      await screen.findByRole("heading", { name: /your timeline is not open yet/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/access is limited while we build that tier/i)).toBeInTheDocument();
-    // Still the global feed underneath, not an empty page.
-    expect(screen.getByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
     expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /not open yet/i })).toBeNull();
+    expect(screen.queryByText(/access is limited while we build that tier/i)).toBeNull();
+  });
+
+  it("offers no sign-in link either — they are already signed in", async () => {
+    server.use(meHandler({ entitled: false }), lockedTimelineHandler());
+    renderHome();
+
+    await screen.findByRole("heading", { name: GLOBAL_HEADING });
+    expect(screen.queryByRole("link", { name: /^sign in$/i })).toBeNull();
   });
 
   it("does not offer the onboarding the empty timeline offers", async () => {
@@ -193,11 +219,9 @@ describe("home route — signed in without a grant", () => {
     server.use(meHandler({ entitled: false }), lockedTimelineHandler());
     renderHome();
 
-    await screen.findByRole("heading", { name: /your timeline is not open yet/i });
+    await screen.findByRole("heading", { name: GLOBAL_HEADING });
     expect(screen.queryByText(/your timeline is empty/i)).toBeNull();
     expect(screen.queryByRole("link", { name: /get started/i })).toBeNull();
-    // Nor the anonymous sign-in line — they are already signed in.
-    expect(screen.queryByText(/see a timeline of the people you follow/i)).toBeNull();
   });
 
   it("never requests the timeline it is not entitled to", async () => {
@@ -210,7 +234,7 @@ describe("home route — signed in without a grant", () => {
       }),
     );
     renderHome();
-    await screen.findByRole("heading", { name: /your timeline is not open yet/i });
+    await screen.findByRole("heading", { name: GLOBAL_HEADING });
     expect(asked).toBe(false);
   });
 });
@@ -229,7 +253,7 @@ describe("home route — signed in and entitled", () => {
     // too (by design — the page must not jump), and the node holding it is replaced when the
     // days land, so awaiting it hands back an element that is already detached.
     expect(await screen.findByText("Followed Film")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Your timeline" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "My feed" })).toBeInTheDocument();
     // The global feed is gone — its heading and its days with it.
     expect(screen.queryByRole("heading", { name: GLOBAL_HEADING })).toBeNull();
     expect(screen.queryByText("The Odyssey")).toBeNull();
@@ -297,7 +321,7 @@ describe("home route — signed in and entitled", () => {
 
     // The heading is already up while the days load, so the page does not jump when they land.
     expect(await screen.findByLabelText(/loading your timeline/i)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Your timeline" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "My feed" })).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByLabelText(/loading your timeline/i)).toBeNull());
   });
 });
@@ -381,9 +405,10 @@ describe("home route — the timeline could not be read", () => {
     );
   });
 
-  it("falls back to the locked panel when the grant lapsed mid-session", async () => {
+  it("falls back to the global feed when the grant lapsed mid-session", async () => {
     // The cached account still said `entitled`, so the timeline mounted and got a 403. Re-reading
-    // /me flips the flag, and the island must land on "no access yet" — never "no follows yet".
+    // /me flips the flag, and the island must land on the global feed — never on "no follows
+    // yet", which would send a reader to follow something they would be refused.
     let meCalls = 0;
     server.use(
       http.get(`${env.apiBaseUrl}/me`, () => {
@@ -404,13 +429,12 @@ describe("home route — the timeline could not be read", () => {
     );
     renderHome();
 
-    expect(
-      await screen.findByRole("heading", { name: /your timeline is not open yet/i }),
-    ).toBeInTheDocument();
+    // The global feed the server already sent is what they are left looking at — no panel
+    // above it, and not the empty-timeline onboarding.
+    expect(await screen.findByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
     expect(screen.queryByText(/your timeline is empty/i)).toBeNull();
     expect(screen.queryByText(/couldn't load your timeline/i)).toBeNull();
-    // And the global feed the server already sent is what they are left looking at.
-    expect(screen.getByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /not open yet/i })).toBeNull();
   });
 });
 

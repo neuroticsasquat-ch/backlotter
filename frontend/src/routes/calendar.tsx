@@ -56,7 +56,7 @@ export default function CalendarPage({ loaderData }: Route.ComponentProps) {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-semibold">Release Calendar</h1>
+      <h1 className="text-2xl font-semibold">Calendar</h1>
       {dayGroups.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">
           No upcoming releases yet — check back soon.
