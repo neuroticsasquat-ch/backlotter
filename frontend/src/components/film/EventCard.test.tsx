@@ -21,6 +21,7 @@ const event: FilmEvent = {
   summary_edited: false,
   status: "published",
   superseded_by: null,
+  video_key: null,
   provenance: "story",
   sources: [{ url: "https://x.test/a", source: "ScreenRant", title: "t", published_at: null }],
 };
@@ -239,4 +240,50 @@ it("leaves every other beat without the attribution line", async () => {
   renderCard();
   await screen.findByText("Bogus recast.");
   expect(screen.queryByText(/JustWatch/)).toBeNull();
+});
+
+// D-35: a poll-born trailer card carries the YouTube key, so the card itself can play it
+// instead of sending the reader off to YouTube (NEU-1386).
+it("offers an inline player on a trailer card that carries a video key", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard({ event_type: "trailer", summary: "A trailer is out.", video_key: "abc123" });
+  await screen.findByText("A trailer is out.");
+
+  const watch = screen.getByRole("button", { name: "Watch trailer" });
+  expect(document.querySelector("iframe")).toBeNull();
+  await userEvent.click(watch);
+  expect(document.querySelector("iframe")).toHaveAttribute(
+    "src",
+    "https://www.youtube-nocookie.com/embed/abc123",
+  );
+});
+
+// A story-born trailer card is outlets reporting a trailer, with no video behind it — the
+// backend nulls `video_key` there, and the card falls back to its sources.
+it("offers no player on a trailer card with no video key", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard({ event_type: "trailer", summary: "A trailer is coming.", video_key: null });
+  await screen.findByText("A trailer is coming.");
+  expect(screen.queryByRole("button", { name: "Watch trailer" })).toBeNull();
+});
+
+it("offers no player on an ordinary card", async () => {
+  server.use(meHandler({ is_admin: false }));
+  renderCard();
+  await screen.findByText("Bogus recast.");
+  expect(screen.queryByRole("button", { name: "Watch trailer" })).toBeNull();
+});
+
+// Nothing validates these payloads at runtime, so a frontend deployed ahead of the backend
+// half (NEU-1385) sees the field missing, not null. A strict `!== null` guard would put a
+// player pointed at /embed/undefined on every card on the page.
+it("offers no player when the API omits video_key entirely", async () => {
+  server.use(meHandler({ is_admin: false }));
+  // Spread-and-delete, not destructuring: oxlint rejects the unused rest sibling.
+  const withoutKey = { ...event } as Partial<FilmEvent>;
+  delete withoutKey.video_key;
+  renderCard(withoutKey);
+  await screen.findByText("Bogus recast.");
+  expect(screen.queryByRole("button", { name: "Watch trailer" })).toBeNull();
+  expect(document.querySelector("iframe")).toBeNull();
 });

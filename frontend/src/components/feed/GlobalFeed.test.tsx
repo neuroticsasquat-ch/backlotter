@@ -185,6 +185,7 @@ describe("feed day sections", () => {
               summary_edited: false,
               status: "published",
               superseded_by: null,
+              video_key: null,
               provenance: "story",
               sources: [
                 {

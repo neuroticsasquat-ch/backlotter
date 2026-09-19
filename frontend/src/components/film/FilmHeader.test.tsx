@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoutesStub } from "react-router";
@@ -7,7 +8,7 @@ import { meHandler } from "@/test/msw/me";
 import { followGraphHandlers } from "@/test/msw/follows";
 import { AuthProvider } from "@/components/AuthContext";
 import { FilmHeader } from "@/components/film/FilmHeader";
-import type { FilmDetail } from "@/api/types";
+import type { FilmDetail, FilmEvent } from "@/api/types";
 
 const film: FilmDetail = {
   ref: "the-odyssey-2026",
@@ -218,5 +219,59 @@ describe("FilmHeader follow affordances", () => {
     renderHeader({ collection: { name: "The Odyssey Collection" } });
     expect(screen.getByText("The Odyssey Collection")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /follow/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("FilmHeader trailer button", () => {
+  function trailer(overrides: Partial<FilmEvent> = {}): FilmEvent {
+    return {
+      event_id: "evt-trailer",
+      event_type: "trailer",
+      confidence: "confirmed",
+      created_at: "2026-06-30T00:00:00Z",
+      occurred_at: "2026-06-30T00:00:00Z",
+      summary: "A trailer is out.",
+      summary_edited: false,
+      status: "published",
+      superseded_by: null,
+      provenance: "catalog",
+      video_key: "abc123",
+      sources: [],
+      ...overrides,
+    };
+  }
+
+  function withEvents(events: FilmEvent[]): FilmDetail {
+    return {
+      ...film,
+      day_groups: [
+        {
+          day: "2026-06-30",
+          heading: "Tuesday, June 30, 2026",
+          news_events: [],
+          tmdb_events: events,
+        },
+      ],
+    };
+  }
+
+  // D-35 promotes the newest trailer out of the timeline; the player itself is the same
+  // privacy-enhanced embed the cards use (NEU-1386).
+  it("promotes the newest trailer on the page into a header button", async () => {
+    render(<FilmHeader film={withEvents([trailer()])} />);
+    await userEvent.click(screen.getByRole("button", { name: "Trailer" }));
+    const frame = document.querySelector("iframe");
+    expect(frame).toHaveAttribute("src", "https://www.youtube-nocookie.com/embed/abc123");
+    expect(frame).toHaveAttribute("title", "The Odyssey trailer");
+  });
+
+  it("offers no button when the page holds no playable trailer", () => {
+    render(<FilmHeader film={withEvents([trailer({ video_key: null })])} />);
+    expect(screen.queryByRole("button", { name: "Trailer" })).toBeNull();
+  });
+
+  it("offers no button on a film with no events at all", () => {
+    render(<FilmHeader film={film} />);
+    expect(screen.queryByRole("button", { name: "Trailer" })).toBeNull();
   });
 });

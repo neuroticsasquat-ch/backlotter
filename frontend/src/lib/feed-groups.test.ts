@@ -131,6 +131,7 @@ function event(created_at: string, summary: string): FilmEvent {
     summary_edited: false,
     status: "published",
     superseded_by: null,
+    video_key: null,
     provenance: "story",
     sources: [],
   };

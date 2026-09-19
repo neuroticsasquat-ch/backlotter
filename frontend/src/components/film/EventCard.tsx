@@ -9,6 +9,7 @@ import { dayKey, formatEventDate } from "@/lib/format";
 import { RETRACTED_LABEL, confidenceLabel, eventAnchorId, eventTypeLabel } from "./labels";
 import { JustWatchAttribution } from "./JustWatchAttribution";
 import { SourceLinks } from "./SourceLinks";
+import { TrailerEmbed } from "./TrailerEmbed";
 import { EditSummaryDialog } from "./EditSummaryDialog";
 
 const PILL =
@@ -89,6 +90,15 @@ export function EventCard({ event, day }: { event: FilmEvent; day?: string }) {
         </p>
       ) : null}
       {showAttribution ? <JustWatchAttribution /> : null}
+      {/* Truthiness, not `!== null`: nothing validates these payloads at runtime (`api/public.ts`
+          casts the JSON straight across), so an API older than NEU-1385 omits `video_key`
+          rather than nulling it. A strict null check would let `undefined` through and hang a
+          "Watch trailer" button pointed at /embed/undefined on every card on the page. */}
+      {event.video_key ? (
+        <div className="mt-2">
+          <TrailerEmbed videoKey={event.video_key} label="Watch trailer" title={displaySummary} />
+        </div>
+      ) : null}
       <SourceLinks
         sources={event.sources}
         admin={isAdmin}

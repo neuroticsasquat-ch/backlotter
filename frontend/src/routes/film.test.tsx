@@ -36,6 +36,7 @@ const film: FilmDetail = {
           summary_edited: false,
           status: "published",
           superseded_by: null,
+          video_key: null,
           provenance: "story",
           sources: [],
         },
@@ -56,6 +57,7 @@ const film: FilmDetail = {
           summary_edited: false,
           status: "published",
           superseded_by: null,
+          video_key: null,
           provenance: "story",
           sources: [
             {
@@ -231,6 +233,7 @@ describe("film route meta", () => {
               summary_edited: false,
               status: "published",
               superseded_by: null,
+              video_key: null,
               provenance: "story",
               sources: [],
             },
@@ -251,6 +254,7 @@ describe("film route meta", () => {
               summary_edited: false,
               status: "published",
               superseded_by: null,
+              video_key: null,
               provenance: "story",
               sources: [],
             },

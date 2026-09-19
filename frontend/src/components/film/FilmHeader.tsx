@@ -2,10 +2,12 @@ import type { FilmDetail } from "@/api/types";
 import { formatRuntime, pickRating } from "@/lib/format";
 import { posterUrl } from "@/lib/poster";
 import { collectionTarget, titleTarget, watchlistFilm } from "@/lib/film-entities";
+import { latestTrailerKey } from "@/lib/trailers";
 import { FollowButton } from "@/components/follow/FollowButton";
 import { WatchlistButton } from "@/components/follow/WatchlistButton";
 import { ArcStepper } from "./ArcStepper";
 import { ExternalLinks } from "./ExternalLinks";
+import { TrailerEmbed } from "./TrailerEmbed";
 
 /** Title + parenthetical year, then the poster beside the production-status arc
  *  (left-aligned), with a labeled spec sheet (countries, director, runtime, rating, genres)
@@ -26,6 +28,10 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
   const watchlistRow = watchlistFilm(film);
   const followTitle = titleTarget(film);
   const followCollection = collectionTarget(film.collection);
+  // Promoted out of the timeline: the newest trailer is the one thing on this page a visitor
+  // is likely to have come for, and it is otherwise buried under however many updates the
+  // film has collected since (D-35).
+  const trailerKey = latestTrailerKey(film.day_groups);
 
   const billing: [string, string[]][] = (
     [
@@ -54,6 +60,12 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {watchlistRow && <WatchlistButton film={watchlistRow} />}
           {followTitle && <FollowButton target={followTitle} />}
+        </div>
+      )}
+
+      {trailerKey && (
+        <div className="mt-3">
+          <TrailerEmbed videoKey={trailerKey} label="Trailer" title={`${film.title} trailer`} />
         </div>
       )}
 

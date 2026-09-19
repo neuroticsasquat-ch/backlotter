@@ -119,6 +119,12 @@ export interface FilmEvent {
   // The event_id of the retraction that superseded this one; null unless `status` is
   // "superseded". The card anchors its "later retracted" marker to that event.
   superseded_by: string | null;
+  // The YouTube key of the trailer this card is about, for the inline player (D-35). Set only
+  // on a `trailer` event the backend's video poll raised from a video it can name; null on
+  // every other event, and on a story-born trailer card, where outlets reported a trailer but
+  // no video is held. Required, unlike the optional ids elsewhere on these DTOs: the backend
+  // ships the field on every `EventOut` (NEU-1385), nulling it rather than omitting it.
+  video_key: string | null;
   sources: FilmSource[];
 }
 

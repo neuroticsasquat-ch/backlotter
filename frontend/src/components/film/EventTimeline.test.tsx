@@ -17,6 +17,7 @@ function makeEvent(overrides: Partial<FilmEvent>): FilmEvent {
     summary_edited: false,
     status: "published",
     superseded_by: null,
+    video_key: null,
     provenance: "story",
     sources: [],
     ...overrides,
