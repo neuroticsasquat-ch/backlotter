@@ -2,10 +2,13 @@ import type { MetaDescriptor } from "react-router";
 import { env } from "@/env";
 
 // Brand name as shown in headings, the wordmark, and og:site_name.
+// Duplicated as `name`/`short_name` in `public/manifest.webmanifest`, which is a static
+// asset and cannot import it — change both together.
 export const SITE_NAME = "backlotter";
 // Document-title branding (the browser tab): lowercase brand + tagline, matching the wordmark.
 const TITLE_BRAND = "backlotter";
 const TITLE_TAGLINE = "production log";
+// Also the manifest's `description` — same duplication, same rule as SITE_NAME above.
 const DEFAULT_DESCRIPTION =
   "Track upcoming movies: release dates, casting, trailers, and a chronological update log for every film.";
 
