@@ -4,8 +4,13 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import * as authApi from "@/api/auth";
 import { ApiError, setCsrfToken } from "@/api/client";
-import { useRotateIcalToken, useSettings, useUpdateDigestCadence } from "@/api/me";
-import type { AuthedUser, DigestCadence } from "@/api/types";
+import {
+  useRotateIcalToken,
+  useSettings,
+  useUpdateAlertStores,
+  useUpdateDigestCadence,
+} from "@/api/me";
+import type { AlertStore, AuthedUser, DigestCadence } from "@/api/types";
 import { useAuth } from "@/components/AuthContext";
 import { TmdbConnect } from "@/components/onboarding/TmdbConnect";
 import { PushSection } from "@/components/push/PushSection";
@@ -66,6 +71,7 @@ export function Settings() {
 
       {user.entitled ? (
         <>
+          <AlertsSection />
           <DigestSection />
           <CalendarSection />
           <PushSection className={sectionClass} />
@@ -280,6 +286,85 @@ function ChangePasswordForm() {
         </Button>
       </div>
     </form>
+  );
+}
+
+/** The three availability beats an alert can be worth, in the order the backend canonicalises
+ *  them (D-44), so the row reads the same however the set was built. */
+const STORES: { value: AlertStore; label: string }[] = [
+  { value: "buy", label: "Buy" },
+  { value: "rent", label: "Rent" },
+  { value: "stream", label: "Stream" },
+];
+
+/**
+ * Which store availability is worth an alert (D-44) — one setting for the account, not a
+ * choice per film.
+ *
+ * Only the *availability* beats are a choice. A date assigned or moved, a home-release date, a
+ * trailer are always on (D-32), so there is deliberately nothing here to switch them off with,
+ * and the standfirst says as much so the absence reads as a rule rather than a missing control.
+ * Turning all three off is a real setting, not an empty state: it means "tell me when the date
+ * moves, but not when it lands on a store".
+ */
+function AlertsSection() {
+  const headingId = useId();
+  const { data, isLoading, isError } = useSettings();
+  const update = useUpdateAlertStores();
+
+  const toggle = (store: AlertStore) => {
+    const current = data?.alert_stores ?? [];
+    const next = current.includes(store) ? current.filter((s) => s !== store) : [...current, store];
+    // Canonical order, matching the backend's `normalise_alert_stores`, so the optimistic list
+    // and the one the refetch brings back are the same array rather than the same set in two
+    // orders.
+    update.mutate(STORES.map((s) => s.value).filter((s) => next.includes(s)));
+  };
+
+  return (
+    <section aria-labelledby={headingId} className={sectionClass}>
+      <h2 id={headingId} className="text-lg font-semibold text-foreground">
+        Alerts
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        We always tell you when a film on your watchlist gets a date, moves, or gets a trailer.
+        These choose which ways of watching at home are worth an alert too.
+      </p>
+
+      {isLoading && <p className="mt-3 text-sm text-muted-foreground">Loading…</p>}
+      {isError && <p className="mt-3 text-sm text-red-600">We could not load your settings.</p>}
+
+      {data && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {STORES.map(({ value, label }) => {
+            const on = data.alert_stores.includes(value);
+            return (
+              <button
+                key={value}
+                type="button"
+                // `aria-pressed` rather than a checkbox role: these are toggle buttons that act
+                // immediately, and a screen reader should hear "pressed", not "checked" with an
+                // implied form to submit.
+                aria-pressed={on}
+                aria-label={`${label} alerts`}
+                disabled={update.isPending}
+                onClick={() => toggle(value)}
+                className={
+                  on
+                    ? "rounded-full bg-primary px-3 py-1 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                    : "rounded-full border border-border px-3 py-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+                }
+              >
+                {label}
+              </button>
+            );
+          })}
+          <p role="status" aria-live="polite" className="w-full text-xs text-muted-foreground">
+            {update.isSuccess ? "Saved." : ""}
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 

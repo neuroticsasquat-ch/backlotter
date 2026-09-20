@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/msw/server";
-import { entitlementRequiredHandlers, followGraphHandlers } from "@/test/msw/follows";
+import {
+  entitlementRequiredHandlers,
+  followGraphHandlers,
+  makeWatchlistItem,
+} from "@/test/msw/follows";
+import { settingsHandlers } from "@/test/msw/settings";
 import { env } from "@/env";
 import { ApiError } from "./client";
 import { watchlistCalendarPageKey, watchlistKey } from "./query-keys";
@@ -12,10 +17,11 @@ import {
   fetchTimeline,
   fetchWatchlist,
   fetchWatchlistCalendar,
+  fetchSettings,
   addToWatchlist,
   isEntitlementError,
   removeFromWatchlist,
-  updateAlertPrefs,
+  updateAlertStores,
 } from "./me";
 
 const base = env.apiBaseUrl;
@@ -87,25 +93,50 @@ describe("follow fetchers", () => {
 });
 
 describe("watchlist fetchers", () => {
-  it("round-trips a film through add, list and remove", async () => {
+  it("round-trips a film through want, list and stop", async () => {
     const graph = followGraphHandlers();
     server.use(...graph.handlers);
 
     await addToWatchlist(FILM_ID);
     expect((await fetchWatchlist()).items).toEqual([
-      expect.objectContaining({ source: "manual", alert_prefs: ["stream"] }),
+      expect.objectContaining({ followed: true, muted: false }),
     ]);
 
+    // Nothing but the film's own title follow covers it, so stopping takes it off the list
+    // rather than muting it.
     await removeFromWatchlist(FILM_ID);
     expect((await fetchWatchlist()).items).toEqual([]);
   });
 
-  it("sends the film id alone, leaving the backend to apply the default prefs", async () => {
+  it("mutes rather than removes a film another follow still covers", async () => {
+    const graph = followGraphHandlers({
+      watchlist: [
+        makeWatchlistItem({
+          followed: true,
+          covered_by: [
+            { entity_type: "title", entity_id: FILM_ID, name: "The Odyssey" },
+            { entity_type: "person", entity_id: "525", name: "Christopher Nolan" },
+          ],
+          film: { id: FILM_ID },
+        }),
+      ],
+    });
+    server.use(...graph.handlers);
+
+    const stopped = await removeFromWatchlist(FILM_ID);
+
+    // 200 with the item, not a 204: the film is still covered, so there is something left to
+    // describe — and it is muted, and no longer directly followed.
+    expect(stopped).toMatchObject({ muted: true, followed: false });
+    expect((await fetchWatchlist()).items).toHaveLength(1);
+  });
+
+  it("sends the film id alone — there are no per-film preferences left to send", async () => {
     let body: unknown;
     server.use(
       http.post(`${base}/me/watchlist`, async ({ request }) => {
         body = await request.json();
-        return HttpResponse.json({}, { status: 201 });
+        return HttpResponse.json({}, { status: 200 });
       }),
     );
 
@@ -120,38 +151,42 @@ describe("watchlist fetchers", () => {
     await expect(addToWatchlist(FILM_ID)).rejects.toSatisfy(isEntitlementError);
   });
 
-  it("PATCHes the whole prefs set, which is how an empty one is expressible", async () => {
+  it("PATCHes the whole store set, which is how an empty one is expressible", async () => {
     let body: unknown;
     server.use(
-      http.patch(`${base}/me/watchlist/:filmId`, async ({ request }) => {
+      http.patch(`${base}/me/settings`, async ({ request }) => {
         body = await request.json();
         return HttpResponse.json({}, { status: 200 });
       }),
     );
 
-    await updateAlertPrefs(FILM_ID, []);
+    await updateAlertStores([]);
 
     // Not a delta and not an omission: `{}` would mean "unchanged" to a PATCH, while an
-    // explicit empty list is the user asking for no availability alerts at all (D-14).
-    expect(body).toEqual({ alert_prefs: [] });
+    // explicit empty list is the user asking for no availability alerts at all (D-44).
+    expect(body).toEqual({ alert_stores: [] });
   });
 
-  it("round-trips a prefs change through the list", async () => {
-    const graph = followGraphHandlers();
-    server.use(...graph.handlers);
+  it("round-trips a store change through the settings row", async () => {
+    const settings = settingsHandlers();
+    server.use(...settings.handlers);
 
-    await addToWatchlist(FILM_ID);
-    await updateAlertPrefs(FILM_ID, ["buy", "rent"]);
+    await updateAlertStores(["buy", "rent"]);
 
-    expect((await fetchWatchlist()).items).toEqual([
-      expect.objectContaining({ alert_prefs: ["buy", "rent"] }),
-    ]);
+    expect((await fetchSettings()).alert_stores).toEqual(["buy", "rent"]);
+    // The cadence is untouched: the PATCH named one field, which is the whole point of the
+    // backend's two-optional-field request model.
+    expect((await fetchSettings()).digest_cadence).toBe("weekly");
   });
 
-  it("surfaces the entitlement 403 on a prefs change too", async () => {
-    server.use(...entitlementRequiredHandlers());
+  it("surfaces the entitlement 403 on a store change too", async () => {
+    server.use(
+      http.patch(`${base}/me/settings`, () =>
+        HttpResponse.json({ detail: "entitlement_required" }, { status: 403 }),
+      ),
+    );
 
-    await expect(updateAlertPrefs(FILM_ID, ["stream"])).rejects.toSatisfy(isEntitlementError);
+    await expect(updateAlertStores(["stream"])).rejects.toSatisfy(isEntitlementError);
   });
 });
 
@@ -241,7 +276,7 @@ describe("watchlist calendar", () => {
   });
 
   it("caches every page under the watchlist, so a watchlist change refreshes it", () => {
-    // `useToggleWatchlist` and `useUpdateAlertPrefs` invalidate `watchlistKey` on settle, which
+    // `useToggleWatchlist` and `useUpdateFollowCoverage` invalidate `watchlistKey`, which
     // is a prefix match — the calendar refetches with no extra wiring in either mutation, and a
     // re-read of `/me` drops it with the collection it is a view of (D-1412.3).
     expect(watchlistCalendarPageKey(20, 0).slice(0, watchlistKey.length)).toEqual([

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/components/AuthContext";
-import type { FollowTarget } from "@/lib/film-entities";
+import { coveredBeyondTitleFollow, type FollowTarget } from "@/lib/film-entities";
 import { rememberFollowLabel } from "@/lib/follow-labels";
 import { ApiError, apiFetch } from "./client";
 import {
@@ -13,11 +13,12 @@ import {
   watchlistKey,
 } from "./query-keys";
 import type {
-  AlertPref,
+  AlertStore,
   CalendarResponse,
   DigestCadence,
   FeedDayResponse,
   Follow,
+  FollowCoverage,
   FollowListResponse,
   UserSettings,
   WatchlistFilm,
@@ -35,27 +36,39 @@ export const createFollow = (target: FollowTarget) =>
     body: JSON.stringify({ entity_type: target.entityType, entity_id: target.entityId }),
   });
 
+/** Narrow or widen what a person follow alerts on (D-43). The backend answers `422
+ *  coverage_not_applicable` for any other entity type, which is why only person rows draw the
+ *  control — the other three cover one thing each and have nothing to narrow. */
+export const updateFollowCoverage = (
+  target: { entityType: string; entityId: string },
+  coverage: FollowCoverage,
+) =>
+  apiFetch<Follow>(`/me/follows/${target.entityType}/${encodeURIComponent(target.entityId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ coverage }),
+  });
+
 export const deleteFollow = (target: FollowTarget) =>
   apiFetch<void>(`/me/follows/${target.entityType}/${encodeURIComponent(target.entityId)}`, {
     method: "DELETE",
   });
 
+/** *Want* this film (D-45): clear any mute, and create a manual title follow if nothing else
+ *  covers it. Takes no preferences — the stores an availability alert is worth are one setting
+ *  per account now ({@link updateAlertStores}), not a choice per film. */
 export const addToWatchlist = (filmId: string) =>
   apiFetch<WatchlistItem>("/me/watchlist", {
     method: "POST",
     body: JSON.stringify({ film_id: filmId }),
   });
 
+/** *Stop* hearing about the film (D-45): delete a direct title follow, and mute the film if
+ *  another follow still covers it. Two answers, because there are two outcomes — `200` with the
+ *  now-muted item while something still covers it, and `204` once nothing does and there is no
+ *  item left to describe. `apiFetch` gives `undefined` for the `204`. */
 export const removeFromWatchlist = (filmId: string) =>
-  apiFetch<void>(`/me/watchlist/${encodeURIComponent(filmId)}`, { method: "DELETE" });
-
-/** Replace an item's alert preferences (D-14). PATCH takes the whole set, not a delta — an
- *  empty list is "no availability alerts", which is a real choice and distinct from the
- *  `{stream}` default an item is created with. */
-export const updateAlertPrefs = (filmId: string, alertPrefs: AlertPref[]) =>
-  apiFetch<WatchlistItem>(`/me/watchlist/${encodeURIComponent(filmId)}`, {
-    method: "PATCH",
-    body: JSON.stringify({ alert_prefs: alertPrefs }),
+  apiFetch<WatchlistItem | undefined>(`/me/watchlist/${encodeURIComponent(filmId)}`, {
+    method: "DELETE",
   });
 
 /** The 403 the `/me/*` routes answer with for a signed-in account that has not been granted
@@ -156,6 +169,9 @@ export function useWatchlistCalendar({ limit, offset }: { limit: number; offset:
 const sameEntity = (follow: Follow, target: FollowTarget) =>
   follow.entity_type === target.entityType && follow.entity_id === target.entityId;
 
+const sameFollow = (a: Follow, b: Follow) =>
+  a.entity_type === b.entity_type && a.entity_id === b.entity_id;
+
 /** Whether the user already follows a target, read from the one cached list rather than a
  *  request per button — a film page carries a dozen of these. */
 export function useIsFollowing(target: FollowTarget | null): boolean {
@@ -164,10 +180,21 @@ export function useIsFollowing(target: FollowTarget | null): boolean {
   return (data?.items ?? []).some((follow) => sameEntity(follow, target));
 }
 
-export function useIsOnWatchlist(filmId: string | null): boolean {
+/** The film's watchlist row, or null. The list carries muted films too (D-45), so a caller
+ *  that wants "will I hear about this?" has to read {@link WatchlistItem.muted} rather than
+ *  presence alone. */
+export function useWatchlistItem(filmId: string | null): WatchlistItem | null {
   const { data } = useWatchlist();
-  if (!filmId) return false;
-  return (data?.items ?? []).some((item) => item.film.id === filmId);
+  if (!filmId) return null;
+  return (data?.items ?? []).find((item) => item.film.id === filmId) ?? null;
+}
+
+/** Whether the user hears about this film. A muted row is on the list and deliberately does
+ *  not count: muting is how you stop hearing about a film you are still covered for, so a
+ *  toggle reading presence alone would show "on" for a film it silenced. */
+export function useIsOnWatchlist(filmId: string | null): boolean {
+  const item = useWatchlistItem(filmId);
+  return Boolean(item && !item.muted);
 }
 
 /** Follow or unfollow, applied to the cached list before the request goes out so the button
@@ -207,6 +234,8 @@ export function useToggleFollow() {
           entity_type: target.entityType,
           entity_id: target.entityId,
           source: "manual",
+          // The default the backend applies to a follow created without one (D-43).
+          coverage: "lead",
           created_at: new Date().toISOString(),
         };
         return { items: [...items, optimistic] };
@@ -238,42 +267,89 @@ export function useToggleFollow() {
   });
 }
 
-/** Add or remove the film, on the same terms as {@link useToggleFollow}. The optimistic entry
- *  carries the film the page is already rendering, so the cached list is a real row rather
- *  than a placeholder the watchlist page would have to tolerate; the refetch replaces it with
- *  the server's, which is where `source` and `alert_prefs` become authoritative. */
+/**
+ * *Want* or *stop* the film (D-45), applied to the cached list before the request goes out so
+ * the control flips under the user's finger.
+ *
+ * `onList` is the state the film is in *now* — heard about, or not — so the mutation moves it
+ * to the other one. Neither direction is a plain insert or delete any more, because the
+ * watchlist is computed: *want* on a muted row unmutes it rather than adding a second one, and
+ * *stop* on a row something else still covers mutes it rather than removing it. The cache edit
+ * mirrors what the backend will do, read from the item already in hand, so the row does not
+ * jump when the refetch lands.
+ */
 export function useToggleWatchlist() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ film, onList }: { film: WatchlistFilm; onList: boolean }) => {
-      if (onList) await removeFromWatchlist(film.id);
-      else await addToWatchlist(film.id);
-    },
+    mutationFn: ({ film, onList }: { film: WatchlistFilm; onList: boolean }) =>
+      onList ? removeFromWatchlist(film.id) : addToWatchlist(film.id),
     onMutate: async ({ film, onList }) => {
       await qc.cancelQueries({ queryKey: watchlistKey });
-      // Just this film's row, for the reason given in `useToggleFollow`.
-      const removed = qc
-        .getQueryData<WatchlistListResponse>(watchlistKey)
-        ?.items.find((item) => item.film.id === film.id);
+      // Just this film's row, and where it sat, for the reason given in `useToggleFollow` —
+      // and so a rollback puts it back in its place rather than at the end of a list the
+      // server orders by `created_at`.
+      const items = qc.getQueryData<WatchlistListResponse>(watchlistKey)?.items ?? [];
+      const index = items.findIndex((item) => item.film.id === film.id);
+      const previous = index === -1 ? undefined : items[index];
       qc.setQueryData<WatchlistListResponse>(watchlistKey, (old) => {
         const items = old?.items ?? [];
-        if (onList) return { items: items.filter((item) => item.film.id !== film.id) };
-        // `{stream}` is the default the backend applies to an item added without prefs (D-14).
+        if (onList) {
+          // Something other than the film's own title follow covers it, so stopping leaves it
+          // on the list, muted — and no longer directly followed, since that follow is what
+          // the DELETE removes.
+          if (previous && coveredBeyondTitleFollow(previous.covered_by, film.id)) {
+            return {
+              items: items.map((item) =>
+                item.film.id === film.id ? { ...item, muted: true, followed: false } : item,
+              ),
+            };
+          }
+          return { items: items.filter((item) => item.film.id !== film.id) };
+        }
+        // Wanting a muted film unmutes it in place; the mute is the only thing that was
+        // keeping it quiet, and its covers are unchanged.
+        if (previous) {
+          return {
+            items: items.map((item) =>
+              item.film.id === film.id ? { ...item, muted: false } : item,
+            ),
+          };
+        }
         const optimistic: WatchlistItem = {
           film,
-          source: "manual",
-          alert_prefs: ["stream"] as AlertPref[],
+          // The title follow the POST is about to create. The refetch replaces this with the
+          // server's `covered_by`, which also names anything else that reaches the film.
+          covered_by: [{ entity_type: "title", entity_id: film.id, name: film.title }],
+          followed: true,
+          muted: false,
           created_at: new Date().toISOString(),
         };
         return { items: [...items, optimistic] };
       });
-      return { removed };
+      return { previous, index };
     },
-    onError: (error, { film, onList }, context) => {
+    // The server's answer is authoritative, and the optimistic edit above is a *guess*: it
+    // reads the covers from the cached row, which a surface that never loaded the list does
+    // not have. `undefined` is the `204` — nothing covers the film any more, so the row is
+    // gone; an item is the row as saved, muted or not.
+    onSuccess: (item, { film }) => {
       qc.setQueryData<WatchlistListResponse>(watchlistKey, (old) => {
-        const items = old?.items ?? [];
-        if (onList) return context?.removed ? { items: [...items, context.removed] } : { items };
-        return { items: items.filter((item) => item.film.id !== film.id) };
+        const items = (old?.items ?? []).filter((row) => row.film.id !== film.id);
+        return { items: item ? [...items, item] : items };
+      });
+      // A title follow changes what the timeline shows, which the old watchlist toggle never
+      // did — and a mute silences the film there too (D-45). On success only: a rolled-back
+      // toggle left the follow graph the timeline was already built from.
+      void qc.invalidateQueries({ queryKey: timelineKey });
+    },
+    onError: (error, { film }, context) => {
+      // Restore the row exactly as it was — muted flag, covers, position and all — rather than
+      // guessing at an inverse, because neither edit above is a simple one.
+      qc.setQueryData<WatchlistListResponse>(watchlistKey, (old) => {
+        const items = (old?.items ?? []).filter((item) => item.film.id !== film.id);
+        if (!context?.previous) return { items };
+        items.splice(context.index, 0, context.previous);
+        return { items };
       });
       if (isEntitlementError(error)) {
         void refreshAccount(qc);
@@ -285,31 +361,32 @@ export function useToggleWatchlist() {
   });
 }
 
-/** Change one item's alert preferences. The chips flip immediately and the refetch confirms;
- *  a failure puts the old set back, because a pref chip that silently stays on when the server
- *  rejected it is worse than one that visibly snaps back. */
-export function useUpdateAlertPrefs() {
+/** Change one person follow's coverage (D-43). Optimistic like the toggles beside it: a radio
+ *  that stays on the old tier until the round trip returns reads as a click that did not take.
+ *  The watchlist is computed from coverage, so a change that lands re-reads it. */
+export function useUpdateFollowCoverage() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ filmId, alertPrefs }: { filmId: string; alertPrefs: AlertPref[] }) =>
-      updateAlertPrefs(filmId, alertPrefs),
-    onMutate: async ({ filmId, alertPrefs }) => {
-      await qc.cancelQueries({ queryKey: watchlistKey });
+    mutationFn: ({ follow, coverage }: { follow: Follow; coverage: FollowCoverage }) =>
+      updateFollowCoverage(
+        { entityType: follow.entity_type, entityId: follow.entity_id },
+        coverage,
+      ),
+    onMutate: async ({ follow, coverage }) => {
+      await qc.cancelQueries({ queryKey: followsKey });
       const previous = qc
-        .getQueryData<WatchlistListResponse>(watchlistKey)
-        ?.items.find((item) => item.film.id === filmId)?.alert_prefs;
-      qc.setQueryData<WatchlistListResponse>(watchlistKey, (old) => ({
-        items: (old?.items ?? []).map((item) =>
-          item.film.id === filmId ? { ...item, alert_prefs: alertPrefs } : item,
-        ),
+        .getQueryData<FollowListResponse>(followsKey)
+        ?.items.find((f) => sameFollow(f, follow))?.coverage;
+      qc.setQueryData<FollowListResponse>(followsKey, (old) => ({
+        items: (old?.items ?? []).map((f) => (sameFollow(f, follow) ? { ...f, coverage } : f)),
       }));
       return { previous };
     },
-    onError: (error, { filmId }, context) => {
+    onError: (error, { follow }, context) => {
       if (context?.previous) {
-        qc.setQueryData<WatchlistListResponse>(watchlistKey, (old) => ({
-          items: (old?.items ?? []).map((item) =>
-            item.film.id === filmId ? { ...item, alert_prefs: context.previous! } : item,
+        qc.setQueryData<FollowListResponse>(followsKey, (old) => ({
+          items: (old?.items ?? []).map((f) =>
+            sameFollow(f, follow) ? { ...f, coverage: context.previous! } : f,
           ),
         }));
       }
@@ -317,9 +394,13 @@ export function useUpdateAlertPrefs() {
         void refreshAccount(qc);
         return;
       }
-      toast.error(error instanceof Error ? error.message : "Failed to update your alerts");
+      toast.error("We could not change what that follow alerts you about. Please try again.");
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: watchlistKey }),
+    // Coverage narrows alerts, and the watchlist *is* the set of films covered for alerts —
+    // so widening or narrowing one follow changes which films are on it. The timeline is
+    // unaffected: it stays D-11 coverage whatever this is set to.
+    onSuccess: () => qc.invalidateQueries({ queryKey: watchlistKey }),
+    onSettled: () => qc.invalidateQueries({ queryKey: followsKey }),
   });
 }
 
@@ -327,12 +408,22 @@ export function useUpdateAlertPrefs() {
 
 export const fetchSettings = () => apiFetch<UserSettings>("/me/settings");
 
-/** PATCH takes the cadence alone — the backend's request model has one required field, and a
- *  PATCH with nothing in it is a client bug it refuses (NEU-1378). Answers with the whole row. */
+/** PATCH takes the cadence alone — the backend's request model needs *one* of its fields, not
+ *  all of them, so the screen writes the control the user touched rather than restating the
+ *  row (NEU-1378). Answers with the whole row. */
 export const updateDigestCadence = (digestCadence: DigestCadence) =>
   apiFetch<UserSettings>("/me/settings", {
     method: "PATCH",
     body: JSON.stringify({ digest_cadence: digestCadence }),
+  });
+
+/** Replace the account's store set (D-44). The whole set, not a delta — `[]` is "no store
+ *  alerts", a real choice and distinct from the `{stream}` default a row is created with. The
+ *  backend canonicalises the order, so the list sent here need not be sorted. */
+export const updateAlertStores = (alertStores: AlertStore[]) =>
+  apiFetch<UserSettings>("/me/settings", {
+    method: "PATCH",
+    body: JSON.stringify({ alert_stores: alertStores }),
   });
 
 /** The settings row, which the first read creates with its defaults (D-33). Gated on
@@ -372,6 +463,33 @@ export function useRotateIcalToken() {
         return;
       }
       toast.error("We could not change your calendar link. Please try again.");
+    },
+  });
+}
+
+/** Change which stores an availability alert is worth (D-44). Optimistic on the cadence's
+ *  terms below, and for the same reason: a chip that stays on the old setting until the round
+ *  trip returns reads as a click that did not take. */
+export function useUpdateAlertStores() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: updateAlertStores,
+    onMutate: async (alertStores) => {
+      await qc.cancelQueries({ queryKey: settingsKey });
+      const previous = qc.getQueryData<UserSettings>(settingsKey);
+      if (previous) qc.setQueryData(settingsKey, { ...previous, alert_stores: alertStores });
+      return { previous };
+    },
+    onSuccess: (settings) => {
+      qc.setQueryData(settingsKey, settings);
+    },
+    onError: (error, _stores, context) => {
+      if (context?.previous) qc.setQueryData(settingsKey, context.previous);
+      if (isEntitlementError(error)) {
+        void refreshAccount(qc);
+        return;
+      }
+      toast.error("We could not save that. Please try again.");
     },
   });
 }

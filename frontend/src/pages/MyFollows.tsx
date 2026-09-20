@@ -1,7 +1,9 @@
-import { useFollows, useToggleFollow } from "@/api/me";
-import type { Follow, FollowEntityType } from "@/api/types";
+import { useId } from "react";
+import { useFollows, useToggleFollow, useUpdateFollowCoverage } from "@/api/me";
+import type { Follow, FollowCoverage, FollowEntityType } from "@/api/types";
 import { FollowEntitySearch } from "@/components/follow/FollowEntitySearch";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import type { FollowTarget } from "@/lib/film-entities";
 import { formatEventDate } from "@/lib/format";
 import { lookupFollowLabel } from "@/lib/follow-labels";
@@ -9,8 +11,14 @@ import { profileUrl } from "@/lib/poster";
 
 /** The groups, in the order they appear. Fixed rather than derived from the data so the page
  *  does not reshuffle its headings as the user follows things. */
-const GROUPS: { type: FollowEntityType; heading: string }[] = [
-  { type: "person", heading: "People" },
+const GROUPS: { type: FollowEntityType; heading: string; note?: string }[] = [
+  // The note answers the obvious misreading of the coverage radios below — that narrowing them
+  // empties the timeline too. Once, on the group, rather than on every person row.
+  {
+    type: "person",
+    heading: "People",
+    note: "Your timeline shows every credit whichever you pick; this only narrows what we alert you about.",
+  },
   { type: "company", heading: "Companies" },
   { type: "franchise", heading: "Collections" },
   { type: "title", heading: "Films" },
@@ -46,6 +54,54 @@ const PLACEHOLDER: Record<FollowEntityType, string> = {
   franchise: "Collection",
   title: "Film",
 };
+
+/** The two tiers a person follow can alert at (D-43), in the order they narrow. Companies,
+ *  franchises and titles name one thing each and have nothing to narrow, so they draw no
+ *  control — and the backend refuses a `coverage` on them outright. */
+const COVERAGE: { value: FollowCoverage; label: string }[] = [
+  { value: "lead", label: "Lead roles only" },
+  { value: "all", label: "Every credit" },
+];
+
+/**
+ * Which of a followed person's credits are worth an alert.
+ *
+ * Radios rather than a single "everything" switch, because neither tier is the absence of the
+ * other: `lead` is a real editorial cut (director or top-3 billing), and a reader who picks it
+ * is asking for fewer alerts, not for the control to be off. What it does *not* touch — the
+ * timeline, which stays D-11 either way — is said once on the group heading, not on every row.
+ */
+function CoverageControl({ follow, label }: { follow: Follow; label: string }) {
+  const groupId = useId();
+  const update = useUpdateFollowCoverage();
+
+  return (
+    <fieldset className="mt-1" disabled={update.isPending}>
+      <legend className="sr-only">{`Which of ${label}'s credits to alert me about`}</legend>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {COVERAGE.map((option) => {
+          const id = `${groupId}-${option.value}`;
+          return (
+            <div key={option.value} className="flex items-center gap-1.5">
+              <input
+                id={id}
+                type="radio"
+                name={groupId}
+                value={option.value}
+                checked={follow.coverage === option.value}
+                onChange={() => update.mutate({ follow, coverage: option.value })}
+                className="h-3.5 w-3.5"
+              />
+              <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">
+                {option.label}
+              </Label>
+            </div>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
 
 function FollowRow({ follow }: { follow: Follow }) {
   const toggle = useToggleFollow();
@@ -98,6 +154,7 @@ function FollowRow({ follow }: { follow: Follow }) {
           Followed {formatEventDate(follow.created_at)}
           {source ? ` · ${source}` : ""}
         </p>
+        {follow.entity_type === "person" && <CoverageControl follow={follow} label={label} />}
       </div>
       <Button
         size="sm"
@@ -128,8 +185,7 @@ export function MyFollows() {
     <div className="mx-auto max-w-3xl p-8">
       <h1 className="text-2xl font-semibold">Follows</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Your timeline is built from these, and films by the people and studios you follow are added
-        to your watchlist automatically.
+        Your timeline and your alerts are built from these.
       </p>
 
       <div className="mt-6">
@@ -160,6 +216,7 @@ export function MyFollows() {
                 {group.heading}{" "}
                 <span className="font-normal text-muted-foreground">({rows.length})</span>
               </h2>
+              {group.note && <p className="mt-0.5 text-xs text-muted-foreground">{group.note}</p>}
               <ul className="mt-1 divide-y divide-border">
                 {rows.map((follow) => (
                   <FollowRow key={`${follow.entity_type}:${follow.entity_id}`} follow={follow} />

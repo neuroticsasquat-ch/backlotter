@@ -87,6 +87,7 @@ describe("FollowButton", () => {
             entity_type: "person",
             entity_id: "505710",
             source: "manual",
+            coverage: "lead",
             created_at: "2026-09-01T00:00:00Z",
           },
         ],

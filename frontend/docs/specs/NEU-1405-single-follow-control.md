@@ -49,8 +49,11 @@ for still ships; it now has one thing to explain.
 - After NEU-1414, `GET /me/watchlist` items carry `covered_by`, `followed` and `muted` and
   include muted films; `POST /me/watchlist {film_id}` means *want* (clear a mute, create a
   manual title follow if nothing else covers the film) and `DELETE /me/watchlist/{film_id}`
-  means *stop* (delete a direct title follow, mute if another follow still covers it). Both
-  answer the resulting item. `PATCH /me/watchlist/{film_id}` is gone.
+  means *stop* (delete a direct title follow, mute if another follow still covers it). `POST`
+  always answers `200` with the resulting item; `DELETE` answers `200` with the now-muted item
+  while another follow still covers the film and **`204`** once nothing does (settled in
+  NEU-1414's planning). The item payload no longer carries `source`.
+  `PATCH /me/watchlist/{film_id}` is gone.
 
 ## Design
 
@@ -113,20 +116,27 @@ current item; either is fine, but the cache edit must be exact):
   `muted: true, followed: false`. **stop**, item covered only by the direct title follow:
   remove it.
 
-On settle, invalidate `["me","watchlist"]` and reconcile from the server's answer (both
-endpoints return the item). On success, also invalidate the timeline key: a title follow
+On settle, invalidate `["me","watchlist"]` and reconcile from the server's answer (`POST`
+returns the item; `DELETE` returns the muted item, or `204` when the film left the list, in
+which case the optimistic removal stands). On success, also invalidate the timeline key: a title follow
 changes what `/` shows, which the old watchlist toggle never did. A 403 `entitlement_required`
 still routes through `isEntitlementError` to a refreshed `me`, not a toast.
 
 ### D-1405.5 — Types during the M8 transition
 
-`WatchlistItem` in `api/types.ts` gains `covered_by: CoveringFollow[]` (`{entity_type,
-entity_id, name}`), `followed: boolean`, `muted: boolean`, and its `alert_prefs` becomes
-**optional** rather than removed. NEU-1415 deletes it with the chips; until then
-`MyWatchlist.tsx` passes `item.alert_prefs ?? []` to `AlertPrefChips` so the page still
-typechecks and renders against a backend that no longer sends the field. That one-line guard
-is the only touch this ticket makes to `MyWatchlist.tsx`. Keep `useUpdateAlertPrefs` compiling;
-NEU-1415 removes it.
+**Settled by NEU-1415, which shipped first.** `WatchlistItem` in `api/types.ts` already
+carries `covered_by: CoveringFollow[]` (`{entity_type, entity_id, name: string | null}`),
+`followed: boolean` and `muted: boolean`, and `alert_prefs` and `source` are **gone**, not
+optional — NEU-1415 deleted them with `AlertPrefChips` and `useUpdateAlertPrefs`, and rewrote
+`MyWatchlist.tsx` over the merged model. So this ticket has no transition to manage and makes
+no touch to `MyWatchlist.tsx` at all. It inherits from NEU-1415: `useWatchlistItem(filmId)`,
+the mute-aware `useIsOnWatchlist`, and a `useToggleWatchlist` that already applies D-1405.4's
+cache edits and reconciles from the server's answer — so D-1405.1's table is wiring, not new
+plumbing. What follows is the original transition note, kept for the record:
+
+> `alert_prefs` and `source` become **optional** rather than removed; `MyWatchlist.tsx` passes
+> `item.alert_prefs ?? []` to `AlertPrefChips` so the page still typechecks against a backend
+> that no longer sends the field. Keep `useUpdateAlertPrefs` compiling; NEU-1415 removes it.
 
 ### What does not change
 

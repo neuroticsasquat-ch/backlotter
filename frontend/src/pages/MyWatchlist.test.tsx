@@ -10,6 +10,10 @@ import { meHandler } from "@/test/msw/me";
 import { followGraphHandlers, makeWatchlistItem } from "@/test/msw/follows";
 import { MyWatchlist } from "./MyWatchlist";
 
+/** `makeWatchlistFilm`'s id, which a `covered_by` entry has to match to read as the film's own
+ *  direct title follow rather than as something else reaching it. */
+const FILM_ID = "11111111-1111-4111-8111-111111111111";
+
 function renderPage(watchlist: WatchlistItem[] = []) {
   const graph = followGraphHandlers({ watchlist });
   server.use(meHandler({ entitled: true }), ...graph.handlers);
@@ -90,59 +94,126 @@ describe("MyWatchlist", () => {
     expect(await screen.findByText(/no date yet/i)).toBeInTheDocument();
   });
 
-  it("shows the alert prefs as pressed chips", async () => {
-    renderPage([makeWatchlistItem({ alert_prefs: ["rent", "stream"] })]);
+  it("says a film is here because the user follows it", async () => {
+    renderPage([makeWatchlistItem()]);
 
-    const rent = await screen.findByRole("button", { name: "Rent alerts for The Odyssey" });
-    expect(rent).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Stream alerts for The Odyssey" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
+    expect(await screen.findByText(/· followed/)).toBeInTheDocument();
+    expect(screen.queryByText(/via /)).not.toBeInTheDocument();
+  });
+
+  it("names the follow a film arrived through when the user did not add it", async () => {
+    renderPage([
+      makeWatchlistItem({
+        followed: false,
+        covered_by: [{ entity_type: "person", entity_id: "525", name: "Christopher Nolan" }],
+      }),
+    ]);
+
+    expect(await screen.findByText(/· via Christopher Nolan/)).toBeInTheDocument();
+  });
+
+  it("says both ways when a film is followed and covered", async () => {
+    // Not exclusive: unfollowing the title would leave the film here via Nolan, so a row that
+    // named only one of them would be a row that changed its story for no visible reason.
+    renderPage([
+      makeWatchlistItem({
+        followed: true,
+        covered_by: [
+          { entity_type: "title", entity_id: FILM_ID, name: "The Odyssey" },
+          { entity_type: "person", entity_id: "525", name: "Christopher Nolan" },
+        ],
+      }),
+    ]);
+
+    expect(await screen.findByText(/· followed · via Christopher Nolan/)).toBeInTheDocument();
+  });
+
+  it("counts the rest rather than listing every follow that reaches a film", async () => {
+    renderPage([
+      makeWatchlistItem({
+        followed: false,
+        covered_by: [
+          { entity_type: "person", entity_id: "525", name: "Christopher Nolan" },
+          { entity_type: "company", entity_id: "41", name: "A24" },
+          { entity_type: "franchise", entity_id: "10", name: "The Odyssey Collection" },
+        ],
+      }),
+    ]);
+
+    expect(await screen.findByText(/via Christopher Nolan and 2 more/)).toBeInTheDocument();
+  });
+
+  it("mutes a film another follow still covers, and offers to unmute it", async () => {
+    const graph = renderPage([
+      makeWatchlistItem({
+        followed: true,
+        covered_by: [
+          { entity_type: "title", entity_id: FILM_ID, name: "The Odyssey" },
+          { entity_type: "person", entity_id: "525", name: "Christopher Nolan" },
+        ],
+      }),
+    ]);
+
+    // No confirm: a mute is reversible, which is the whole difference from the dismissal it
+    // replaced (D-45).
+    await userEvent.click(await screen.findByRole("button", { name: "Mute The Odyssey" }));
+
+    await waitFor(() => expect(graph.watchlist[0].muted).toBe(true));
+    expect(await screen.findByRole("heading", { name: "Muted" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Unmute The Odyssey" })).toBeInTheDocument();
+  });
+
+  it("unmutes a muted film back onto the list", async () => {
+    const graph = renderPage([
+      makeWatchlistItem({
+        muted: true,
+        followed: false,
+        covered_by: [{ entity_type: "person", entity_id: "525", name: "Christopher Nolan" }],
+      }),
+    ]);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Unmute The Odyssey" }));
+
+    await waitFor(() => expect(graph.watchlist[0].muted).toBe(false));
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: "Muted" })).not.toBeInTheDocument(),
     );
-    expect(screen.getByRole("button", { name: "Buy alerts for The Odyssey" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
   });
 
-  it("turning a chip on PATCHes the item with the whole canonical set", async () => {
-    const graph = renderPage([makeWatchlistItem({ alert_prefs: ["stream"] })]);
-
-    await userEvent.click(await screen.findByRole("button", { name: /buy alerts/i }));
-
-    // Canonical order (buy, rent, stream), matching the backend's normalise_alert_prefs — not
-    // the order the user happened to click them in.
-    await waitFor(() => expect(graph.watchlist[0].alert_prefs).toEqual(["buy", "stream"]));
-  });
-
-  it("turning the last chip off is a real setting, not a no-op", async () => {
-    const graph = renderPage([makeWatchlistItem({ alert_prefs: ["stream"] })]);
-
-    await userEvent.click(await screen.findByRole("button", { name: /stream alerts/i }));
-
-    await waitFor(() => expect(graph.watchlist[0].alert_prefs).toEqual([]));
-  });
-
-  it("removes a manually added film on one click", async () => {
+  it("offers to unfollow, not to mute, a film nothing else covers", async () => {
+    // Stopping this one deletes the title follow and the row is simply gone — there is no
+    // muted row to undo it from, so calling the button "Mute" would promise an undo the page
+    // cannot keep.
     const graph = renderPage([makeWatchlistItem()]);
 
-    await userEvent.click(await screen.findByRole("button", { name: /remove the odyssey/i }));
+    expect(screen.queryByRole("button", { name: "Mute The Odyssey" })).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Unfollow The Odyssey" }));
 
     await waitFor(() => expect(graph.watchlist).toHaveLength(0));
+    // Nothing covers it any more, so there is no muted row to show either.
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: "Muted" })).not.toBeInTheDocument(),
+    );
   });
 
-  it("marks a derived item and confirms before removing it, because the dismissal is forever", async () => {
-    const graph = renderPage([makeWatchlistItem({ source: "derived_from_follow" })]);
+  it("keeps the muted section out of the empty state's way", async () => {
+    // Every film muted is not an empty watchlist: the follows that cover them are still there,
+    // and the page has to offer the undo rather than tell the user to go and follow something.
+    renderPage([makeWatchlistItem({ muted: true, followed: false })]);
 
-    expect(await screen.findByText(/added by a follow/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /remove the odyssey/i }));
+    expect(await screen.findByRole("heading", { name: "Muted" })).toBeInTheDocument();
+    expect(screen.queryByText(/watchlist is empty/i)).not.toBeInTheDocument();
+  });
 
-    // The click opened the confirm rather than removing anything.
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(graph.watchlist).toHaveLength(1);
+  it("offers no per-film store chips anywhere — the stores are one account setting", async () => {
+    renderPage([makeWatchlistItem()]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
-    await waitFor(() => expect(graph.watchlist).toHaveLength(0));
+    await screen.findByRole("link", { name: "The Odyssey" });
+    for (const store of ["Buy", "Rent", "Stream"]) {
+      expect(
+        screen.queryByRole("button", { name: new RegExp(store, "i") }),
+      ).not.toBeInTheDocument();
+    }
   });
 
   it("points an empty watchlist at the follows page that would fill it", async () => {

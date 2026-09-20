@@ -60,18 +60,17 @@ describe("WatchlistButton", () => {
     expect(
       await screen.findByRole("button", { name: /remove the odyssey from your watchlist/i }),
     ).toHaveAttribute("aria-pressed", "true");
-    expect(graph.watchlist).toEqual([
-      expect.objectContaining({ source: "manual", alert_prefs: ["stream"] }),
-    ]);
+    expect(graph.watchlist).toEqual([expect.objectContaining({ followed: true, muted: false })]);
   });
 
-  it("removes a film already on the list", async () => {
+  it("removes a film the user put there themselves", async () => {
     const graph = followGraphHandlers({
       watchlist: [
         {
           film: FILM,
-          source: "derived_from_follow",
-          alert_prefs: ["stream"],
+          covered_by: [{ entity_type: "title", entity_id: FILM.id, name: FILM.title }],
+          followed: true,
+          muted: false,
           created_at: "2026-09-01T00:00:00Z",
         },
       ],
@@ -82,6 +81,7 @@ describe("WatchlistButton", () => {
     await userEvent.click(await screen.findByRole("button", { name: /remove the odyssey/i }));
 
     expect(await add()).toHaveAttribute("aria-pressed", "false");
+    // Nothing else covered it, so stopping took it off the list outright.
     expect(graph.watchlist).toEqual([]);
   });
 });

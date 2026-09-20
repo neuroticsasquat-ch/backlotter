@@ -15,6 +15,7 @@ const follow = (overrides: Partial<Follow> = {}): Follow => ({
   entity_type: "person",
   entity_id: "525",
   source: "manual",
+  coverage: "lead",
   created_at: "2026-09-12T00:00:00Z",
   ...overrides,
 });
@@ -69,7 +70,9 @@ describe("MyFollows", () => {
   it("falls back to the type, the id and a TMDB link for a row it has no name for", async () => {
     renderPage([follow({ entity_id: "287" })]);
 
-    expect(await screen.findByText(/Person 287/)).toBeInTheDocument();
+    // Scoped to the row's own name line: the coverage control's group label names the row
+    // too, so an unscoped match would find both.
+    expect(await screen.findByText(/Person 287/, { selector: "p" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /look up on tmdb/i })).toHaveAttribute(
       "href",
       "https://www.themoviedb.org/person/287",
@@ -106,6 +109,44 @@ describe("MyFollows", () => {
 
     await waitFor(() => expect(graph.follows).toHaveLength(0));
     await waitFor(() => expect(screen.queryByText("Christopher Nolan")).not.toBeInTheDocument());
+  });
+
+  it("offers a person follow both coverage tiers, on the default", async () => {
+    rememberFollowLabel("person", "525", "Christopher Nolan");
+    renderPage([follow()]);
+
+    const lead = await screen.findByRole("radio", { name: "Lead roles only" });
+    expect(lead).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Every credit" })).not.toBeChecked();
+  });
+
+  it("widening a person follow PATCHes its coverage", async () => {
+    rememberFollowLabel("person", "525", "Christopher Nolan");
+    const graph = renderPage([follow()]);
+
+    await userEvent.click(await screen.findByRole("radio", { name: "Every credit" }));
+
+    await waitFor(() => expect(graph.follows[0].coverage).toBe("all"));
+  });
+
+  it("gives company, franchise and title rows no coverage control", async () => {
+    // They name one thing each, so there is nothing to narrow — and the backend refuses a
+    // `coverage` on them outright, so a control here would only ever mint a 422.
+    renderPage([
+      follow({ entity_type: "company", entity_id: "41" }),
+      follow({ entity_type: "franchise", entity_id: "10" }),
+      follow({ entity_type: "title", entity_id: "11111111-1111-4111-8111-111111111111" }),
+    ]);
+
+    await screen.findByRole("heading", { name: /companies \(1\)/i });
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+  });
+
+  it("says the alerts are built from these, not that films are added for you", async () => {
+    renderPage([]);
+    expect(
+      await screen.findByText("Your timeline and your alerts are built from these."),
+    ).toBeInTheDocument();
   });
 
   it("invites the user to search or use a film page when they follow nothing", async () => {

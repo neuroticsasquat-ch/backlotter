@@ -99,7 +99,13 @@ describe("FollowEntitySearch", () => {
   it("a result already followed arrives saying so", async () => {
     const graph = followGraphHandlers({
       follows: [
-        { entity_type: "person", entity_id: "525", source: "manual", created_at: "2026-09-01" },
+        {
+          entity_type: "person",
+          entity_id: "525",
+          source: "manual",
+          coverage: "lead",
+          created_at: "2026-09-01",
+        },
       ],
     });
     server.use(
@@ -129,7 +135,13 @@ describe("FollowEntitySearch", () => {
     // beside its name is the one chance to connect the two.
     const graph = followGraphHandlers({
       follows: [
-        { entity_type: "person", entity_id: "525", source: "manual", created_at: "2026-09-01" },
+        {
+          entity_type: "person",
+          entity_id: "525",
+          source: "manual",
+          coverage: "lead",
+          created_at: "2026-09-01",
+        },
       ],
     });
     server.use(

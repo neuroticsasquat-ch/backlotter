@@ -27,6 +27,9 @@ export type DigestCadence = "daily" | "weekly" | "off";
  *  this page does not render it. */
 export interface UserSettings {
   digest_cadence: DigestCadence;
+  /** The availability beats this account is alerted on, product-wide (D-44). `[]` is a real
+   *  answer — no store alerts at all — and is not the same as the `["stream"]` default. */
+  alert_stores: AlertStore[];
   ical_token: string;
   created_at: string;
   updated_at: string;
@@ -230,7 +233,7 @@ export interface WatchProvider {
  */
 export interface WhereToWatchBox {
   region: string; // "US" in v1
-  flatrate: WatchProvider[]; // subscription — rendered as "Stream", matching AlertPref
+  flatrate: WatchProvider[]; // subscription — rendered as "Stream", matching AlertStore
   rent: WatchProvider[];
   buy: WatchProvider[];
   link: string | null; // TMDB's per-film watch page
@@ -395,6 +398,14 @@ export type FollowEntityType = "person" | "company" | "franchise" | "title";
  *  backend; anything this app creates is `manual`. */
 export type FollowSource = "manual" | "letterboxd_import" | "tmdb_import" | "derived";
 
+/** Which of a followed person's credits are worth an alert (D-43). `lead` is the default —
+ *  director or top-3 billing, the cut that keeps a prolific actor from becoming a push
+ *  firehose; `all` is every seed-grade credit. It narrows *alerts only*: the timeline shows
+ *  every credit at either setting. The backend echoes it on every follow and it is always
+ *  `lead` for a company, franchise or title, which cover one thing each and have nothing to
+ *  narrow — so only person rows draw the control. */
+export type FollowCoverage = "lead" | "all";
+
 export interface Follow {
   entity_type: FollowEntityType;
   // A TMDB id for `person` / `company` / `franchise`, a film UUID for `title` — a string in
@@ -402,6 +413,7 @@ export interface Follow {
   // `normalise_entity_id`). Compare as strings here too, never as numbers.
   entity_id: string;
   source: FollowSource;
+  coverage: FollowCoverage;
   created_at: string;
 }
 
@@ -409,8 +421,10 @@ export interface FollowListResponse {
   items: Follow[];
 }
 
-/** Which availability beats a watchlist item alerts on (D-14). */
-export type AlertPref = "buy" | "rent" | "stream";
+/** An availability beat the reader can be alerted on. One set per account
+ *  (`UserSettings.alert_stores`, D-44) — the per-film `alert_prefs` this replaced is gone, and
+ *  no per-film preference exists any more. */
+export type AlertStore = "buy" | "rent" | "stream";
 
 /**
  * The one release date a watchlist row shows, chosen by the backend (NEU-1397).
@@ -444,12 +458,33 @@ export interface WatchlistFilm {
   headline_release: HeadlineRelease | null;
 }
 
+/** One follow that puts a film on the watchlist. `name` is nullable and that is load-bearing:
+ *  a follow outlives the entity it names and D-40 keeps the row, so a cover the backend cannot
+ *  resolve arrives with a null name rather than being dropped — which would make a covered
+ *  film look uncovered. */
+export interface CoveringFollow {
+  entity_type: FollowEntityType;
+  entity_id: string;
+  name: string | null;
+}
+
+/**
+ * One film on the computed watchlist (D-42), and how it got there.
+ *
+ * Nothing *put* it here, so there is no `source`: the watchlist is the set of in-play films the
+ * user's follows cover, not a list they maintain. `covered_by` is every follow that covers it,
+ * the direct title follow first; `followed` says whether one of them is that direct title
+ * follow — the difference between a film the user asked for and one their follows reached.
+ *
+ * `muted` is a field rather than a reason to omit the row: a muted film is listed and marked,
+ * because the person looking at their watchlist is exactly who wants to undo one (D-45).
+ */
 export interface WatchlistItem {
   film: WatchlistFilm;
-  // `manual` or `derived_from_follow` — the follow graph adds films on its own (D-13), and
-  // removing a derived one records a dismissal so it is not added back.
-  source: string;
-  alert_prefs: AlertPref[];
+  covered_by: CoveringFollow[];
+  followed: boolean;
+  muted: boolean;
+  // The earliest of the covering follows' — when this film first started being covered.
   created_at: string;
 }
 

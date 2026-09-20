@@ -18,11 +18,11 @@ global calendar, full calendar, release calendar (the old page heading).
 
 **Watchlist calendar**:
 The all-releases calendar narrowed to the reader's own **watchlist**: the films their follows
-cover for alerts, minus the ones they have muted (D-42, D-45; the web app catches up in M8).
-Following a director does put their lead films on it. The backend glossary defines the set and
-the date rule; on the web it is the first tab
-an entitled reader lands on, and it never exists for anyone else. Its subscribed form is the
-**iCal feed**, which holds the same films and dates.
+cover for alerts, minus the ones they have muted (D-42, D-45). Following a director does put
+their lead films on it — every credit, if that follow's **coverage** is set to `all`. The
+backend glossary defines the set and the date rule; on the web it is the first tab an entitled
+reader lands on, and it never exists for anyone else. Its subscribed form is the **iCal feed**,
+which holds the same films and dates.
 _Avoid_: my calendar (the nav item is "Calendar"; the tab is "My watchlist"), follow calendar,
 personal calendar, subscription calendar (that is the iCal feed).
 
