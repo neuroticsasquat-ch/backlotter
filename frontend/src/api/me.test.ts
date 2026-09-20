@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createElement, type ReactNode } from "react";
+import { renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/msw/server";
 import {
@@ -9,8 +12,9 @@ import {
 import { settingsHandlers } from "@/test/msw/settings";
 import { env } from "@/env";
 import { ApiError } from "./client";
-import { watchlistCalendarPageKey, watchlistKey } from "./query-keys";
+import { timelineKey, watchlistCalendarPageKey, watchlistKey } from "./query-keys";
 import {
+  useToggleWatchlist,
   createFollow,
   deleteFollow,
   fetchFollows,
@@ -282,5 +286,50 @@ describe("watchlist calendar", () => {
     expect(watchlistCalendarPageKey(20, 0).slice(0, watchlistKey.length)).toEqual([
       ...watchlistKey,
     ]);
+  });
+});
+
+describe("useToggleWatchlist — what a want/stop refreshes", () => {
+  /** A client whose `invalidateQueries` we can read back, wrapped for `renderHook`. */
+  function harness() {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    return { qc, invalidate, wrapper };
+  }
+
+  /** The query keys a run invalidated, stringified so `toContain` can compare them by value.
+   *  `unknown[]` rather than the spy's own call type: `invalidateQueries` is overloaded, and
+   *  the inferred tuple loses the filter argument we are actually reading. */
+  const invalidatedKeys = (spy: { mock: { calls: unknown[][] } }) =>
+    spy.mock.calls.map((call) => JSON.stringify((call[0] as { queryKey?: unknown }).queryKey));
+
+  it("invalidates the timeline as well as the watchlist, which the old toggle never did", async () => {
+    // The one genuinely new line in D-1405.4: a want creates a title follow, and a follow is
+    // what `/` is built from — so the home page has to be re-read. The watchlist alone would
+    // leave a just-followed film missing from the timeline until something else refetched it.
+    server.use(...followGraphHandlers().handlers);
+    const { invalidate, wrapper } = harness();
+    const { result } = renderHook(() => useToggleWatchlist(), { wrapper });
+
+    result.current.mutate({ film: makeWatchlistItem().film, onList: false });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(invalidatedKeys(invalidate)).toContain(JSON.stringify(timelineKey));
+    expect(invalidatedKeys(invalidate)).toContain(JSON.stringify(watchlistKey));
+  });
+
+  it("leaves the timeline alone when the request failed", async () => {
+    // Invalidation is on success only: a rolled-back toggle leaves the follow graph the
+    // timeline was already built from, so re-reading it would fetch the same days.
+    server.use(...entitlementRequiredHandlers());
+    const { invalidate, wrapper } = harness();
+    const { result } = renderHook(() => useToggleWatchlist(), { wrapper });
+
+    result.current.mutate({ film: makeWatchlistItem().film, onList: false });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidatedKeys(invalidate)).not.toContain(JSON.stringify(timelineKey));
   });
 });

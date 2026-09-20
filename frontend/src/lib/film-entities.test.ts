@@ -6,7 +6,6 @@ import {
   filmCompanies,
   isFollowableCrew,
   personTarget,
-  titleTarget,
   watchlistFilm,
   personPath,
 } from "./film-entities";
@@ -44,18 +43,11 @@ function makeFilm(overrides: Partial<FilmDetail> = {}): FilmDetail {
 }
 
 describe("follow targets", () => {
-  it("keys a title follow on the film's own id", () => {
-    expect(titleTarget(makeFilm({ id: FILM_ID }))).toEqual({
-      entityType: "title",
-      entityId: FILM_ID,
-      label: "The Odyssey",
-    });
-  });
-
+  // No `titleTarget` case: the film page has one control now and it is keyed on the watchlist
+  // item, not on a title follow (NEU-1405, ADR-0018). The helper went with the button.
   it("offers no target for an entity the payload does not identify", () => {
     // The public film DTO carries no ids yet, so this is today's every case: no id, no
     // button, rather than a button that would post a follow of nothing.
-    expect(titleTarget(makeFilm())).toBeNull();
     expect(
       personTarget({ name: "Christopher Nolan", job: "Director", department: null }),
     ).toBeNull();

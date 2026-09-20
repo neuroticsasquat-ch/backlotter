@@ -12,6 +12,18 @@ export type FollowAccess = "anonymous" | "locked" | "ready";
 export const LOCKED_COPY =
   "Following and the watchlist are part of the subscription. Access is limited while we build that tier.";
 
+/**
+ * What following a film actually gets you, said on the film page where the choice is made.
+ *
+ * Beside {@link LOCKED_COPY} because the two share a row and must not fight. This one is
+ * **ordinary text under the control**, never a `title` or an `aria-describedby`: a disabled
+ * locked button already owns its tooltip, and a second one on the same control is a trap.
+ * Plain text also means it reads in every access state, including the anonymous one — the
+ * visitor who has not signed in is exactly who needs to be told what the button is for.
+ */
+export const FOLLOW_CUE =
+  "Following a film puts its news in your timeline and tells you when it gets a date, moves, or turns up to watch at home.";
+
 // The hook and its copy belong beside the two states they describe, as `useAuth` does in
 // AuthContext.
 // eslint-disable-next-line react-refresh/only-export-components -- hook beside its components

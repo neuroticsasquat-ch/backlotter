@@ -1,10 +1,11 @@
 import type { FilmDetail } from "@/api/types";
 import { formatRuntime, pickRating } from "@/lib/format";
 import { posterUrl } from "@/lib/poster";
-import { collectionTarget, titleTarget, watchlistFilm } from "@/lib/film-entities";
+import { collectionTarget, watchlistFilm } from "@/lib/film-entities";
 import { latestTrailerKey } from "@/lib/trailers";
 import { FollowButton } from "@/components/follow/FollowButton";
-import { WatchlistButton } from "@/components/follow/WatchlistButton";
+import { TitleFollowButton } from "@/components/follow/TitleFollowButton";
+import { FOLLOW_CUE } from "@/components/follow/access";
 import { ArcStepper } from "./ArcStepper";
 import { ExternalLinks } from "./ExternalLinks";
 import { TrailerEmbed } from "./TrailerEmbed";
@@ -19,14 +20,15 @@ import { TrailerEmbed } from "./TrailerEmbed";
  *  parenthetical stays year-only here so the director is not repeated 100px above its own
  *  labelled row.
  *  Production companies render in their own collapsible section below the cast.
- *  The watchlist toggle and the title's follow button sit under the title, and the
- *  collection gets a labelled row of its own with the franchise follow (NEU-1353). */
+ *  One control sits under the title — `TitleFollowButton`, with {@link FOLLOW_CUE} beneath it
+ *  — and the collection gets a labelled row of its own with the franchise follow (NEU-1353,
+ *  NEU-1405). The pair this used to carry became one when the watchlist stopped being a second
+ *  record (ADR-0018); people, companies and franchises keep their own follow buttons. */
 export function FilmHeader({ film }: { film: FilmDetail }) {
   const poster = posterUrl(film.poster_path, "w342");
   const runtime = film.runtime != null && film.runtime > 0 ? formatRuntime(film.runtime) : null;
   const rating = pickRating(film.release_dates);
   const watchlistRow = watchlistFilm(film);
-  const followTitle = titleTarget(film);
   const followCollection = collectionTarget(film.collection);
   // Promoted out of the timeline: the newest trailer is the one thing on this page a visitor
   // is likely to have come for, and it is otherwise buried under however many updates the
@@ -56,10 +58,14 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
         )}
       </div>
 
-      {(watchlistRow || followTitle) && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {watchlistRow && <WatchlistButton film={watchlistRow} />}
-          {followTitle && <FollowButton target={followTitle} />}
+      {/* No id in the payload means no film to follow, so neither the control nor the cue
+          renders — a cue explaining a button that is not there would be worse than silence. */}
+      {watchlistRow && (
+        <div className="mt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <TitleFollowButton film={watchlistRow} />
+          </div>
+          <p className="mt-1.5 text-sm text-muted-foreground">{FOLLOW_CUE}</p>
         </div>
       )}
 

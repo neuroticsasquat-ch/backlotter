@@ -52,9 +52,6 @@ function target(
   return { entityType, entityId: String(entityId), label };
 }
 
-export const titleTarget = (film: FilmDetail): FollowTarget | null =>
-  target("title", film.id, film.title);
-
 export const personTarget = (person: CastMember | CrewMember): FollowTarget | null =>
   target("person", person.person_id, person.name);
 

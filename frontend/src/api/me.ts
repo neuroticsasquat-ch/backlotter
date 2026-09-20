@@ -204,14 +204,6 @@ export function useWatchlistItem(filmId: string | null): WatchlistItem | null {
   return (data?.items ?? []).find((item) => item.film.id === filmId) ?? null;
 }
 
-/** Whether the user hears about this film. A muted row is on the list and deliberately does
- *  not count: muting is how you stop hearing about a film you are still covered for, so a
- *  toggle reading presence alone would show "on" for a film it silenced. */
-export function useIsOnWatchlist(filmId: string | null): boolean {
-  const item = useWatchlistItem(filmId);
-  return Boolean(item && !item.muted);
-}
-
 /** Follow or unfollow, applied to the cached list before the request goes out so the button
  *  flips under the user's finger. `following` is the state the target is in *now*, so the
  *  mutation moves it to the other one. */

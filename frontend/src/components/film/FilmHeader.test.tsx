@@ -4,10 +4,11 @@ import { describe, expect, it } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoutesStub } from "react-router";
 import { server } from "@/test/msw/server";
-import { meHandler } from "@/test/msw/me";
+import { meHandler, unauthMeHandler } from "@/test/msw/me";
 import { followGraphHandlers } from "@/test/msw/follows";
 import { AuthProvider } from "@/components/AuthContext";
 import { FilmHeader } from "@/components/film/FilmHeader";
+import { FOLLOW_CUE, LOCKED_COPY } from "@/components/follow/access";
 import type { FilmDetail, FilmEvent } from "@/api/types";
 
 const film: FilmDetail = {
@@ -187,22 +188,53 @@ describe("FilmHeader follow affordances", () => {
     );
   }
 
-  it("offers the watchlist toggle and the title follow once the film carries an id", async () => {
+  it("offers exactly one control under the title, not the old pair", async () => {
+    // The pair was two records with one meaning (ADR-0018). A second title-level button here
+    // is the regression this ticket exists to prevent, so the count is the assertion.
     server.use(meHandler({ entitled: true }), ...followGraphHandlers().handlers);
     renderHeader({ id: FILM_ID });
 
     expect(
-      await screen.findByRole("button", { name: /add the odyssey to your watchlist/i }),
+      await screen.findByRole("button", { name: /^follow the odyssey$/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^follow the odyssey$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /watchlist/i })).not.toBeInTheDocument();
   });
 
-  it("offers neither while the payload carries no film id", () => {
-    // Today's payload: the affordances are absent rather than inert, so the header reads
-    // exactly as it did before.
+  it("says what following a film does, as text rather than a tooltip", async () => {
+    server.use(meHandler({ entitled: true }), ...followGraphHandlers().handlers);
+    renderHeader({ id: FILM_ID });
+
+    await screen.findByRole("button", { name: /^follow the odyssey$/i });
+    expect(screen.getByText(FOLLOW_CUE)).toBeInTheDocument();
+  });
+
+  it("reads the cue to an anonymous visitor too — they are who needs it", async () => {
+    server.use(unauthMeHandler());
+    renderHeader({ id: FILM_ID });
+
+    expect(
+      await screen.findByRole("link", { name: /sign in to follow the odyssey/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(FOLLOW_CUE)).toBeInTheDocument();
+  });
+
+  it("keeps the locked tooltip and the cue apart in the locked state", async () => {
+    // The two pieces of copy share this row and must not fight: the locked explanation stays
+    // a native `title` on the disabled button's wrapper, the cue stays ordinary text below.
+    server.use(meHandler({ entitled: false }));
+    renderHeader({ id: FILM_ID });
+
+    const button = await screen.findByRole("button", { name: /^follow the odyssey$/i });
+    expect(button).toBeDisabled();
+    expect(button.parentElement).toHaveAttribute("title", LOCKED_COPY);
+    expect(screen.getByText(FOLLOW_CUE)).toBeInTheDocument();
+  });
+
+  it("offers neither control nor cue while the payload carries no film id", () => {
+    // A cue explaining a button that is not there would be worse than silence.
     renderHeader();
-    expect(screen.queryByRole("button", { name: /watchlist/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /watchlist/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /follow the odyssey/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(FOLLOW_CUE)).not.toBeInTheDocument();
   });
 
   it("names the collection, with a follow button when it is identified", async () => {
