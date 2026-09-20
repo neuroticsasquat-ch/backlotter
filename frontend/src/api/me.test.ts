@@ -4,12 +4,14 @@ import { server } from "@/test/msw/server";
 import { entitlementRequiredHandlers, followGraphHandlers } from "@/test/msw/follows";
 import { env } from "@/env";
 import { ApiError } from "./client";
+import { watchlistCalendarPageKey, watchlistKey } from "./query-keys";
 import {
   createFollow,
   deleteFollow,
   fetchFollows,
   fetchTimeline,
   fetchWatchlist,
+  fetchWatchlistCalendar,
   addToWatchlist,
   isEntitlementError,
   removeFromWatchlist,
@@ -198,5 +200,52 @@ describe("timeline fetcher", () => {
     );
 
     await expect(fetchTimeline({ limit: 10, offset: 0 })).rejects.toSatisfy(isEntitlementError);
+  });
+});
+
+describe("watchlist calendar", () => {
+  it("asks for one page of the reader's own calendar by date", async () => {
+    let url: URL | undefined;
+    server.use(
+      http.get(`${base}/me/calendar`, ({ request }) => {
+        url = new URL(request.url);
+        return HttpResponse.json({ items: [], total: 0, limit: 20, offset: 1 });
+      }),
+    );
+
+    await fetchWatchlistCalendar({ limit: 20, offset: 1 });
+
+    expect(url?.pathname).toBe("/me/calendar");
+    expect(url?.searchParams.get("limit")).toBe("20");
+    expect(url?.searchParams.get("offset")).toBe("1");
+  });
+
+  it("returns the public calendar's shape unchanged, so one component renders both tabs", async () => {
+    // NEU-1411's contract: `/me/calendar` answers exactly as `/calendar` does. Anything that
+    // had to be translated here would mean the two tabs had drifted.
+    server.use(
+      http.get(`${base}/me/calendar`, () =>
+        HttpResponse.json({
+          items: [{ film_ref: "a-film", release_date: "2026-07-04", release_type: "wide" }],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        }),
+      ),
+    );
+
+    const page = await fetchWatchlistCalendar({ limit: 20, offset: 0 });
+
+    expect(page).toMatchObject({ total: 1, limit: 20, offset: 0 });
+    expect(page.items[0]).toMatchObject({ film_ref: "a-film", release_date: "2026-07-04" });
+  });
+
+  it("caches every page under the watchlist, so a watchlist change refreshes it", () => {
+    // `useToggleWatchlist` and `useUpdateAlertPrefs` invalidate `watchlistKey` on settle, which
+    // is a prefix match — the calendar refetches with no extra wiring in either mutation, and a
+    // re-read of `/me` drops it with the collection it is a view of (D-1412.3).
+    expect(watchlistCalendarPageKey(20, 0).slice(0, watchlistKey.length)).toEqual([
+      ...watchlistKey,
+    ]);
   });
 });

@@ -29,3 +29,18 @@ export const timelinePageKey = (limit: number, offset: number) =>
  *  import itself triggers when it finishes — must not cancel or restart the poll that is
  *  watching it. */
 export const importJobKey = (jobId: string) => ["import-job", jobId] as const;
+
+/** The reader's watchlist calendar (NEU-1412). Under `watchlistKey`, not beside `timelineKey`:
+ *  the watchlist calendar is a *view of the watchlist*, so adding or removing a film — which
+ *  already invalidates the `["me","watchlist"]` prefix in `useToggleWatchlist` — must refresh
+ *  it without any new wiring, and a re-read of the account, which is what flips `entitled`,
+ *  drops it with the collection it belongs to.
+ *
+ *  The timeline's reasoning about paged keys does not carry over: it is invalidated by *follow*
+ *  mutations, which have no natural prefix over it, whereas this has one already. */
+export const watchlistCalendarKey = [...watchlistKey, "calendar"] as const;
+
+/** The key for one page of `GET /me/calendar`. `limit`/`offset` count distinct release dates,
+ *  as the public route's do (NEU-1411). */
+export const watchlistCalendarPageKey = (limit: number, offset: number) =>
+  [...watchlistCalendarKey, limit, offset] as const;

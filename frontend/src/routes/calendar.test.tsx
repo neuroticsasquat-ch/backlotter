@@ -1,10 +1,14 @@
+import type { ComponentType } from "react";
 import { RouterContextProvider, createRoutesStub } from "react-router";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
+import { unauthMeHandler } from "@/test/msw/me";
 import { cloudflareContext, type AppEnv } from "@/lib/load-context";
+import { AuthProvider } from "@/components/AuthContext";
 import CalendarPage, { loader, meta, ErrorBoundary } from "@/routes/calendar";
 import type { CalendarResponse } from "@/api/types";
 
@@ -163,17 +167,38 @@ describe("calendar route meta", () => {
   });
 });
 
+/** The calendar route with the providers the public layout gives it: `CalendarView` reads
+ *  `useAuth`, so every render of the page now needs an account query to resolve. These tests
+ *  are the anonymous branch — the tabbed one lives in `components/calendar/CalendarView.test.tsx`
+ *  — so `/me` answers 401 and the page is exactly the one it was before the tabs existed. */
+function renderCalendar(
+  routeLoader: () => { calendar: CalendarResponse },
+  errorBoundary?: ComponentType,
+) {
+  server.use(unauthMeHandler());
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const Stub = createRoutesStub([
+    {
+      path: "/calendar",
+      Component: CalendarPage,
+      loader: routeLoader,
+      ...(errorBoundary ? { ErrorBoundary: errorBoundary } : {}),
+    },
+    { path: "/film/:slug", Component: () => null },
+    { path: "/", Component: () => <h1>Home</h1> },
+  ]);
+  return render(
+    <QueryClientProvider client={qc}>
+      <AuthProvider>
+        <Stub initialEntries={["/calendar"]} />
+      </AuthProvider>
+    </QueryClientProvider>,
+  );
+}
+
 describe("calendar route render", () => {
   it("renders title(year) rows grouped by date then release type, linking each to its film page", async () => {
-    const Stub = createRoutesStub([
-      {
-        path: "/calendar",
-        Component: CalendarPage,
-        loader: () => ({ calendar: calendarTwoDates }),
-      },
-      { path: "/film/:slug", Component: () => null },
-    ]);
-    const { container } = render(<Stub initialEntries={["/calendar"]} />);
+    const { container } = renderCalendar(() => ({ calendar: calendarTwoDates }));
 
     // Both date headings render
     expect(await screen.findByText(/July 4, 2026/)).toBeInTheDocument();
@@ -205,15 +230,7 @@ describe("calendar route render", () => {
   });
 
   it("renders the home-release buckets with their own labels, in backend order", async () => {
-    const Stub = createRoutesStub([
-      {
-        path: "/calendar",
-        Component: CalendarPage,
-        loader: () => ({ calendar: calendarWithHomeRelease }),
-      },
-      { path: "/film/:slug", Component: () => null },
-    ]);
-    const { container } = render(<Stub initialEntries={["/calendar"]} />);
+    const { container } = renderCalendar(() => ({ calendar: calendarWithHomeRelease }));
 
     expect(await screen.findByText(/July 4, 2026/)).toBeInTheDocument();
     expect(screen.getByText("Digital")).toBeInTheDocument();
@@ -247,11 +264,7 @@ describe("calendar route render", () => {
         });
       }),
     );
-    const Stub = createRoutesStub([
-      { path: "/calendar", Component: CalendarPage, loader: () => ({ calendar: page1 }) },
-      { path: "/film/:slug", Component: () => null },
-    ]);
-    render(<Stub initialEntries={["/calendar"]} />);
+    renderCalendar(() => ({ calendar: page1 }));
     expect(await screen.findByText(/July 4, 2026/)).toBeInTheDocument();
     expect(screen.queryByText(/July 11, 2026/)).toBeNull();
 
@@ -264,14 +277,7 @@ describe("calendar route render", () => {
 
   it("shows the empty state when there are no releases", async () => {
     const emptyCalendar: CalendarResponse = { items: [], total: 0, limit: 100, offset: 0 };
-    const Stub = createRoutesStub([
-      {
-        path: "/calendar",
-        Component: CalendarPage,
-        loader: () => ({ calendar: emptyCalendar }),
-      },
-    ]);
-    render(<Stub initialEntries={["/calendar"]} />);
+    renderCalendar(() => ({ calendar: emptyCalendar }));
     expect(await screen.findByText(/no upcoming releases yet/i)).toBeInTheDocument();
   });
 
@@ -305,31 +311,15 @@ describe("calendar route render", () => {
       limit: 20,
       offset: 0,
     };
-    const Stub = createRoutesStub([
-      {
-        path: "/calendar",
-        Component: CalendarPage,
-        loader: () => ({ calendar: multiMonth }),
-      },
-      { path: "/film/:slug", Component: () => null },
-    ]);
-    render(<Stub initialEntries={["/calendar"]} />);
+    renderCalendar(() => ({ calendar: multiMonth }));
     expect(await screen.findByRole("heading", { name: "2026" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "June" })).toBeInTheDocument();
   });
 
   it("error boundary renders neutral copy and a link home", async () => {
-    const Stub = createRoutesStub([
-      {
-        path: "/calendar",
-        Component: CalendarPage,
-        ErrorBoundary,
-        loader: () => {
-          throw new Error("network failure");
-        },
-      },
-    ]);
-    render(<Stub initialEntries={["/calendar"]} />);
+    renderCalendar(() => {
+      throw new Error("network failure");
+    }, ErrorBoundary);
     expect(await screen.findByText(/couldn't load the release calendar/i)).toBeInTheDocument();
     const homeLink = screen.getByRole("link", { name: /home/i });
     expect(homeLink).toHaveAttribute("href", "/");

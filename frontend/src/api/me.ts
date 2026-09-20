@@ -4,9 +4,17 @@ import { useAuth } from "@/components/AuthContext";
 import type { FollowTarget } from "@/lib/film-entities";
 import { rememberFollowLabel } from "@/lib/follow-labels";
 import { ApiError, apiFetch } from "./client";
-import { followsKey, settingsKey, timelineKey, timelinePageKey, watchlistKey } from "./query-keys";
+import {
+  followsKey,
+  settingsKey,
+  timelineKey,
+  timelinePageKey,
+  watchlistCalendarPageKey,
+  watchlistKey,
+} from "./query-keys";
 import type {
   AlertPref,
+  CalendarResponse,
   DigestCadence,
   FeedDayResponse,
   Follow,
@@ -116,6 +124,29 @@ export function useTimeline({ limit, offset }: { limit: number; offset: number }
   return useQuery({
     queryKey: timelinePageKey(limit, offset),
     queryFn: () => fetchTimeline({ limit, offset }),
+    enabled,
+    staleTime: 60_000,
+    refetchOnMount: "always",
+  });
+}
+
+/** One page of the reader's watchlist release calendar (NEU-1411): `GET /calendar`'s exact
+ *  shape, narrowed to the films on their watchlist. `limit`/`offset` count distinct release
+ *  dates rather than film rows, as the public route's do, so a page is a span of dates. */
+export const fetchWatchlistCalendar = ({ limit, offset }: { limit: number; offset: number }) =>
+  apiFetch<CalendarResponse>(`/me/calendar?limit=${limit}&offset=${offset}`);
+
+/** The watchlist tab of `/calendar`, mounted once the account resolves as entitled.
+ *
+ *  `refetchOnMount: "always"` for the timeline's reason: the reader goes to a film page, adds
+ *  it to their watchlist, comes back, and the calendar they return to has to show it. The
+ *  watchlist mutations invalidate `watchlistKey`, a prefix of this key, which covers the case
+ *  where they never leave the page. */
+export function useWatchlistCalendar({ limit, offset }: { limit: number; offset: number }) {
+  const enabled = useFollowGraphEnabled();
+  return useQuery({
+    queryKey: watchlistCalendarPageKey(limit, offset),
+    queryFn: () => fetchWatchlistCalendar({ limit, offset }),
     enabled,
     staleTime: 60_000,
     refetchOnMount: "always",
