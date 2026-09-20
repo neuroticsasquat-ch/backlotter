@@ -58,6 +58,28 @@ export const titleTarget = (film: FilmDetail): FollowTarget | null =>
 export const personTarget = (person: CastMember | CrewMember): FollowTarget | null =>
   target("person", person.person_id, person.name);
 
+/**
+ * The person page's URL for someone we know the id and name of.
+ *
+ * The ref resolves on its **leading id**; everything after the first hyphen is decorative, so
+ * this only has to be *stable*, not identical to the backend's. It is a rough `slugify`
+ * — diacritics folded, everything non-alphanumeric run together into hyphens — and a name in a
+ * script it cannot fold (Cyrillic, Han) falls through to the bare id, which is a valid ref. The
+ * page redirects to the canonical form either way, so a link minted here is at worst one 301
+ * slower, never wrong.
+ */
+export function personPath(id: number | string, name: string): string {
+  const stem = name
+    .normalize("NFKD")
+    // The combining marks NFKD just split off, so "Chloé" folds to "chloe" rather than
+    // hyphenating at the accent.
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return stem ? `/person/${id}-${stem}` : `/person/${id}`;
+}
+
 export const companyTarget = (company: FilmCompany): FollowTarget | null =>
   target("company", company.id, company.name);
 

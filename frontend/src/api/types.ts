@@ -398,13 +398,30 @@ export type FollowEntityType = "person" | "company" | "franchise" | "title";
  *  backend; anything this app creates is `manual`. */
 export type FollowSource = "manual" | "letterboxd_import" | "tmdb_import" | "derived";
 
-/** Which of a followed person's credits are worth an alert (D-43). `lead` is the default —
- *  director or top-3 billing, the cut that keeps a prolific actor from becoming a push
- *  firehose; `all` is every seed-grade credit. It narrows *alerts only*: the timeline shows
- *  every credit at either setting. The backend echoes it on every follow and it is always
- *  `lead` for a company, franchise or title, which cover one thing each and have nothing to
- *  narrow — so only person rows draw the control. */
-export type FollowCoverage = "lead" | "all";
+/**
+ * How deep into a followed person's credits we go (D-48). Three tiers, narrowest first:
+ *
+ * - `lead` — director, or top-3 billing. The default, and the cut that keeps a prolific actor
+ *   from becoming a push firehose.
+ * - `major` — every seed-grade credit: director, writers, top-5 billing. Called `all` until
+ *   NEU-1418 renamed it, because a tier named "all" sitting beside one that reaches further is
+ *   exactly the vocabulary drift the glossary exists to stop.
+ * - `any` — every credit the person holds on the film, at any billing and any crew job.
+ *
+ * `lead` and `major` narrow *alerts only*; the timeline shows every seed-grade credit at
+ * either. `any` is the one tier that widens both (D-47), so a 12th-billed role reaches the
+ * timeline as well as the alerts. The backend echoes it on every follow and it is always
+ * `lead` for a company, franchise or title, which cover one thing each and have nothing to
+ * narrow — so only person rows draw the control.
+ */
+export type FollowCoverage = "lead" | "major" | "any";
+
+/** The narrowest tier that reaches one credit — what a follow has to be set to for it to
+ *  arrive at all. Deliberately the same type as {@link FollowCoverage} rather than a parallel
+ *  spelling of the same three strings: the backend answers it from `credit_tier`, the function
+ *  its alert query's predicates are built from, so a badge and the follow it describes cannot
+ *  mean different things. */
+export type CreditTier = FollowCoverage;
 
 export interface Follow {
   entity_type: FollowEntityType;
@@ -490,6 +507,62 @@ export interface WatchlistItem {
 
 export interface WatchlistListResponse {
   items: WatchlistItem[];
+}
+
+// --- The person page (NEU-1418 contracts, D-1416.6) ---
+
+/** The film as a person page cites it: the watchlist row's shape plus the URL ref.
+ *
+ *  `ref` rather than the bare `tmdb_id` the watchlist row falls back to — the backend already
+ *  knows the canonical `<tmdb_id>-<slug>`, so linking by it costs the reader the 301 the
+ *  watchlist still eats. */
+export interface PersonFilmSummary extends WatchlistFilm {
+  ref: string;
+}
+
+/** One credit a person holds on one film. A writer-director holds two of these on the same
+ *  film; they are listed rather than folded, because "Director · Writer" is what the page
+ *  reads. `credit_order` is TMDB's 0-indexed billing, null for crew and for an unbilled cast
+ *  entry. The backend orders them narrowest tier first, then billing — render them in the
+ *  order they arrive rather than re-sorting, or the two renderings can disagree. */
+export interface PersonCredit {
+  credit_type: "cast" | "crew";
+  job: string | null;
+  character: string | null;
+  credit_order: number | null;
+  tier: CreditTier;
+}
+
+/** One film on a person's page. `tier` is the **narrowest** across `credits` — the tier a
+ *  follow has to be at for this row to reach the reader at all, which is the question the
+ *  badge beside it answers. */
+export interface PersonFilm {
+  film: PersonFilmSummary;
+  credits: PersonCredit[];
+  tier: CreditTier;
+}
+
+/**
+ * `GET /people/{ref}` — who someone is, and the films a follow of them could reach.
+ *
+ * Upcoming and recently released only, and never both for one film: `upcoming` is the in-play
+ * set and `recent` the alert window less that set, which between them are exactly what a
+ * follow delivers (D-46). Their back catalogue is absent by design, not by pagination — the
+ * page's job is to show what following this person would get you.
+ *
+ * `id` is the TMDB person id; stringified it is the `entity_id` a `person` follow is keyed on.
+ * `ref` is canonical, and the route redirects to it when the one asked with differs.
+ */
+export interface PersonDetail {
+  ref: string;
+  id: number;
+  name: string;
+  profile_path: string | null;
+  known_for_department: string | null;
+  birthday: string | null; // "YYYY-MM-DD"
+  deathday: string | null; // "YYYY-MM-DD"
+  upcoming: PersonFilm[];
+  recent: PersonFilm[];
 }
 
 // --- Entity search, the follow graph's add path (NEU-1350 contracts) ---

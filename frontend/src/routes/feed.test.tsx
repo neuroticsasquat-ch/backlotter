@@ -429,12 +429,24 @@ describe("home route — the timeline could not be read", () => {
     );
     renderHome();
 
+    // Wait for the lapse itself before looking at anything. `/` renders the SSR'd global feed
+    // for everyone until the account resolves, so `GLOBAL_HEADING` is on screen during that
+    // first paint as well as after the grant runs out — and a `findByRole` racing the swap
+    // resolves with the *pre-auth* heading, then fails on a node React has already replaced
+    // with the timeline. The second `/me` read is the signal that the 403 landed, `refresh()`
+    // ran, and what is on screen now is what the lapse produced.
+    await waitFor(() => expect(meCalls).toBe(2));
+
     // The global feed the server already sent is what they are left looking at — no panel
-    // above it, and not the empty-timeline onboarding.
-    expect(await screen.findByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
+    // above it, and not the empty-timeline onboarding. Re-queried on each poll rather than
+    // held from a `findBy`, so the assertion can never be about a detached node.
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument(),
+    );
     expect(screen.queryByText(/your timeline is empty/i)).toBeNull();
     expect(screen.queryByText(/couldn't load your timeline/i)).toBeNull();
     expect(screen.queryByRole("heading", { name: /not open yet/i })).toBeNull();
+    expect(screen.queryByLabelText("Loading your timeline")).toBeNull();
   });
 });
 

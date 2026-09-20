@@ -67,15 +67,35 @@ describe("MyFollows", () => {
     expect(screen.getByRole("button", { name: "Unfollow Christopher Nolan" })).toBeInTheDocument();
   });
 
-  it("falls back to the type, the id and a TMDB link for a row it has no name for", async () => {
+  it("falls back to the type and the id for a person row it has no name for", async () => {
     renderPage([follow({ entity_id: "287" })]);
 
-    // Scoped to the row's own name line: the coverage control's group label names the row
-    // too, so an unscoped match would find both.
-    expect(await screen.findByText(/Person 287/, { selector: "p" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /look up on tmdb/i })).toHaveAttribute(
+    // The placeholder links to the person's own page rather than out to TMDB (NEU-1419): a row
+    // reading "Person 287" is exactly the one whose reader needs somewhere to go and find out
+    // who that is, and our page tells them what the person has coming as well.
+    const link = await screen.findByRole("link", { name: "Person 287" });
+    expect(link).toHaveAttribute("href", "/person/287");
+    expect(screen.queryByRole("link", { name: /look up on tmdb/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps the TMDB fallback for a company row it has no name for", async () => {
+    // Companies and collections have no page of ours yet, so the outbound link stays until the
+    // story that gives them one.
+    renderPage([follow({ entity_type: "company", entity_id: "41" })]);
+
+    expect(await screen.findByRole("link", { name: /look up on tmdb/i })).toHaveAttribute(
       "href",
-      "https://www.themoviedb.org/person/287",
+      "https://www.themoviedb.org/company/41",
+    );
+  });
+
+  it("links a named person row to their page, slugged from the name it knows", async () => {
+    rememberFollowLabel("person", "525", "Christopher Nolan");
+    renderPage([follow()]);
+
+    expect(await screen.findByRole("link", { name: "Christopher Nolan" })).toHaveAttribute(
+      "href",
+      "/person/525-christopher-nolan",
     );
   });
 
@@ -111,22 +131,40 @@ describe("MyFollows", () => {
     await waitFor(() => expect(screen.queryByText("Christopher Nolan")).not.toBeInTheDocument());
   });
 
-  it("offers a person follow both coverage tiers, on the default", async () => {
+  it("offers a person follow all three coverage tiers, on the default", async () => {
     rememberFollowLabel("person", "525", "Christopher Nolan");
     renderPage([follow()]);
 
-    const lead = await screen.findByRole("radio", { name: "Lead roles only" });
-    expect(lead).toBeChecked();
+    expect(await screen.findByRole("radio", { name: "Lead roles" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Major credits" })).not.toBeChecked();
     expect(screen.getByRole("radio", { name: "Every credit" })).not.toBeChecked();
   });
 
-  it("widening a person follow PATCHes its coverage", async () => {
+  it("widening a person follow to every credit PATCHes its coverage", async () => {
     rememberFollowLabel("person", "525", "Christopher Nolan");
     const graph = renderPage([follow()]);
 
     await userEvent.click(await screen.findByRole("radio", { name: "Every credit" }));
 
-    await waitFor(() => expect(graph.follows[0].coverage).toBe("all"));
+    await waitFor(() => expect(graph.follows[0].coverage).toBe("any"));
+  });
+
+  it("PATCHes the middle tier as `major`, the value that replaced `all`", async () => {
+    rememberFollowLabel("person", "525", "Christopher Nolan");
+    const graph = renderPage([follow()]);
+
+    await userEvent.click(await screen.findByRole("radio", { name: "Major credits" }));
+
+    await waitFor(() => expect(graph.follows[0].coverage).toBe("major"));
+  });
+
+  it("says that the widest tier widens the timeline as well as the alerts (D-47)", async () => {
+    // The note the group carried before NEU-1419 said the timeline was untouched whatever the
+    // reader picked, which `any` made false.
+    rememberFollowLabel("person", "525", "Christopher Nolan");
+    renderPage([follow()]);
+
+    expect(await screen.findByText(/Every credit widens both/)).toBeInTheDocument();
   });
 
   it("gives company, franchise and title rows no coverage control", async () => {

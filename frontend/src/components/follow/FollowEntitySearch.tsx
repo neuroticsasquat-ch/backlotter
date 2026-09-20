@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { Link } from "react-router";
 import { useFollows } from "@/api/me";
 import {
   MIN_QUERY_LEN,
@@ -6,7 +7,7 @@ import {
   type EntityResult,
   type SearchableEntityType,
 } from "@/api/entities";
-import type { FollowTarget } from "@/lib/film-entities";
+import { personPath, type FollowTarget } from "@/lib/film-entities";
 import { rememberFollowLabel } from "@/lib/follow-labels";
 import { profileUrl } from "@/lib/poster";
 import { FollowButton } from "./FollowButton";
@@ -156,7 +157,21 @@ export function FollowEntitySearch() {
               >
                 <EntityThumb result={result} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">{result.label}</p>
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {/* People have a page of ours to land on (NEU-1419); companies and
+                        collections do not yet, so their names stay plain rather than linking
+                        somewhere that would 404. */}
+                    {result.entityType === "person" ? (
+                      <Link
+                        to={personPath(result.entityId, result.label)}
+                        className="hover:underline"
+                      >
+                        {result.label}
+                      </Link>
+                    ) : (
+                      result.label
+                    )}
+                  </p>
                   {result.secondary && (
                     <p className="truncate text-xs text-muted-foreground">{result.secondary}</p>
                   )}

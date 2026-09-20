@@ -1,10 +1,10 @@
-import { useId } from "react";
+import { Link } from "react-router";
 import { useFollows, useToggleFollow, useUpdateFollowCoverage } from "@/api/me";
-import type { Follow, FollowCoverage, FollowEntityType } from "@/api/types";
+import type { Follow, FollowEntityType } from "@/api/types";
+import { CoverageControl } from "@/components/follow/CoverageControl";
 import { FollowEntitySearch } from "@/components/follow/FollowEntitySearch";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import type { FollowTarget } from "@/lib/film-entities";
+import { personPath, type FollowTarget } from "@/lib/film-entities";
 import { formatEventDate } from "@/lib/format";
 import { lookupFollowLabel } from "@/lib/follow-labels";
 import { profileUrl } from "@/lib/poster";
@@ -13,11 +13,14 @@ import { profileUrl } from "@/lib/poster";
  *  does not reshuffle its headings as the user follows things. */
 const GROUPS: { type: FollowEntityType; heading: string; note?: string }[] = [
   // The note answers the obvious misreading of the coverage radios below — that narrowing them
-  // empties the timeline too. Once, on the group, rather than on every person row.
+  // empties the timeline too. Once, on the group, rather than on every person row. The last
+  // sentence is not a flourish: `any` is the one tier that moves the timeline as well as the
+  // alerts (D-47), and a note that stopped at "this only narrows your alerts" would now be
+  // wrong about a third of its own control.
   {
     type: "person",
     heading: "People",
-    note: "Your timeline shows every credit whichever you pick; this only narrows what we alert you about.",
+    note: "Lead roles and Major credits narrow what we alert you about; your timeline shows every major credit either way. Every credit widens both.",
   },
   { type: "company", heading: "Companies" },
   { type: "franchise", heading: "Collections" },
@@ -32,13 +35,14 @@ const SOURCE_LABELS: Record<string, string> = {
   derived: "added automatically",
 };
 
-/** The TMDB page for a followed entity, used as the fallback identification for a row whose
- *  name this browser never learned. `title` follows are film UUIDs, which TMDB cannot address,
- *  so they get no link. */
+/** The TMDB page for a followed entity, the fallback identification for a row whose name this
+ *  browser never learned. People are absent: they have a page of ours now (NEU-1419) and the
+ *  row links its name there whether or not we know it, which is a better answer than TMDB —
+ *  it says what they have coming and carries the same coverage control. Companies and
+ *  collections keep the outbound link until they get pages of their own; `title` follows are
+ *  film UUIDs, which TMDB cannot address, so they get none. */
 function tmdbUrl(follow: Follow): string | null {
   switch (follow.entity_type) {
-    case "person":
-      return `https://www.themoviedb.org/person/${follow.entity_id}`;
     case "company":
       return `https://www.themoviedb.org/company/${follow.entity_id}`;
     case "franchise":
@@ -55,51 +59,20 @@ const PLACEHOLDER: Record<FollowEntityType, string> = {
   title: "Film",
 };
 
-/** The two tiers a person follow can alert at (D-43), in the order they narrow. Companies,
- *  franchises and titles name one thing each and have nothing to narrow, so they draw no
- *  control — and the backend refuses a `coverage` on them outright. */
-const COVERAGE: { value: FollowCoverage; label: string }[] = [
-  { value: "lead", label: "Lead roles only" },
-  { value: "all", label: "Every credit" },
-];
-
 /**
- * Which of a followed person's credits are worth an alert.
- *
- * Radios rather than a single "everything" switch, because neither tier is the absence of the
- * other: `lead` is a real editorial cut (director or top-3 billing), and a reader who picks it
- * is asking for fewer alerts, not for the control to be off. What it does *not* touch — the
- * timeline, which stays D-11 either way — is said once on the group heading, not on every row.
+ * The shared {@link CoverageControl}, bound to a follow that already exists: every change is a
+ * PATCH, because there is no state before the follow here the way there is on a person page.
  */
-function CoverageControl({ follow, label }: { follow: Follow; label: string }) {
-  const groupId = useId();
+function FollowCoverageControl({ follow, label }: { follow: Follow; label: string }) {
   const update = useUpdateFollowCoverage();
-
   return (
-    <fieldset className="mt-1" disabled={update.isPending}>
-      <legend className="sr-only">{`Which of ${label}'s credits to alert me about`}</legend>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        {COVERAGE.map((option) => {
-          const id = `${groupId}-${option.value}`;
-          return (
-            <div key={option.value} className="flex items-center gap-1.5">
-              <input
-                id={id}
-                type="radio"
-                name={groupId}
-                value={option.value}
-                checked={follow.coverage === option.value}
-                onChange={() => update.mutate({ follow, coverage: option.value })}
-                className="h-3.5 w-3.5"
-              />
-              <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">
-                {option.label}
-              </Label>
-            </div>
-          );
-        })}
-      </div>
-    </fieldset>
+    <CoverageControl
+      className="mt-1"
+      value={follow.coverage}
+      onChange={(coverage) => update.mutate({ follow, coverage })}
+      label={label}
+      disabled={update.isPending}
+    />
   );
 }
 
@@ -135,7 +108,16 @@ function FollowRow({ follow }: { follow: Follow }) {
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">
-          {label}
+          {follow.entity_type === "person" ? (
+            // Linked whether or not we have a name: a row reading "Person 287" is exactly the
+            // one whose reader most needs somewhere to go and find out who that is. The slug
+            // is built from the label we have, or omitted — either resolves on the id.
+            <Link to={personPath(follow.entity_id, known?.label ?? "")} className="hover:underline">
+              {label}
+            </Link>
+          ) : (
+            label
+          )}
           {!known && link && (
             <>
               {" "}
@@ -154,7 +136,7 @@ function FollowRow({ follow }: { follow: Follow }) {
           Followed {formatEventDate(follow.created_at)}
           {source ? ` · ${source}` : ""}
         </p>
-        {follow.entity_type === "person" && <CoverageControl follow={follow} label={label} />}
+        {follow.entity_type === "person" && <FollowCoverageControl follow={follow} label={label} />}
       </div>
       <Button
         size="sm"

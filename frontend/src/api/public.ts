@@ -6,6 +6,7 @@ import type {
   FeedDayResponse,
   FilmDetail,
   FilmIndexResponse,
+  PersonDetail,
   PersonSearchItem,
   PopularPeopleResponse,
 } from "./types";
@@ -36,6 +37,23 @@ export async function getFilm(
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`GET /films/${encodeURIComponent(ref)} failed: ${res.status}`);
   return (await res.json()) as FilmDetail;
+}
+
+/** Fetch a person by URL ref (NEU-1418). Resolves on the ref's leading id like the film
+ *  fetcher, so a bare id or a stale decorative half both reach the person and the returned
+ *  `ref` is the canonical one the caller redirects to. Null on 404 — an unknown id, or one
+ *  TMDB has since deleted. */
+export async function getPerson(
+  baseUrl: string,
+  ref: string,
+  { headers }: ExtraHeaders = {},
+): Promise<PersonDetail | null> {
+  const res = await fetch(new URL(`/people/${encodeURIComponent(ref)}`, baseUrl), {
+    headers: { Accept: "application/json", ...headers },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GET /people/${encodeURIComponent(ref)} failed: ${res.status}`);
+  return (await res.json()) as PersonDetail;
 }
 
 /** No `headers` option: search runs only from the browser (the type-ahead in `SearchBox`), which

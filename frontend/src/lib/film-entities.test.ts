@@ -8,6 +8,7 @@ import {
   personTarget,
   titleTarget,
   watchlistFilm,
+  personPath,
 } from "./film-entities";
 
 const FILM_ID = "11111111-1111-4111-8111-111111111111";
@@ -130,5 +131,29 @@ describe("watchlistFilm", () => {
 
   it("is null for a film with no id, like the follow targets", () => {
     expect(watchlistFilm(makeFilm())).toBeNull();
+  });
+});
+
+describe("personPath", () => {
+  it("builds the ref from the id and a slug of the name", () => {
+    expect(personPath(525, "Christopher Nolan")).toBe("/person/525-christopher-nolan");
+  });
+
+  it("folds diacritics rather than hyphenating at them", () => {
+    expect(personPath(1, "Chloé Zhao")).toBe("/person/1-chloe-zhao");
+  });
+
+  it("runs punctuation and spacing together into single hyphens", () => {
+    expect(personPath(2, "Joseph Gordon-Levitt, Jr.")).toBe("/person/2-joseph-gordon-levitt-jr");
+  });
+
+  it("falls back to the bare id for a name it cannot fold", () => {
+    // A valid ref either way — the ref resolves on its leading id, and the page redirects to
+    // the canonical form the backend mints.
+    expect(personPath(3, "宮崎駿")).toBe("/person/3");
+  });
+
+  it("takes a string id, as the follow graph stores them", () => {
+    expect(personPath("525", "Christopher Nolan")).toBe("/person/525-christopher-nolan");
   });
 });

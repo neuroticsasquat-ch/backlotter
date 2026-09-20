@@ -57,14 +57,41 @@ describe("FilmCrew", () => {
       );
 
       // A director follow puts this film's events on the timeline (D-11); a cinematographer
-      // follow would not, so that row stays a name.
+      // follow at the tier this button creates would not, so that row gets no button. It is
+      // still a link to their page, where a reader who does want them can pick a tier that
+      // reaches this film (NEU-1419) — which is the whole reason the button stays lead-shaped.
       expect(
         await screen.findByRole("link", { name: /sign in to follow greta gerwig/i }),
       ).toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: /linus sandgren/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /sign in to follow linus sandgren/i }),
+      ).not.toBeInTheDocument();
     });
 
-    it("renders no button for crew the payload does not identify", () => {
+    it("links every name to that person's page, button or not", async () => {
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const Stub = createRoutesStub([
+        { path: "/", Component: () => <FilmCrew crew={identified} /> },
+      ]);
+      render(
+        <QueryClientProvider client={qc}>
+          <AuthProvider>
+            <Stub initialEntries={["/"]} />
+          </AuthProvider>
+        </QueryClientProvider>,
+      );
+
+      expect(await screen.findByRole("link", { name: "Greta Gerwig" })).toHaveAttribute(
+        "href",
+        "/person/45400-greta-gerwig",
+      );
+      expect(screen.getByRole("link", { name: "Linus Sandgren" })).toHaveAttribute(
+        "href",
+        "/person/1-linus-sandgren",
+      );
+    });
+
+    it("renders no button and no link for crew the payload does not identify", () => {
       const { container } = render(<FilmCrew crew={crew} />);
       expect(container.querySelectorAll("a")).toHaveLength(0);
       expect(container.querySelectorAll("button")).toHaveLength(0);

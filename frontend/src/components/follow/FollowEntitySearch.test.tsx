@@ -61,6 +61,22 @@ describe("FollowEntitySearch", () => {
     expect(screen.getByText("Directing")).toBeInTheDocument();
   });
 
+  it("links a person result to their page, and leaves the other two plain", async () => {
+    renderSearch();
+    await userEvent.type(screen.getByRole("searchbox"), "nolan");
+
+    expect(await screen.findByRole("link", { name: "Christopher Nolan" })).toHaveAttribute(
+      "href",
+      "/person/525-christopher-nolan",
+    );
+
+    // Companies and collections have no page of ours yet, so their names stay text rather than
+    // linking somewhere that would 404.
+    await userEvent.click(screen.getByRole("tab", { name: "Companies" }));
+    expect(await screen.findByText("A24")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "A24" })).not.toBeInTheDocument();
+  });
+
   it("switches endpoint with the tab", async () => {
     renderSearch();
     await userEvent.type(screen.getByRole("searchbox"), "a24");

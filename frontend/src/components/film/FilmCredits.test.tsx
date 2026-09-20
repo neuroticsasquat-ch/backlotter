@@ -82,6 +82,21 @@ describe("FilmCredits", () => {
       const { container } = renderCast([castWithCharacter]);
       expect(container.querySelectorAll("a")).toHaveLength(0);
     });
+
+    it("links every name to that person's page, past the billed cut-off (NEU-1419)", async () => {
+      renderCast(billed);
+      const last = FOLLOWABLE_CAST_COUNT + 1;
+      expect(await screen.findByRole("link", { name: "Actor 1" })).toHaveAttribute(
+        "href",
+        "/person/1-actor-1",
+      );
+      // The row below the cut-off has no follow button and is still a link: the person page is
+      // where a tier that reaches them can be picked.
+      expect(screen.getByRole("link", { name: `Actor ${last}` })).toHaveAttribute(
+        "href",
+        `/person/${last}-actor-${last}`,
+      );
+    });
   });
 
   describe("empty state", () => {

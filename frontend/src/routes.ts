@@ -9,6 +9,7 @@ export default [
     route("feed", "routes/all-updates.tsx"),
     route("calendar", "routes/calendar.tsx"),
     route("film/:ref", "routes/film.tsx"),
+    route("person/:ref", "routes/person.tsx"),
     route("terms", "routes/terms.tsx"),
     route("privacy", "routes/privacy.tsx"),
   ]),

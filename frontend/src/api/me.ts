@@ -30,10 +30,18 @@ export const fetchFollows = () => apiFetch<FollowListResponse>("/me/follows");
 
 export const fetchWatchlist = () => apiFetch<WatchlistListResponse>("/me/watchlist");
 
-export const createFollow = (target: FollowTarget) =>
+/** `coverage` is sent only when the caller chose one (the person page's control, which is
+ *  visible before the follow exists — D-1416.8). Omitted, the backend applies `lead`, which is
+ *  what every other follow button in the app wants; sending it explicitly on all of them would
+ *  mean a 422 on the three entity types that refuse a coverage outright. */
+export const createFollow = (target: FollowTarget, coverage?: FollowCoverage) =>
   apiFetch<Follow>("/me/follows", {
     method: "POST",
-    body: JSON.stringify({ entity_type: target.entityType, entity_id: target.entityId }),
+    body: JSON.stringify({
+      entity_type: target.entityType,
+      entity_id: target.entityId,
+      ...(coverage ? { coverage } : {}),
+    }),
   });
 
 /** Narrow or widen what a person follow alerts on (D-43). The backend answers `422
@@ -172,12 +180,19 @@ const sameEntity = (follow: Follow, target: FollowTarget) =>
 const sameFollow = (a: Follow, b: Follow) =>
   a.entity_type === b.entity_type && a.entity_id === b.entity_id;
 
-/** Whether the user already follows a target, read from the one cached list rather than a
- *  request per button — a film page carries a dozen of these. */
-export function useIsFollowing(target: FollowTarget | null): boolean {
+/** The user's follow of this target, or null. Read from the one cached list rather than a
+ *  request per button — a film page carries a dozen of these. A caller that only wants the
+ *  boolean should use {@link useIsFollowing}; this one is for the person page, which has to
+ *  read the follow's `coverage` back into its control. */
+export function useFollow(target: FollowTarget | null): Follow | null {
   const { data } = useFollows();
-  if (!target) return false;
-  return (data?.items ?? []).some((follow) => sameEntity(follow, target));
+  if (!target) return null;
+  return (data?.items ?? []).find((follow) => sameEntity(follow, target)) ?? null;
+}
+
+/** Whether the user already follows a target. */
+export function useIsFollowing(target: FollowTarget | null): boolean {
+  return useFollow(target) !== null;
 }
 
 /** The film's watchlist row, or null. The list carries muted films too (D-45), so a caller
@@ -203,11 +218,21 @@ export function useIsOnWatchlist(filmId: string | null): boolean {
 export function useToggleFollow() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ target, following }: { target: FollowTarget; following: boolean }) => {
+    mutationFn: async ({
+      target,
+      following,
+      coverage,
+    }: {
+      target: FollowTarget;
+      following: boolean;
+      /** The tier to create the follow at, for a caller that offered the choice before the
+       *  follow existed. Unfollowing ignores it. */
+      coverage?: FollowCoverage;
+    }) => {
       if (following) await deleteFollow(target);
-      else await createFollow(target);
+      else await createFollow(target, coverage);
     },
-    onMutate: async ({ target, following }) => {
+    onMutate: async ({ target, following, coverage }) => {
       await qc.cancelQueries({ queryKey: followsKey });
       // The row as it stands, not the whole list: a page carries a dozen of these buttons, and
       // restoring a list snapshot on one failure would throw away every other button's
@@ -234,8 +259,9 @@ export function useToggleFollow() {
           entity_type: target.entityType,
           entity_id: target.entityId,
           source: "manual",
-          // The default the backend applies to a follow created without one (D-43).
-          coverage: "lead",
+          // What the POST asked for, or the default the backend applies to a follow created
+          // without one (D-43).
+          coverage: coverage ?? "lead",
           created_at: new Date().toISOString(),
         };
         return { items: [...items, optimistic] };
@@ -397,9 +423,16 @@ export function useUpdateFollowCoverage() {
       toast.error("We could not change what that follow alerts you about. Please try again.");
     },
     // Coverage narrows alerts, and the watchlist *is* the set of films covered for alerts —
-    // so widening or narrowing one follow changes which films are on it. The timeline is
-    // unaffected: it stays D-11 coverage whatever this is set to.
-    onSuccess: () => qc.invalidateQueries({ queryKey: watchlistKey }),
+    // so widening or narrowing one follow changes which films are on it. The timeline moves
+    // too, but only across the `any` boundary (D-47): `lead` and `major` are both subsets of
+    // the seed grade the timeline has always shown, and `any` widens it to every credit.
+    // Invalidated unconditionally rather than on that boundary, because "which of the two
+    // tiers we just left" is a rule the server owns and a client copy of it would rot.
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: watchlistKey }),
+        qc.invalidateQueries({ queryKey: timelineKey }),
+      ]),
     onSettled: () => qc.invalidateQueries({ queryKey: followsKey }),
   });
 }
