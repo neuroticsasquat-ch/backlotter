@@ -19,6 +19,28 @@ import type {
 type ExtraHeaders = { headers?: Record<string, string> };
 
 /**
+ * One request URL, from a base that may be absolute or relative.
+ *
+ * Both spellings are real and neither is a mistake. SSR loaders get the absolute
+ * `API_BASE_URL` Worker binding; the browser gets the build-time `VITE_API_BASE_URL`, which in
+ * dev is **`/api`** so that requests go same-origin through Vite's proxy — the thing that keeps
+ * the session cookie and the CSRF header behaving in dev exactly as they do in prod.
+ *
+ * `new URL(path, base)` cannot take the relative one: it throws `TypeError` on `("/films/search",
+ * "/api")`, before any request is made, which is how this silently killed search and both
+ * "View more" buttons in dev for as long as it did (NEU-1421). And resolving the *path*
+ * against an origin is not a fix either — `new URL("/films/search", "http://host/api")` drops
+ * the `/api`, because an absolute path replaces the base's path.
+ *
+ * So: concatenate base and path the way `api/client.ts` does, then resolve the whole thing.
+ * `globalThis.location` is undefined in the Workers runtime, which is fine there — the
+ * concatenated string is already absolute, so the second argument goes unused.
+ */
+function apiUrl(baseUrl: string, path: string): URL {
+  return new URL(`${baseUrl.replace(/\/$/, "")}${path}`, globalThis.location?.origin);
+}
+
+/**
  * Fetch a film's public detail from the no-auth backend. The base URL is injected by the
  * caller (the SSR loader reads it from the Worker env), so this stays pure and runs in the
  * Workers runtime and under test. No credentials/CSRF — the public API is unauthenticated.
@@ -31,7 +53,7 @@ export async function getFilm(
   ref: string,
   { headers }: ExtraHeaders = {},
 ): Promise<FilmDetail | null> {
-  const res = await fetch(new URL(`/films/${encodeURIComponent(ref)}`, baseUrl), {
+  const res = await fetch(apiUrl(baseUrl, `/films/${encodeURIComponent(ref)}`), {
     headers: { Accept: "application/json", ...headers },
   });
   if (res.status === 404) return null;
@@ -48,7 +70,7 @@ export async function getPerson(
   ref: string,
   { headers }: ExtraHeaders = {},
 ): Promise<PersonDetail | null> {
-  const res = await fetch(new URL(`/people/${encodeURIComponent(ref)}`, baseUrl), {
+  const res = await fetch(apiUrl(baseUrl, `/people/${encodeURIComponent(ref)}`), {
     headers: { Accept: "application/json", ...headers },
   });
   if (res.status === 404) return null;
@@ -67,7 +89,7 @@ export async function getFilmSearch(
     signal,
   }: { limit?: number; offset?: number; signal?: AbortSignal } = {},
 ): Promise<FilmIndexResponse> {
-  const url = new URL("/films/search", baseUrl);
+  const url = apiUrl(baseUrl, "/films/search");
   url.searchParams.set("q", q);
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("offset", String(offset));
@@ -94,7 +116,7 @@ function entitySearch<T>(path: string) {
       signal,
     }: { limit?: number; offset?: number; signal?: AbortSignal } = {},
   ): Promise<EntitySearchResponse<T>> => {
-    const url = new URL(path, baseUrl);
+    const url = apiUrl(baseUrl, path);
     url.searchParams.set("q", q);
     url.searchParams.set("limit", String(limit));
     url.searchParams.set("offset", String(offset));
@@ -115,7 +137,7 @@ export async function getPopularPeople(
   baseUrl: string,
   { limit = 30, signal }: { limit?: number; signal?: AbortSignal } = {},
 ): Promise<PopularPeopleResponse> {
-  const url = new URL("/people/popular", baseUrl);
+  const url = apiUrl(baseUrl, "/people/popular");
   url.searchParams.set("limit", String(limit));
   const res = await fetch(url, { headers: { Accept: "application/json" }, signal });
   if (!res.ok) throw new Error(`GET /people/popular failed: ${res.status}`);
@@ -131,7 +153,7 @@ export async function getFeedGrouped(
   baseUrl: string,
   { limit = 50, offset = 0, headers }: { limit?: number; offset?: number } & ExtraHeaders = {},
 ): Promise<FeedDayResponse> {
-  const url = new URL("/feed/grouped", baseUrl);
+  const url = apiUrl(baseUrl, "/feed/grouped");
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("offset", String(offset));
   const res = await fetch(url, { headers: { Accept: "application/json", ...headers } });
@@ -149,7 +171,7 @@ export async function getCalendar(
   baseUrl: string,
   { limit = 100, offset = 0, headers }: { limit?: number; offset?: number } & ExtraHeaders = {},
 ): Promise<CalendarResponse> {
-  const url = new URL("/calendar", baseUrl);
+  const url = apiUrl(baseUrl, "/calendar");
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("offset", String(offset));
   const res = await fetch(url, { headers: { Accept: "application/json", ...headers } });

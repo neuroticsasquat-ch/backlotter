@@ -1,7 +1,17 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
-import { getCalendar, getFeedGrouped, getFilm, getFilmSearch } from "@/api/public";
+import {
+  getCalendar,
+  getCollectionsSearch,
+  getCompaniesSearch,
+  getFeedGrouped,
+  getFilm,
+  getFilmSearch,
+  getPeopleSearch,
+  getPerson,
+  getPopularPeople,
+} from "@/api/public";
 import type { CalendarResponse, FeedDayResponse, FilmDetail, FilmIndexResponse } from "@/api/types";
 
 const BACKEND = "https://api.upmovies.localhost";
@@ -247,5 +257,123 @@ describe("SSR signing headers", () => {
     await getFeedGrouped(BACKEND);
     expect(headers()?.get("X-Backlotter-Origin")).toBeNull();
     expect(headers()?.get("X-Backlotter-Client-IP")).toBeNull();
+  });
+});
+
+/**
+ * The dev stack's base URL is **relative** (`VITE_API_BASE_URL=/api`), so the browser reaches
+ * the API same-origin through Vite's proxy. Every test above passes an absolute one, which is
+ * exactly how `new URL(path, "/api")` — a `TypeError` thrown before any request goes out —
+ * killed search, both "View more" buttons, the add-follow box and the onboarding grid in dev
+ * without a single failing test (NEU-1421).
+ *
+ * jsdom gives these an origin to resolve against, as a browser does. A caller must not have to
+ * know which spelling it was handed.
+ */
+describe("a relative base URL, as the dev proxy hands it to the browser", () => {
+  // The page's own origin, whatever jsdom gives this run — the point is that the fetcher
+  // resolves against it, not that it is any particular host.
+  const ORIGIN = globalThis.location.origin;
+  const proxied = (path: string) => `${ORIGIN}/api${path}`;
+
+  it("resolves against the page origin and keeps the proxy prefix", async () => {
+    let seen: string | undefined;
+    server.use(
+      http.get(proxied("/films/search"), ({ request }) => {
+        seen = request.url;
+        return HttpResponse.json({ items: [], total: 0, limit: 8, offset: 0 });
+      }),
+    );
+
+    await getFilmSearch("/api", "odyssey", { limit: 8 });
+
+    // The prefix survives: `new URL("/films/search", "http://host/api")` would have dropped it,
+    // because an absolute path replaces the base's path.
+    expect(new URL(seen ?? "").pathname).toBe("/api/films/search");
+    expect(new URL(seen ?? "").searchParams.get("q")).toBe("odyssey");
+  });
+
+  it.each([
+    ["the feed", () => getFeedGrouped("/api"), "/api/feed/grouped"],
+    ["the calendar", () => getCalendar("/api"), "/api/calendar"],
+    ["people search", () => getPeopleSearch("/api", "nolan"), "/api/people/search"],
+    ["company search", () => getCompaniesSearch("/api", "a24"), "/api/companies/search"],
+    ["collection search", () => getCollectionsSearch("/api", "star"), "/api/collections/search"],
+    ["the onboarding grid", () => getPopularPeople("/api"), "/api/people/popular"],
+  ])("reaches %s", async (_label, call, pathname) => {
+    let seen: string | undefined;
+    server.use(
+      http.get(`${ORIGIN}${pathname}`, ({ request }) => {
+        seen = request.url;
+        return HttpResponse.json({ items: [], total: 0, limit: 10, offset: 0, days: [] });
+      }),
+    );
+
+    await call();
+
+    expect(new URL(seen ?? "").pathname).toBe(pathname);
+  });
+
+  it("reaches a film and a person by ref", async () => {
+    server.use(
+      http.get(proxied("/films/603-the-odyssey"), () => HttpResponse.json(sample)),
+      http.get(proxied("/people/525-christopher-nolan"), () =>
+        HttpResponse.json({ ref: "525-christopher-nolan", id: 525, name: "Christopher Nolan" }),
+      ),
+    );
+
+    expect(await getFilm("/api", "603-the-odyssey")).toMatchObject({ title: "The Odyssey" });
+    expect(await getPerson("/api", "525-christopher-nolan")).toMatchObject({ id: 525 });
+  });
+
+  it("does not double the slash when the base carries a trailing one", async () => {
+    let seen: string | undefined;
+    server.use(
+      http.get(proxied("/calendar"), ({ request }) => {
+        seen = request.url;
+        return HttpResponse.json({ days: [], total: 0, limit: 100, offset: 0 });
+      }),
+    );
+
+    await getCalendar("/api/");
+
+    expect(new URL(seen ?? "").pathname).toBe("/api/calendar");
+  });
+
+  it("treats a bare slash as the page origin itself", async () => {
+    let seen: string | undefined;
+    server.use(
+      http.get(`${ORIGIN}/calendar`, ({ request }) => {
+        seen = request.url;
+        return HttpResponse.json({ days: [], total: 0, limit: 100, offset: 0 });
+      }),
+    );
+
+    await getCalendar("/");
+
+    expect(new URL(seen ?? "").pathname).toBe("/calendar");
+  });
+
+  it("still takes an absolute base, which is what SSR and prod pass", async () => {
+    server.use(http.get(`${BACKEND}/films/603`, () => HttpResponse.json(sample)));
+    expect(await getFilm(BACKEND, "603")).toMatchObject({ title: "The Odyssey" });
+  });
+
+  it("keeps a path component on an absolute base, which `new URL` would have dropped", async () => {
+    // The trap the helper exists to avoid, asserted rather than left in a comment:
+    // `new URL("/calendar", "https://host/api")` resolves to `https://host/calendar`, because
+    // an absolute path replaces the base's path. Nothing deployed mounts the API under a path
+    // today, so this guards the reasoning rather than a live config.
+    let seen: string | undefined;
+    server.use(
+      http.get("https://gateway.example/api/calendar", ({ request }) => {
+        seen = request.url;
+        return HttpResponse.json({ days: [], total: 0, limit: 100, offset: 0 });
+      }),
+    );
+
+    await getCalendar("https://gateway.example/api");
+
+    expect(new URL(seen ?? "").pathname).toBe("/api/calendar");
   });
 });
