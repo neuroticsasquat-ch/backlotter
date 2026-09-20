@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { server } from "@/test/msw/server";
 import { env } from "@/env";
 import { meHandler } from "@/test/msw/me";
-import { entitlementRequiredHandlers, followGraphHandlers } from "@/test/msw/follows";
+import { entitlementRequiredHandlers, followGraphHandlers, makeFollow } from "@/test/msw/follows";
 import { AuthProvider } from "@/components/AuthContext";
 import type { FollowTarget } from "@/lib/film-entities";
 import { FollowButton } from "./FollowButton";
@@ -82,15 +82,7 @@ describe("FollowButton", () => {
 
     it("unfollows a target the user already follows", async () => {
       const graph = followGraphHandlers({
-        follows: [
-          {
-            entity_type: "person",
-            entity_id: "505710",
-            source: "manual",
-            coverage: "lead",
-            created_at: "2026-09-01T00:00:00Z",
-          },
-        ],
+        follows: [makeFollow({ entity_id: "505710", name: "Denis Villeneuve" })],
       });
       server.use(meHandler({ entitled: true }), ...graph.handlers);
       renderButton();

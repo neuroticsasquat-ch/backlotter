@@ -6,10 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { env } from "@/env";
 import { AuthProvider } from "@/components/AuthContext";
-import { lookupFollowLabel, resetFollowLabelCache } from "@/lib/follow-labels";
 import { server } from "@/test/msw/server";
 import { meHandler } from "@/test/msw/me";
-import { entitySearchHandlers, followGraphHandlers } from "@/test/msw/follows";
+import { entitySearchHandlers, followGraphHandlers, makeFollow } from "@/test/msw/follows";
 import { FollowEntitySearch } from "./FollowEntitySearch";
 
 const PEOPLE = [{ id: 525, name: "Christopher Nolan" }];
@@ -35,10 +34,7 @@ function renderSearch() {
   return graph;
 }
 
-beforeEach(() => {
-  localStorage.clear();
-  resetFollowLabelCache();
-});
+beforeEach(() => localStorage.clear());
 
 describe("FollowEntitySearch", () => {
   it("asks for a query before searching anything", async () => {
@@ -96,7 +92,7 @@ describe("FollowEntitySearch", () => {
     expect(await screen.findByText("Star Wars Collection")).toBeInTheDocument();
   });
 
-  it("follows a result and remembers its name for the list below", async () => {
+  it("follows a result straight from the list", async () => {
     const graph = renderSearch();
     await userEvent.type(screen.getByRole("searchbox"), "nolan");
 
@@ -107,22 +103,11 @@ describe("FollowEntitySearch", () => {
         expect.objectContaining({ entity_type: "person", entity_id: "525" }),
       ]),
     );
-    // The point of the whole exercise: `GET /me/follows` will answer with "525" and nothing
-    // else, so the name has to have been kept here on the way past.
-    expect(lookupFollowLabel("person", "525")?.label).toBe("Christopher Nolan");
   });
 
   it("a result already followed arrives saying so", async () => {
     const graph = followGraphHandlers({
-      follows: [
-        {
-          entity_type: "person",
-          entity_id: "525",
-          source: "manual",
-          coverage: "lead",
-          created_at: "2026-09-01",
-        },
-      ],
+      follows: [makeFollow({ entity_id: "525", name: "Christopher Nolan" })],
     });
     server.use(
       meHandler({ entitled: true }),
@@ -143,54 +128,6 @@ describe("FollowEntitySearch", () => {
     expect(
       await screen.findByRole("button", { name: /unfollow christopher nolan/i }),
     ).toHaveTextContent("Following");
-  });
-
-  it("learns the name of a result the user already follows", async () => {
-    // The follow was made somewhere this browser never saw — another device, or before the
-    // registry existed — so `GET /me/follows` gives an id and nothing else. Rendering it here
-    // beside its name is the one chance to connect the two.
-    const graph = followGraphHandlers({
-      follows: [
-        {
-          entity_type: "person",
-          entity_id: "525",
-          source: "manual",
-          coverage: "lead",
-          created_at: "2026-09-01",
-        },
-      ],
-    });
-    server.use(
-      meHandler({ entitled: true }),
-      ...graph.handlers,
-      ...entitySearchHandlers({ people: PEOPLE }),
-    );
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const Stub = createRoutesStub([{ path: "/me/follows", Component: FollowEntitySearch }]);
-    render(
-      <QueryClientProvider client={qc}>
-        <AuthProvider>
-          <Stub initialEntries={["/me/follows"]} />
-        </AuthProvider>
-      </QueryClientProvider>,
-    );
-
-    await userEvent.type(screen.getByRole("searchbox"), "nolan");
-    await screen.findByText("Christopher Nolan");
-
-    await waitFor(() =>
-      expect(lookupFollowLabel("person", "525")?.label).toBe("Christopher Nolan"),
-    );
-  });
-
-  it("does not bank the name of a result the user does not follow", async () => {
-    // Otherwise a few searches would fill the registry with names nobody wants and evict the
-    // ones that belong to real follows.
-    renderSearch();
-    await userEvent.type(screen.getByRole("searchbox"), "nolan");
-    await screen.findByText("Christopher Nolan");
-
-    expect(lookupFollowLabel("person", "525")).toBeNull();
   });
 
   it("says how many it is not showing rather than truncating in silence", async () => {

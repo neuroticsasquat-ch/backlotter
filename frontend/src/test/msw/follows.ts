@@ -16,7 +16,13 @@ const base = env.apiBaseUrl;
  *  answers 200 with the now-muted item while another follow still covers the film, or 204 once
  *  nothing does and the row is gone. */
 export function followGraphHandlers(
-  initial: { follows?: Follow[]; watchlist?: WatchlistItem[] } = {},
+  initial: {
+    follows?: Follow[];
+    watchlist?: WatchlistItem[];
+    /** What the catalog can name, keyed `"<entity_type>:<entity_id>"` — consulted by the
+     *  create below, the way the backend consults `follow_repo.get_entity_label`. */
+    catalog?: Record<string, { name: string; image_path?: string | null }>;
+  } = {},
 ) {
   const follows: Follow[] = [...(initial.follows ?? [])];
   const watchlist: WatchlistItem[] = [...(initial.watchlist ?? [])];
@@ -41,9 +47,18 @@ export function followGraphHandlers(
         (f) => f.entity_type === body.entity_type && f.entity_id === body.entity_id,
       );
       if (existing) return HttpResponse.json(existing, { status: 200 });
+      // The backend resolves the label from the catalog and *refuses* a follow it cannot name
+      // — `follow_service.follow` raises `NotFound` when the label is None — so a created row
+      // never comes back with a null name. Never null here either, therefore: an unlisted
+      // entity gets a stand-in rather than the impossible state. (A row in `initial.follows`
+      // may still be null-named: the *list* route does return those, for a follow whose entity
+      // the catalog lost afterwards, which D-40 keeps.)
+      const known = initial.catalog?.[`${body.entity_type}:${body.entity_id}`];
       const created: Follow = {
         entity_type: body.entity_type,
         entity_id: body.entity_id,
+        name: known?.name ?? `${body.entity_type} ${body.entity_id}`,
+        image_path: known?.image_path ?? null,
         source: "manual",
         coverage: body.coverage ?? "lead",
         created_at: new Date().toISOString(),
@@ -135,6 +150,21 @@ export function entitlementRequiredHandlers() {
     http.post(`${base}/me/watchlist`, deny),
     http.delete(`${base}/me/watchlist/:filmId`, deny),
   ];
+}
+
+/** One follow row as `GET /me/follows` answers it. `name`/`image_path` default to null — the
+ *  unresolvable case D-40 keeps — so a test that cares about a label says so. */
+export function makeFollow(overrides: Partial<Follow> = {}): Follow {
+  return {
+    entity_type: "person",
+    entity_id: "525",
+    name: null,
+    image_path: null,
+    source: "manual",
+    coverage: "lead",
+    created_at: "2026-09-12T00:00:00Z",
+    ...overrides,
+  };
 }
 
 export function makeWatchlistFilm(overrides: Partial<WatchlistFilm> = {}): WatchlistFilm {

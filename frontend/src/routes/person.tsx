@@ -1,5 +1,4 @@
 /* eslint-disable react-refresh/only-export-components -- route files intentionally export loader + meta + ErrorBoundary alongside the component */
-import { useEffect } from "react";
 import { isRouteErrorResponse, Link, redirect } from "react-router";
 import type { Route } from "./+types/person";
 import { getPerson } from "@/api/public";
@@ -8,7 +7,6 @@ import { ssrOriginHeaders } from "@/lib/ssr-origin";
 import { buildMeta } from "@/lib/seo";
 import { profileUrl } from "@/lib/poster";
 import { formatEventDate } from "@/lib/format";
-import { rememberFollowLabel } from "@/lib/follow-labels";
 import type { FollowTarget } from "@/lib/film-entities";
 import { PersonFollowControl } from "@/components/follow/PersonFollowControl";
 import { PersonFilmSection } from "@/components/person/PersonFilmRow";
@@ -74,15 +72,6 @@ export default function PersonPage({ loaderData }: Route.ComponentProps) {
     label: person.name,
     imagePath: person.profile_path,
   };
-
-  // The one place this browser can learn the name and face behind a person id without anyone
-  // pressing anything: `GET /me/follows` answers with ids alone, so a follow made from here —
-  // or made months ago on another device and merely *seen* here — would otherwise read
-  // "Person 525" on the follows page (`lib/follow-labels.ts`). Written on load, not on follow,
-  // for exactly that second case.
-  useEffect(() => {
-    rememberFollowLabel("person", String(person.id), person.name, person.profile_path);
-  }, [person.id, person.name, person.profile_path]);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">

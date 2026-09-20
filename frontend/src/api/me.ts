@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import { toast } from "sonner";
 import { useAuth } from "@/components/AuthContext";
 import { coveredBeyondTitleFollow, type FollowTarget } from "@/lib/film-entities";
-import { rememberFollowLabel } from "@/lib/follow-labels";
 import { ApiError, apiFetch } from "./client";
 import {
   followsKey,
@@ -232,24 +231,17 @@ export function useToggleFollow() {
       const removed = qc
         .getQueryData<FollowListResponse>(followsKey)
         ?.items.find((f) => sameEntity(f, target));
-      // The one place the app learns a name for an entity id, whichever button was pressed:
-      // `GET /me/follows` answers with ids alone, so without this the follows page has
-      // nothing to call its rows (`lib/follow-labels.ts`). Written on follow rather than on
-      // unfollow, and never removed, so re-following does not cost the name.
-      if (!following) {
-        rememberFollowLabel(
-          target.entityType,
-          target.entityId,
-          target.label,
-          target.imagePath ?? null,
-        );
-      }
       qc.setQueryData<FollowListResponse>(followsKey, (old) => {
         const items = old?.items ?? [];
         if (following) return { items: items.filter((f) => !sameEntity(f, target)) };
         const optimistic: Follow = {
           entity_type: target.entityType,
           entity_id: target.entityId,
+          // The name and face the caller already had in hand, so a just-followed row does not
+          // flash a placeholder for the length of the refetch. The server answers with the
+          // catalog's own resolution a moment later (NEU-1396).
+          name: target.label,
+          image_path: target.imagePath ?? null,
           source: "manual",
           // What the POST asked for, or the default the backend applies to a follow created
           // without one (D-43).

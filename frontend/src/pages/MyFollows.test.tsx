@@ -5,20 +5,17 @@ import { createRoutesStub } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/components/AuthContext";
 import type { Follow } from "@/api/types";
-import { rememberFollowLabel, resetFollowLabelCache } from "@/lib/follow-labels";
 import { server } from "@/test/msw/server";
 import { meHandler } from "@/test/msw/me";
-import { entitySearchHandlers, followGraphHandlers } from "@/test/msw/follows";
+import { entitySearchHandlers, followGraphHandlers, makeFollow } from "@/test/msw/follows";
+import { delay, http, HttpResponse } from "msw";
+import { env } from "@/env";
 import { MyFollows } from "./MyFollows";
 
-const follow = (overrides: Partial<Follow> = {}): Follow => ({
-  entity_type: "person",
-  entity_id: "525",
-  source: "manual",
-  coverage: "lead",
-  created_at: "2026-09-12T00:00:00Z",
-  ...overrides,
-});
+/** The row the page is given. Named by default now that `GET /me/follows` resolves the
+ *  catalog's own label (NEU-1396); a test wanting the unresolvable case passes `name: null`. */
+const follow = (overrides: Partial<Follow> = {}): Follow =>
+  makeFollow({ name: "Christopher Nolan", ...overrides });
 
 function renderPage(follows: Follow[] = []) {
   const graph = followGraphHandlers({ follows });
@@ -35,19 +32,14 @@ function renderPage(follows: Follow[] = []) {
   return graph;
 }
 
-beforeEach(() => {
-  localStorage.clear();
-  resetFollowLabelCache();
-});
+beforeEach(() => localStorage.clear());
 
 describe("MyFollows", () => {
   it("groups follows by entity type under their own headings", async () => {
-    rememberFollowLabel("person", "525", "Christopher Nolan");
-    rememberFollowLabel("company", "41", "A24");
     renderPage([
       follow(),
-      follow({ entity_type: "company", entity_id: "41" }),
-      follow({ entity_type: "franchise", entity_id: "10" }),
+      follow({ entity_type: "company", entity_id: "41", name: "A24" }),
+      follow({ entity_type: "franchise", entity_id: "10", name: "Star Wars Collection" }),
     ]);
 
     expect(await screen.findByText("Christopher Nolan")).toBeInTheDocument();
@@ -59,16 +51,19 @@ describe("MyFollows", () => {
     expect(screen.queryByRole("heading", { name: /films/i })).not.toBeInTheDocument();
   });
 
-  it("labels a row from the name this browser learned when the follow was made", async () => {
-    rememberFollowLabel("person", "525", "Christopher Nolan", "/nolan.jpg");
-    renderPage([follow()]);
+  it("labels a row from the name the API resolved, with no localStorage involved", async () => {
+    // The whole point of NEU-1422: a follow made on another device, or by an import, is named
+    // on first paint. It used to read "Person 525" until the user happened to visit them.
+    renderPage([follow({ image_path: "/nolan.jpg" })]);
 
     expect(await screen.findByText("Christopher Nolan")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Unfollow Christopher Nolan" })).toBeInTheDocument();
   });
 
-  it("falls back to the type and the id for a person row it has no name for", async () => {
-    renderPage([follow({ entity_id: "287" })]);
+  it("falls back to the type and the id for a person the catalog cannot resolve", async () => {
+    // A follow outlives the entity it names and D-40 keeps the row, so the API answers with a
+    // null name rather than dropping it. This is the placeholder's only remaining job.
+    renderPage([follow({ entity_id: "287", name: null })]);
 
     // The placeholder links to the person's own page rather than out to TMDB (NEU-1419): a row
     // reading "Person 287" is exactly the one whose reader needs somewhere to go and find out
@@ -81,7 +76,7 @@ describe("MyFollows", () => {
   it("keeps the TMDB fallback for a company row it has no name for", async () => {
     // Companies and collections have no page of ours yet, so the outbound link stays until the
     // story that gives them one.
-    renderPage([follow({ entity_type: "company", entity_id: "41" })]);
+    renderPage([follow({ entity_type: "company", entity_id: "41", name: null })]);
 
     expect(await screen.findByRole("link", { name: /look up on tmdb/i })).toHaveAttribute(
       "href",
@@ -89,8 +84,7 @@ describe("MyFollows", () => {
     );
   });
 
-  it("links a named person row to their page, slugged from the name it knows", async () => {
-    rememberFollowLabel("person", "525", "Christopher Nolan");
+  it("links a named person row to their page, slugged from the name the API gave", async () => {
     renderPage([follow()]);
 
     expect(await screen.findByRole("link", { name: "Christopher Nolan" })).toHaveAttribute(
@@ -121,7 +115,6 @@ describe("MyFollows", () => {
   });
 
   it("unfollows a row, and the row goes", async () => {
-    rememberFollowLabel("person", "525", "Christopher Nolan");
     const graph = renderPage([follow()]);
 
     const button = await screen.findByRole("button", { name: "Unfollow Christopher Nolan" });
@@ -132,7 +125,6 @@ describe("MyFollows", () => {
   });
 
   it("offers a person follow all three coverage tiers, on the default", async () => {
-    rememberFollowLabel("person", "525", "Christopher Nolan");
     renderPage([follow()]);
 
     expect(await screen.findByRole("radio", { name: "Lead roles" })).toBeChecked();
@@ -141,7 +133,6 @@ describe("MyFollows", () => {
   });
 
   it("widening a person follow to every credit PATCHes its coverage", async () => {
-    rememberFollowLabel("person", "525", "Christopher Nolan");
     const graph = renderPage([follow()]);
 
     await userEvent.click(await screen.findByRole("radio", { name: "Every credit" }));
@@ -150,7 +141,6 @@ describe("MyFollows", () => {
   });
 
   it("PATCHes the middle tier as `major`, the value that replaced `all`", async () => {
-    rememberFollowLabel("person", "525", "Christopher Nolan");
     const graph = renderPage([follow()]);
 
     await userEvent.click(await screen.findByRole("radio", { name: "Major credits" }));
@@ -161,7 +151,6 @@ describe("MyFollows", () => {
   it("says that the widest tier widens the timeline as well as the alerts (D-47)", async () => {
     // The note the group carried before NEU-1419 said the timeline was untouched whatever the
     // reader picked, which `any` made false.
-    rememberFollowLabel("person", "525", "Christopher Nolan");
     renderPage([follow()]);
 
     expect(await screen.findByText(/Every credit widens both/)).toBeInTheDocument();
@@ -178,6 +167,84 @@ describe("MyFollows", () => {
 
     await screen.findByRole("heading", { name: /companies \(1\)/i });
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+  });
+
+  it("names a row the moment it is followed, before the server answers", async () => {
+    // The optimistic row carries the name and face the search result already had, so following
+    // someone does not flash "Person 525" for the length of a round trip. The request is held
+    // open, so anything on screen can only be the optimistic edit.
+    const graph = followGraphHandlers();
+    server.use(
+      // First, so it beats the graph's own POST — `server.use` resolves in the order given.
+      // The request never completes, so anything on screen can only be the optimistic edit.
+      http.post(`${env.apiBaseUrl}/me/follows`, async () => {
+        await delay("infinite");
+        return HttpResponse.json(makeFollow(), { status: 201 });
+      }),
+      meHandler({ entitled: true }),
+      ...graph.handlers,
+      ...entitySearchHandlers({ people: [{ id: 525, name: "Christopher Nolan" }] }),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Stub = createRoutesStub([{ path: "/me/follows", Component: MyFollows }]);
+    render(
+      <QueryClientProvider client={qc}>
+        <AuthProvider>
+          <Stub initialEntries={["/me/follows"]} />
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+
+    await userEvent.type(screen.getByRole("searchbox"), "nolan");
+    await userEvent.click(
+      await screen.findByRole("button", { name: /^follow christopher nolan$/i }),
+    );
+
+    // The People group now holds a named row, not a placeholder.
+    const people = await screen.findByRole("heading", { name: /people \(1\)/i });
+    const list = people.parentElement as HTMLElement;
+    expect(within(list).getByRole("link", { name: "Christopher Nolan" })).toBeInTheDocument();
+    expect(within(list).queryByText(/Person 525/)).toBeNull();
+  });
+
+  it("keeps the name once the server answers, not just while the request is open", async () => {
+    // The other half of the optimistic path. `onSettled` invalidates and refetches, so a
+    // just-followed row could flash a name and then lose it — which is what would happen if
+    // the create answered with a null name. The backend cannot: it refuses to create a follow
+    // whose entity the catalog cannot name, so the answer always carries one.
+    const graph = followGraphHandlers({
+      catalog: { "person:525": { name: "Christopher Nolan", image_path: "/nolan.jpg" } },
+    });
+    server.use(
+      meHandler({ entitled: true }),
+      ...graph.handlers,
+      ...entitySearchHandlers({ people: [{ id: 525, name: "Christopher Nolan" }] }),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Stub = createRoutesStub([{ path: "/me/follows", Component: MyFollows }]);
+    render(
+      <QueryClientProvider client={qc}>
+        <AuthProvider>
+          <Stub initialEntries={["/me/follows"]} />
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+
+    await userEvent.type(screen.getByRole("searchbox"), "nolan");
+    await userEvent.click(
+      await screen.findByRole("button", { name: /^follow christopher nolan$/i }),
+    );
+
+    await waitFor(() => expect(graph.follows).toHaveLength(1));
+    expect(graph.follows[0].name).toBe("Christopher Nolan");
+
+    // Still named after the refetch the settle triggered — no flash back to "Person 525".
+    const people = await screen.findByRole("heading", { name: /people \(1\)/i });
+    const list = people.parentElement as HTMLElement;
+    await waitFor(() =>
+      expect(within(list).getByRole("link", { name: "Christopher Nolan" })).toBeInTheDocument(),
+    );
+    expect(within(list).queryByText(/Person 525/)).toBeNull();
   });
 
   it("says the alerts are built from these, not that films are added for you", async () => {

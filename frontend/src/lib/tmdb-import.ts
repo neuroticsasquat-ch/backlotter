@@ -15,9 +15,9 @@
  */
 const STORAGE_KEY = "backlotter.last-tmdb-import";
 
-/** Optional-chained off `globalThis` like {@link file://./follow-labels.ts}: the store is
- *  absent under SSR and throws outright in a Safari private window, and neither is worth
- *  failing an import over. */
+/** Optional-chained off `globalThis` rather than referenced directly: the store is absent
+ *  under SSR and throws outright in a Safari private window, and neither is worth failing an
+ *  import over. */
 export function rememberTmdbImport(jobId: string): void {
   try {
     globalThis.localStorage?.setItem(STORAGE_KEY, jobId);

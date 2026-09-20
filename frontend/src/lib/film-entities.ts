@@ -34,9 +34,11 @@ export interface FollowTarget {
   /** The entity's own name — "Christopher Nolan", not "Follow Christopher Nolan". */
   label: string;
   /** TMDB image path for the entity, where the source that built this target had one. Carried
-   *  so that following remembers a face as well as a name (`lib/follow-labels.ts`); the film
-   *  page's builders below leave it undefined, which costs the follows page an avatar and
-   *  nothing else. */
+   *  so the optimistic row a follow writes has a face as well as a name, rather than flashing
+   *  a placeholder until the refetch lands — `GET /me/follows` resolves both from the catalog
+   *  (NEU-1396), so this only has to cover the moment before that answer arrives. The film
+   *  page's builders below leave it undefined, which costs that moment an avatar and nothing
+   *  else. */
   imagePath?: string | null;
 }
 

@@ -1,6 +1,5 @@
 import { useEffect, useId, useState } from "react";
 import { Link } from "react-router";
-import { useFollows } from "@/api/me";
 import {
   MIN_QUERY_LEN,
   useEntitySearch,
@@ -8,7 +7,6 @@ import {
   type SearchableEntityType,
 } from "@/api/entities";
 import { personPath, type FollowTarget } from "@/lib/film-entities";
-import { rememberFollowLabel } from "@/lib/follow-labels";
 import { profileUrl } from "@/lib/poster";
 import { FollowButton } from "./FollowButton";
 
@@ -39,8 +37,7 @@ const toTarget = (result: EntityResult): FollowTarget => ({
  * closed select.
  *
  * Each row's button is the same {@link FollowButton} the film page uses, so a result already
- * followed says "Following" on arrival and following one here remembers its name for the list
- * below (`lib/follow-labels.ts`).
+ * followed says "Following" on arrival.
  */
 export function FollowEntitySearch() {
   const [entityType, setEntityType] = useState<SearchableEntityType>("person");
@@ -58,30 +55,6 @@ export function FollowEntitySearch() {
   const total = data?.total ?? 0;
   const active = TABS.find((tab) => tab.type === entityType) ?? TABS[0];
   const searched = query.length >= MIN_QUERY_LEN;
-
-  // A result the user already follows is the one chance this browser gets to learn a name it
-  // does not have: the follow itself happened on another device, or before this box existed,
-  // and `GET /me/follows` will never tell us what "525" is called. Recording it here is what
-  // stops the list below reading "Person 525" while this list says "Christopher Nolan" two
-  // inches above it.
-  //
-  // Scoped to results the user *follows*, not every result rendered: a few searches return
-  // dozens of names nobody has any interest in, and filling the registry with those would
-  // evict the names of real follows (`lib/follow-labels.ts` caps it).
-  const { data: follows } = useFollows();
-  // Keyed off the two query payloads rather than off `results`, which `?? []` makes a new array
-  // on every render — depending on that would re-run this on renders where nothing was fetched.
-  const resultItems = data?.items;
-  const followItems = follows?.items;
-  useEffect(() => {
-    if (!resultItems?.length || !followItems?.length) return;
-    const followed = new Set(followItems.map((f) => `${f.entity_type}:${f.entity_id}`));
-    for (const result of resultItems) {
-      if (followed.has(`${result.entityType}:${result.entityId}`)) {
-        rememberFollowLabel(result.entityType, result.entityId, result.label, result.imagePath);
-      }
-    }
-  }, [resultItems, followItems]);
 
   return (
     <section

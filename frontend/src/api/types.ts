@@ -429,6 +429,13 @@ export interface Follow {
   // every case, because that is how the backend stores and compares them (its
   // `normalise_entity_id`). Compare as strings here too, never as numbers.
   entity_id: string;
+  /** The entity's own name, resolved from the catalog (NEU-1396). Nullable, and that is
+   *  load-bearing: a follow outlives the entity it names and D-40 keeps the row, so one the
+   *  catalog can no longer resolve arrives with nulls rather than being dropped — which would
+   *  make a followed thing look unfollowed. */
+  name: string | null;
+  /** TMDB `profile_path` / `logo_path` / `poster_path` for the entity, on the same terms. */
+  image_path: string | null;
   source: FollowSource;
   coverage: FollowCoverage;
   created_at: string;

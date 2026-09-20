@@ -6,7 +6,6 @@ import { FollowEntitySearch } from "@/components/follow/FollowEntitySearch";
 import { Button } from "@/components/ui/button";
 import { personPath, type FollowTarget } from "@/lib/film-entities";
 import { formatEventDate } from "@/lib/format";
-import { lookupFollowLabel } from "@/lib/follow-labels";
 import { profileUrl } from "@/lib/poster";
 
 /** The groups, in the order they appear. Fixed rather than derived from the data so the page
@@ -78,11 +77,13 @@ function FollowCoverageControl({ follow, label }: { follow: Follow; label: strin
 
 function FollowRow({ follow }: { follow: Follow }) {
   const toggle = useToggleFollow();
-  const known = lookupFollowLabel(follow.entity_type, follow.entity_id);
-  const label = known?.label ?? `${PLACEHOLDER[follow.entity_type]} ${follow.entity_id}`;
+  // Straight off the payload (NEU-1396). The placeholder below is for a follow the catalog
+  // can no longer resolve — a person TMDB deleted, a row written before a backfill — which
+  // D-40 keeps rather than prunes, not for the ordinary case it used to cover.
+  const label = follow.name ?? `${PLACEHOLDER[follow.entity_type]} ${follow.entity_id}`;
   const link = tmdbUrl(follow);
   const source = SOURCE_LABELS[follow.source];
-  const image = profileUrl(known?.imagePath ?? null, "w92");
+  const image = profileUrl(follow.image_path, "w92");
 
   // The unfollow goes through the same mutation as every follow button in the app, so it takes
   // the same optimistic path and invalidates the same keys. `following: true` because a row on
@@ -91,7 +92,7 @@ function FollowRow({ follow }: { follow: Follow }) {
     entityType: follow.entity_type,
     entityId: follow.entity_id,
     label,
-    imagePath: known?.imagePath ?? null,
+    imagePath: follow.image_path,
   };
 
   return (
@@ -112,13 +113,13 @@ function FollowRow({ follow }: { follow: Follow }) {
             // Linked whether or not we have a name: a row reading "Person 287" is exactly the
             // one whose reader most needs somewhere to go and find out who that is. The slug
             // is built from the label we have, or omitted — either resolves on the id.
-            <Link to={personPath(follow.entity_id, known?.label ?? "")} className="hover:underline">
+            <Link to={personPath(follow.entity_id, follow.name ?? "")} className="hover:underline">
               {label}
             </Link>
           ) : (
             label
           )}
-          {!known && link && (
+          {!follow.name && link && (
             <>
               {" "}
               <a

@@ -7,8 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/components/AuthContext";
 import { server } from "@/test/msw/server";
 import { meHandler } from "@/test/msw/me";
-import { followGraphHandlers } from "@/test/msw/follows";
-import { lookupFollowLabel, resetFollowLabelCache } from "@/lib/follow-labels";
+import { followGraphHandlers, makeFollow } from "@/test/msw/follows";
 import { cloudflareContext, type AppEnv } from "@/lib/load-context";
 import PersonPage, { ErrorBoundary, loader, meta } from "@/routes/person";
 import type { Follow, PersonDetail, PersonFilm } from "@/api/types";
@@ -180,10 +179,7 @@ function renderPage(
   return graph;
 }
 
-beforeEach(() => {
-  localStorage.clear();
-  resetFollowLabelCache();
-});
+beforeEach(() => localStorage.clear());
 
 describe("person page", () => {
   it("heads the page with the name, department and date of birth", async () => {
@@ -220,15 +216,6 @@ describe("person page", () => {
     expect(screen.getByText("No recent releases")).toBeInTheDocument();
   });
 
-  it("remembers the name and face behind the id, for the follows page", async () => {
-    renderPage();
-    await screen.findByRole("heading", { name: "Christopher Nolan" });
-    expect(lookupFollowLabel("person", "525")).toEqual({
-      label: "Christopher Nolan",
-      imagePath: "/nolan.jpg",
-    });
-  });
-
   it("offers all three tiers, defaulting to lead, before there is a follow", async () => {
     renderPage();
     expect(await screen.findByRole("radio", { name: "Lead roles" })).toBeChecked();
@@ -251,13 +238,7 @@ describe("person page", () => {
   });
 
   it("PATCHes the tier once the follow exists, rather than creating a second one", async () => {
-    const existing: Follow = {
-      entity_type: "person",
-      entity_id: "525",
-      source: "manual",
-      coverage: "lead",
-      created_at: "2026-09-01T00:00:00Z",
-    };
+    const existing = makeFollow({ entity_id: "525", name: "Christopher Nolan" });
     const graph = renderPage(person, { follows: [existing] });
 
     // The control reads the follow back rather than its own local default.

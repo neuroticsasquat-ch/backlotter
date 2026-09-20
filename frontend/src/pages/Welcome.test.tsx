@@ -5,7 +5,6 @@ import { createRoutesStub, useLocation } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/components/AuthContext";
 import type { Follow } from "@/api/types";
-import { resetFollowLabelCache } from "@/lib/follow-labels";
 import { http, HttpResponse } from "msw";
 import { env } from "@/env";
 import { server } from "@/test/msw/server";
@@ -73,10 +72,7 @@ function renderWelcome(
 
 const zip = () => new File(["x"], "letterboxd-export.zip", { type: "application/zip" });
 
-beforeEach(() => {
-  localStorage.clear();
-  resetFollowLabelCache();
-});
+beforeEach(() => localStorage.clear());
 
 describe("Welcome", () => {
   it("starts on the import step", async () => {
