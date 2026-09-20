@@ -5,4 +5,5 @@ export const ADMIN_NAV_ITEMS = [
   { label: "Sources", href: "/admin/sources" },
   { label: "Users", href: "/admin/users" },
   { label: "Resolution", href: "/admin/resolution" },
+  { label: "Invites", href: "/admin/invites" },
 ] as const;

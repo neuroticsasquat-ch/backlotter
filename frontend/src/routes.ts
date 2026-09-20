@@ -44,6 +44,7 @@ export default [
           route("admin/sources", "pages/AdminSources.tsx"),
           route("admin/users", "pages/AdminUsers.tsx"),
           route("admin/resolution", "pages/AdminResolution.tsx"),
+          route("admin/invites", "pages/AdminInvites.tsx"),
         ]),
       ]),
     ]),

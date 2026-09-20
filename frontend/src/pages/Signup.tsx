@@ -206,7 +206,7 @@ export function Signup() {
                 autoComplete="off"
               />
               <p id="invite-code-help" className="text-xs text-gray-500 mt-1">
-                Optional — anyone can sign up. A code just links your account to whoever sent it.
+                Enter the code you were sent, if you have one.
               </p>
             </div>
           )}

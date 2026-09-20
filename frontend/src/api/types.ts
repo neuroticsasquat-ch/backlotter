@@ -55,6 +55,19 @@ export interface AdminUserPage {
   offset: number;
 }
 
+/** One invite code as the admin page sees it. Mirrors the backend `InviteOut` (NEU-1408).
+ *  Both consumer fields are null while the code is outstanding, and also once it was spent by
+ *  an account that has since been deleted; `consumed_by_email` is what the page shows, because
+ *  `/admin/users` searches by address, not by id. */
+export interface Invite {
+  code: string;
+  email_hint: string | null;
+  created_at: string;
+  consumed_at: string | null;
+  consumed_by_user_id: string | null;
+  consumed_by_email: string | null;
+}
+
 export type IngestRunKind = "tmdb" | "feeds" | "link" | "synthesize" | "sweep";
 export type IngestRunStatus = "running" | "succeeded" | "failed" | "cancelled";
 
