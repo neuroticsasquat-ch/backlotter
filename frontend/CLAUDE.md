@@ -15,6 +15,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   (Vite SPA, `createBrowserRouter`, ESLint) is **stale** — see Architecture below for what's
   actually here. Its `task` command table and container rules are accurate.
 - **Sibling repo**: `../backend`; read its `AGENTS.md` before touching backend code.
+- **Project-wide specs live in the backend repo**: `../backend/docs/specs/` — a ticket in a
+  cross-repo project (e.g. `bl-entity-follows-project-spec.md`) may have no per-ticket spec
+  under `docs/specs/` here; read the project spec there instead. Linear tickets write that
+  path umbrella-relative (`backend/docs/specs/…`).
 
 ## Everything runs in the container
 
