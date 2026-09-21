@@ -1,7 +1,7 @@
 # backlotter web — Domain Context
 
 The frontend renders the tracker's public surfaces (feed, film pages, calendar) for everyone and
-the subscriber surfaces (timeline, follows, watchlist, settings) for entitled readers. The
+the subscriber surfaces (timeline, follows, settings) for entitled readers. The
 backend's `../backend/CONTEXT.md` owns the domain; this file names only what the web app
 adds or presents differently. When a term appears in both, the backend's definition governs.
 
@@ -16,23 +16,22 @@ the one an entitled reader reaches from the second tab.
 _Avoid_: public calendar (true, but it is also what the entitled reader sees on that tab),
 global calendar, full calendar, release calendar (the old page heading).
 
-**Watchlist calendar**:
-The all-releases calendar narrowed to the reader's own **watchlist**: the films their follows
-cover for alerts, minus the ones they have muted (D-42, D-45). Following a director does put
-their lead films on it — every major credit if that follow's **coverage** is set to `major`,
-and every credit they hold at all if it is set to `any` (D-48; `major` is the tier that was
-called `all` until NEU-1418 renamed it). The backend glossary defines the set and the date
+**My films calendar**:
+The all-releases calendar narrowed to the films the reader follows (EF-14). Following a
+director, a studio or a franchise puts nothing on it: an entity follow delivers that entity's
+attachments and detachments, not its films. The backend glossary defines the set and the date
 rule; on the web it is the first tab an entitled reader lands on, and it never exists for
 anyone else. Its subscribed form is the **iCal feed**, which holds the same films and dates.
-_Avoid_: my calendar (the nav item is "Calendar"; the tab is "My watchlist"), follow calendar,
-personal calendar, subscription calendar (that is the iCal feed).
+_Avoid_: watchlist calendar (the old name, retired with the watchlist), my calendar (the nav
+item is "Calendar"; the tab is "My films"), follow calendar, personal calendar, subscription
+calendar (that is the iCal feed).
 
 **Calendar tab**:
 One of the two views an **entitled** reader can switch between under the Calendar heading:
-"My watchlist" and "All releases". A reader without a grant has no tabs at all: not a locked
+"My films" and "All releases". A reader without a grant has no tabs at all: not a locked
 tab, not a disabled one, just the all-releases calendar. The tab is a view on the page, not a
 place; it is never a URL.
-_Avoid_: mode, filter (the watchlist calendar is a different set, not the same set filtered
+_Avoid_: mode, filter (the my-films calendar is a different set, not the same set filtered
 on the client), locked tab.
 
 ### The feed and the film page
