@@ -45,7 +45,7 @@ describe("PublicLayout", () => {
     expect(within(primaryNav).queryByRole("link", { name: /^search$/i })).toBeNull();
 
     // 4. Search box renders in its own bar (below the header, not inside it)
-    expect(screen.getByRole("search", { name: /film search/i })).toBeInTheDocument();
+    expect(screen.getByRole("search", { name: /^search$/i })).toBeInTheDocument();
 
     // 5. Footer — wordmark text in copyright line
     const footer = screen.getByRole("contentinfo");
