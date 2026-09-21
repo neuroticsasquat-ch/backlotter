@@ -10,6 +10,10 @@ export default [
     route("calendar", "routes/calendar.tsx"),
     route("film/:ref", "routes/film.tsx"),
     route("person/:ref", "routes/person.tsx"),
+    // "Studio" and "Franchise" in the URL as on screen (EF-19); the payloads and the follow
+    // graph keep saying `company` and `franchise`, and the backend keeps saying `collection`.
+    route("studio/:ref", "routes/studio.tsx"),
+    route("franchise/:ref", "routes/franchise.tsx"),
     route("terms", "routes/terms.tsx"),
     route("privacy", "routes/privacy.tsx"),
   ]),

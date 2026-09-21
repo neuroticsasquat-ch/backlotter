@@ -9,7 +9,8 @@ import { profileUrl } from "@/lib/poster";
 import { formatEventDate } from "@/lib/format";
 import type { FollowTarget } from "@/lib/film-entities";
 import { PersonFollowControl } from "@/components/follow/PersonFollowControl";
-import { PersonFilmSection } from "@/components/person/PersonFilmRow";
+import { EntityFilmSection } from "@/components/entity/EntityFilmRow";
+import { PersonFilmRow } from "@/components/person/PersonFilmRow";
 
 export async function loader({ params, request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
@@ -103,16 +104,24 @@ export default function PersonPage({ loaderData }: Route.ComponentProps) {
       {/* Two sections and nothing else: between them they are exactly what a follow can reach
           (D-46), so the page shows the reader what following this person would deliver rather
           than a filmography stretching back thirty years. */}
-      <PersonFilmSection
+      <EntityFilmSection
         heading="Upcoming"
-        rows={person.upcoming}
+        count={person.upcoming.length}
         empty="No upcoming films in the catalog"
-      />
-      <PersonFilmSection
+      >
+        {person.upcoming.map((row) => (
+          <PersonFilmRow key={row.film.id} row={row} />
+        ))}
+      </EntityFilmSection>
+      <EntityFilmSection
         heading="Recently released"
-        rows={person.recent}
+        count={person.recent.length}
         empty="No recent releases"
-      />
+      >
+        {person.recent.map((row) => (
+          <PersonFilmRow key={row.film.id} row={row} />
+        ))}
+      </EntityFilmSection>
     </main>
   );
 }

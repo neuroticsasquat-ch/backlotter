@@ -4,10 +4,12 @@ import {
   collectionTarget,
   companyTarget,
   filmCompanies,
+  franchisePath,
   isFollowableCrew,
-  personTarget,
-  watchlistFilm,
   personPath,
+  personTarget,
+  studioPath,
+  watchlistFilm,
 } from "./film-entities";
 
 const FILM_ID = "11111111-1111-4111-8111-111111111111";
@@ -147,5 +149,19 @@ describe("personPath", () => {
 
   it("takes a string id, as the follow graph stores them", () => {
     expect(personPath("525", "Christopher Nolan")).toBe("/person/525-christopher-nolan");
+  });
+});
+
+describe("studioPath and franchisePath", () => {
+  // The three refs are one scheme, so these only have to differ in their segment — which is
+  // the reader's word for the thing, not the payload's `company` / `collection` (EF-19).
+  it("build the same ref under their own route segments", () => {
+    expect(studioPath(33, "Universal Pictures")).toBe("/studio/33-universal-pictures");
+    expect(franchisePath(726871, "Dune Collection")).toBe("/franchise/726871-dune-collection");
+  });
+
+  it("fold and run names together exactly as the person path does", () => {
+    expect(studioPath(4, "20th Century Studios, Inc.")).toBe("/studio/4-20th-century-studios-inc");
+    expect(franchisePath(5, "宮崎駿")).toBe("/franchise/5");
   });
 });

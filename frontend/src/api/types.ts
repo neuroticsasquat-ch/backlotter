@@ -518,12 +518,17 @@ export interface WatchlistListResponse {
 
 // --- The person page (NEU-1418 contracts, D-1416.6) ---
 
-/** The film as a person page cites it: the watchlist row's shape plus the URL ref.
+/** The film as an entity page cites it — a person's, a studio's or a franchise's: the
+ *  watchlist row's shape plus the URL ref.
  *
  *  `ref` rather than the bare `tmdb_id` the watchlist row falls back to — the backend already
  *  knows the canonical `<tmdb_id>-<slug>`, so linking by it costs the reader the 301 the
- *  watchlist still eats. */
-export interface PersonFilmSummary extends WatchlistFilm {
+ *  watchlist still eats.
+ *
+ *  Named for the backend's `FilmRowOut`, which three endpoints emit: the studio and franchise
+ *  pages return it bare, the person page wraps it in {@link PersonFilm} to hang that person's
+ *  credits off it, and that wrapper is the only thing the three pages do differently. */
+export interface FilmRow extends WatchlistFilm {
   ref: string;
 }
 
@@ -544,7 +549,7 @@ export interface PersonCredit {
  *  follow has to be at for this row to reach the reader at all, which is the question the
  *  badge beside it answers. */
 export interface PersonFilm {
-  film: PersonFilmSummary;
+  film: FilmRow;
   credits: PersonCredit[];
   tier: CreditTier;
 }
@@ -570,6 +575,42 @@ export interface PersonDetail {
   deathday: string | null; // "YYYY-MM-DD"
   upcoming: PersonFilm[];
   recent: PersonFilm[];
+}
+
+// --- The studio and franchise pages (NEU-1428 contracts, EF-17) ---
+
+/**
+ * `GET /companies/{ref}` — a studio, and the films a follow of it could reach.
+ *
+ * "Studio" on screen, `company` in the code (EF-19). Same two lists as {@link PersonDetail}
+ * and drawn the same way, but over bare {@link FilmRow}s: a studio's relationship to a film is
+ * a single membership row, so there is no job to name and no tier to badge.
+ *
+ * `id` is the TMDB company id; stringified it is the `entity_id` a `company` follow is keyed
+ * on. `ref` is canonical, and the route redirects to it when the one asked with differs.
+ */
+export interface CompanyDetail {
+  ref: string;
+  id: number;
+  name: string;
+  logo_path: string | null;
+  upcoming: FilmRow[];
+  recent: FilmRow[];
+}
+
+/** `GET /collections/{ref}` — {@link CompanyDetail} over a TMDB collection, carrying the
+ *  collection's `poster_path` where a studio carries its `logo_path`. "Franchise" on screen,
+ *  `franchise` as the follow's `entity_type`, `collection` in the backend's URL (EF-19).
+ *
+ *  `id` is the TMDB collection id; stringified it is the `entity_id` a `franchise` follow is
+ *  keyed on. */
+export interface CollectionDetail {
+  ref: string;
+  id: number;
+  name: string;
+  poster_path: string | null;
+  upcoming: FilmRow[];
+  recent: FilmRow[];
 }
 
 // --- Entity search, the follow graph's add path (NEU-1350 contracts) ---

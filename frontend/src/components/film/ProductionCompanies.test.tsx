@@ -65,5 +65,23 @@ describe("ProductionCompanies", () => {
       );
       expect(container.querySelector("li")?.textContent).toBe("Universal Pictures");
     });
+
+    it("links an identified company to its studio page", () => {
+      renderWithProviders(
+        <ProductionCompanies companies={[{ id: 33, name: "Universal Pictures" }]} />,
+      );
+      expect(screen.getByRole("link", { name: "Universal Pictures" })).toHaveAttribute(
+        "href",
+        "/studio/33-universal-pictures",
+      );
+    });
+
+    it("leaves a company the payload cannot identify unlinked", () => {
+      // The same branch as the missing follow button: a link here would point at
+      // `/studio/undefined`.
+      renderWithProviders(<ProductionCompanies companies={[{ name: "Universal Pictures" }]} />);
+      expect(screen.queryByRole("link", { name: "Universal Pictures" })).not.toBeInTheDocument();
+      expect(screen.getByText("Universal Pictures")).toBeInTheDocument();
+    });
   });
 });

@@ -247,10 +247,21 @@ describe("FilmHeader follow affordances", () => {
     ).toBeInTheDocument();
   });
 
-  it("names a collection with no id without offering a follow", () => {
+  it("links an identified collection to its franchise page", () => {
+    renderHeader({ collection: { name: "The Odyssey Collection", id: 726871 } });
+    expect(screen.getByRole("link", { name: "The Odyssey Collection" })).toHaveAttribute(
+      "href",
+      "/franchise/726871-the-odyssey-collection",
+    );
+  });
+
+  it("names a collection with no id without offering a follow or a link", () => {
     renderHeader({ collection: { name: "The Odyssey Collection" } });
     expect(screen.getByText("The Odyssey Collection")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /follow/i })).not.toBeInTheDocument();
+    // The same branch as the missing button: a link here would point at
+    // `/franchise/undefined`.
+    expect(screen.queryByRole("link", { name: "The Odyssey Collection" })).not.toBeInTheDocument();
   });
 });
 

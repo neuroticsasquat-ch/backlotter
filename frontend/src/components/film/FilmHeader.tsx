@@ -1,7 +1,8 @@
+import { Link } from "react-router";
 import type { FilmDetail } from "@/api/types";
 import { formatRuntime, pickRating } from "@/lib/format";
 import { posterUrl } from "@/lib/poster";
-import { collectionTarget, watchlistFilm } from "@/lib/film-entities";
+import { collectionTarget, franchisePath, watchlistFilm } from "@/lib/film-entities";
 import { latestTrailerKey } from "@/lib/trailers";
 import { FollowButton } from "@/components/follow/FollowButton";
 import { TitleFollowButton } from "@/components/follow/TitleFollowButton";
@@ -117,7 +118,19 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
           <>
             <dt className="text-muted-foreground">Collection</dt>
             <dd className="flex flex-wrap items-center gap-2">
-              <span>{film.collection.name}</span>
+              {/* Linked when the payload identifies the collection, which is the same test the
+                  button beside it runs — a franchise with no id gets neither, rather than a
+                  link to `/franchise/undefined` (NEU-1429). */}
+              {followCollection ? (
+                <Link
+                  to={franchisePath(followCollection.entityId, followCollection.label)}
+                  className="hover:underline"
+                >
+                  {film.collection.name}
+                </Link>
+              ) : (
+                <span>{film.collection.name}</span>
+              )}
               {followCollection && <FollowButton target={followCollection} />}
             </dd>
           </>

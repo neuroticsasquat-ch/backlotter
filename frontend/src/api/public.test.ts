@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
 import {
   getCalendar,
+  getCollection,
   getCollectionsSearch,
   getCompaniesSearch,
+  getCompany,
   getFeedGrouped,
   getFilm,
   getFilmSearch,
@@ -59,6 +61,39 @@ describe("getFilm", () => {
   it("throws on a 500", async () => {
     server.use(http.get(`${BACKEND}/films/boom`, () => new HttpResponse(null, { status: 500 })));
     await expect(getFilm(BACKEND, "boom")).rejects.toThrow(/failed: 500/);
+  });
+});
+
+// The two entity-page fetchers behind `/studio/:ref` and `/franchise/:ref` (NEU-1428). Their
+// 200 and 404 paths are exercised through the route loaders; what is only reachable here is
+// the branch that distinguishes "no such entity" from "the backend is broken", which the
+// loaders must not turn into a 404 page.
+describe.each([
+  ["getCompany", getCompany, "companies"],
+  ["getCollection", getCollection, "collections"],
+] as const)("%s", (_name, fetcher, path) => {
+  it("returns null on 404", async () => {
+    server.use(
+      http.get(`${BACKEND}/${path}/missing`, () => new HttpResponse(null, { status: 404 })),
+    );
+    expect(await fetcher(BACKEND, "missing")).toBeNull();
+  });
+
+  it("throws on a 500", async () => {
+    server.use(http.get(`${BACKEND}/${path}/boom`, () => new HttpResponse(null, { status: 500 })));
+    await expect(fetcher(BACKEND, "boom")).rejects.toThrow(/failed: 500/);
+  });
+
+  it("encodes a ref that is not URL-safe", async () => {
+    let seen: string | undefined;
+    server.use(
+      http.get(`${BACKEND}/${path}/:ref`, ({ request }) => {
+        seen = request.url;
+        return HttpResponse.json({});
+      }),
+    );
+    await fetcher(BACKEND, "33/../films");
+    expect(seen).toBe(`${BACKEND}/${path}/33%2F..%2Ffilms`);
   });
 });
 

@@ -58,7 +58,7 @@ export const personTarget = (person: CastMember | CrewMember): FollowTarget | nu
   target("person", person.person_id, person.name);
 
 /**
- * The person page's URL for someone we know the id and name of.
+ * An entity page's URL for something we know the id and name of.
  *
  * The ref resolves on its **leading id**; everything after the first hyphen is decorative, so
  * this only has to be *stable*, not identical to the backend's. It is a rough `slugify`
@@ -66,8 +66,14 @@ export const personTarget = (person: CastMember | CrewMember): FollowTarget | nu
  * script it cannot fold (Cyrillic, Han) falls through to the bare id, which is a valid ref. The
  * page redirects to the canonical form either way, so a link minted here is at worst one 301
  * slower, never wrong.
+ *
+ * One builder for all three kinds, because all three refs are the same `<tmdb_id>-<slug>`
+ * scheme — the backend folded `person_ref`, `company_ref` and `collection_ref` into one
+ * implementation in NEU-1428 for exactly that reason. The segment is the *on-screen* word, not
+ * the payload's: `/studio/` and `/franchise/` for what the code calls `company` and
+ * `franchise` (EF-19).
  */
-export function personPath(id: number | string, name: string): string {
+function entityPath(segment: string, id: number | string, name: string): string {
   const stem = name
     .normalize("NFKD")
     // The combining marks NFKD just split off, so "Chloé" folds to "chloe" rather than
@@ -76,8 +82,18 @@ export function personPath(id: number | string, name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return stem ? `/person/${id}-${stem}` : `/person/${id}`;
+  return stem ? `/${segment}/${id}-${stem}` : `/${segment}/${id}`;
 }
+
+export const personPath = (id: number | string, name: string) => entityPath("person", id, name);
+
+/** The studio page's URL for a `company` (EF-19 calls it a Studio on screen). */
+export const studioPath = (id: number | string, name: string) => entityPath("studio", id, name);
+
+/** The franchise page's URL for a `franchise` — TMDB's "collection", the backend's
+ *  `/collections/{ref}`, and a Franchise everywhere the reader can see it. */
+export const franchisePath = (id: number | string, name: string) =>
+  entityPath("franchise", id, name);
 
 export const companyTarget = (company: FilmCompany): FollowTarget | null =>
   target("company", company.id, company.name);

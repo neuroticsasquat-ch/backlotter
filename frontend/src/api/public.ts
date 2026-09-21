@@ -1,6 +1,8 @@
 import type {
   CalendarResponse,
+  CollectionDetail,
   CollectionSearchItem,
+  CompanyDetail,
   CompanySearchItem,
   EntitySearchResponse,
   FeedDayResponse,
@@ -76,6 +78,38 @@ export async function getPerson(
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`GET /people/${encodeURIComponent(ref)} failed: ${res.status}`);
   return (await res.json()) as PersonDetail;
+}
+
+/** Fetch a studio by URL ref (NEU-1428). `company` in the URL and in the code, "Studio" on
+ *  screen (EF-19). Resolves on the ref's leading id like the person fetcher, and the returned
+ *  `ref` is the canonical one the caller redirects to. Null on 404. */
+export async function getCompany(
+  baseUrl: string,
+  ref: string,
+  { headers }: ExtraHeaders = {},
+): Promise<CompanyDetail | null> {
+  const res = await fetch(apiUrl(baseUrl, `/companies/${encodeURIComponent(ref)}`), {
+    headers: { Accept: "application/json", ...headers },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GET /companies/${encodeURIComponent(ref)} failed: ${res.status}`);
+  return (await res.json()) as CompanyDetail;
+}
+
+/** Fetch a franchise by URL ref (NEU-1428). The backend spells a franchise `collection` —
+ *  TMDB's word for it — so the path is `/collections/{ref}` while the route it feeds is
+ *  `/franchise/:ref`. Otherwise {@link getCompany}, down to the 404 and the canonical ref. */
+export async function getCollection(
+  baseUrl: string,
+  ref: string,
+  { headers }: ExtraHeaders = {},
+): Promise<CollectionDetail | null> {
+  const res = await fetch(apiUrl(baseUrl, `/collections/${encodeURIComponent(ref)}`), {
+    headers: { Accept: "application/json", ...headers },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GET /collections/${encodeURIComponent(ref)} failed: ${res.status}`);
+  return (await res.json()) as CollectionDetail;
 }
 
 /** No `headers` option: search runs only from the browser (the type-ahead in `SearchBox`), which
