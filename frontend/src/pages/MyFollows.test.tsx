@@ -73,14 +73,39 @@ describe("MyFollows", () => {
     expect(screen.queryByRole("link", { name: /look up on tmdb/i })).not.toBeInTheDocument();
   });
 
-  it("keeps the TMDB fallback for a company row it has no name for", async () => {
-    // Companies and collections have no page of ours yet, so the outbound link stays until the
-    // story that gives them one.
+  it("links a company row it has no name for to the studio page anyway", async () => {
+    // Well formed from the id alone, the same deal person rows have taken since NEU-1419. The
+    // page it reaches 404s while the catalog cannot name the id — the entity endpoint reads the
+    // table the label lookup just missed — which is the honest answer for a row D-40 keeps after
+    // its entity left the catalog. The outbound TMDB link this replaced is gone (NEU-1431).
     renderPage([follow({ entity_type: "company", entity_id: "41", name: null })]);
 
-    expect(await screen.findByRole("link", { name: /look up on tmdb/i })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Company 41" })).toHaveAttribute(
       "href",
-      "https://www.themoviedb.org/company/41",
+      "/studio/41",
+    );
+    expect(screen.queryByRole("link", { name: /look up on tmdb/i })).not.toBeInTheDocument();
+  });
+
+  it("links a named company row to its studio page, slugged from the name", async () => {
+    renderPage([follow({ entity_type: "company", entity_id: "41", name: "A24" })]);
+
+    expect(await screen.findByRole("link", { name: "A24" })).toHaveAttribute(
+      "href",
+      "/studio/41-a24",
+    );
+  });
+
+  it("links a franchise row to its franchise page", async () => {
+    // On-screen vocabulary is EF-19's: the payload says `franchise`, the URL says franchise,
+    // and TMDB's word "collection" survives only in the heading this page has not rebuilt yet.
+    renderPage([
+      follow({ entity_type: "franchise", entity_id: "10", name: "Star Wars Collection" }),
+    ]);
+
+    expect(await screen.findByRole("link", { name: "Star Wars Collection" })).toHaveAttribute(
+      "href",
+      "/franchise/10-star-wars-collection",
     );
   });
 
@@ -93,13 +118,37 @@ describe("MyFollows", () => {
     );
   });
 
-  it("gives a title follow no TMDB link — the id is ours, not theirs", async () => {
+  it("leaves a title row unlinked — the payload carries no film ref to link to", async () => {
+    // A title follow's `entity_id` is our film UUID, and `/film/:ref` is addressed by
+    // `<tmdb_id>-<slug>`; `GET /me/follows` ships neither, so the row cannot mint a link. It
+    // never had a TMDB one either — TMDB cannot address our UUIDs.
     renderPage([
-      follow({ entity_type: "title", entity_id: "11111111-1111-4111-8111-111111111111" }),
+      follow({
+        entity_type: "title",
+        entity_id: "11111111-1111-4111-8111-111111111111",
+        name: "Dune: Part Three",
+      }),
     ]);
 
     expect(await screen.findByRole("heading", { name: /films \(1\)/i })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /look up on tmdb/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Dune: Part Three")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Dune: Part Three" })).not.toBeInTheDocument();
+  });
+
+  it("links nothing on the page out to TMDB", async () => {
+    // EF-15: every row links inward. The page had one outbound link, on unnamed company and
+    // collection rows, and NEU-1431 deleted it with `tmdbUrl`.
+    renderPage([
+      follow({ name: null }),
+      follow({ entity_type: "company", entity_id: "41", name: null }),
+      follow({ entity_type: "franchise", entity_id: "10", name: null }),
+      follow({ entity_type: "title", entity_id: "11111111-1111-4111-8111-111111111111" }),
+    ]);
+
+    await screen.findByRole("heading", { name: /companies \(1\)/i });
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href")).not.toContain("themoviedb.org");
+    }
   });
 
   it("says where a follow came from when it was not the user's own click", async () => {

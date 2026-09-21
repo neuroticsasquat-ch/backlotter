@@ -4,7 +4,7 @@ import type { Follow, FollowEntityType } from "@/api/types";
 import { CoverageControl } from "@/components/follow/CoverageControl";
 import { FollowEntitySearch } from "@/components/follow/FollowEntitySearch";
 import { Button } from "@/components/ui/button";
-import { personPath, type FollowTarget } from "@/lib/film-entities";
+import { franchisePath, personPath, studioPath, type FollowTarget } from "@/lib/film-entities";
 import { formatEventDate } from "@/lib/format";
 import { profileUrl } from "@/lib/poster";
 
@@ -34,18 +34,29 @@ const SOURCE_LABELS: Record<string, string> = {
   derived: "added automatically",
 };
 
-/** The TMDB page for a followed entity, the fallback identification for a row whose name this
- *  browser never learned. People are absent: they have a page of ours now (NEU-1419) and the
- *  row links its name there whether or not we know it, which is a better answer than TMDB —
- *  it says what they have coming and carries the same coverage control. Companies and
- *  collections keep the outbound link until they get pages of their own; `title` follows are
- *  film UUIDs, which TMDB cannot address, so they get none. */
-function tmdbUrl(follow: Follow): string | null {
+/** The followed entity's own page. Every row that can have one links inward now (EF-15) —
+ *  people since NEU-1419, studios and franchises since they got pages in NEU-1429 — and
+ *  nothing on this page links out to TMDB any more.
+ *
+ *  Linked whether or not we have a name, on the precedent NEU-1419 set for people: the ref
+ *  resolves on its leading id and the slug half is decorative, so the link is well formed with
+ *  only a placeholder to slug from. It is not always *live* — a null name means the catalog
+ *  holds no row for that id, and the entity page reads the same table, so an unnamed row links
+ *  to a 404. That is the honest answer for a follow D-40 keeps after its entity left the
+ *  catalog, and a better one than silently rendering the id as dead text.
+ *
+ *  `title` is the one type with no link. Its `entity_id` is our film UUID, and a film page is
+ *  addressed by `<tmdb_id>-<slug>` — `GET /me/follows` carries neither, so a film row cannot
+ *  mint one. It stays unlinked until the payload gains a `ref`. */
+function entityPagePath(follow: Follow): string | null {
+  const name = follow.name ?? "";
   switch (follow.entity_type) {
+    case "person":
+      return personPath(follow.entity_id, name);
     case "company":
-      return `https://www.themoviedb.org/company/${follow.entity_id}`;
+      return studioPath(follow.entity_id, name);
     case "franchise":
-      return `https://www.themoviedb.org/collection/${follow.entity_id}`;
+      return franchisePath(follow.entity_id, name);
     default:
       return null;
   }
@@ -81,7 +92,7 @@ function FollowRow({ follow }: { follow: Follow }) {
   // can no longer resolve — a person TMDB deleted, a row written before a backfill — which
   // D-40 keeps rather than prunes, not for the ordinary case it used to cover.
   const label = follow.name ?? `${PLACEHOLDER[follow.entity_type]} ${follow.entity_id}`;
-  const link = tmdbUrl(follow);
+  const href = entityPagePath(follow);
   const source = SOURCE_LABELS[follow.source];
   const image = profileUrl(follow.image_path, "w92");
 
@@ -109,28 +120,12 @@ function FollowRow({ follow }: { follow: Follow }) {
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">
-          {follow.entity_type === "person" ? (
-            // Linked whether or not we have a name: a row reading "Person 287" is exactly the
-            // one whose reader most needs somewhere to go and find out who that is. The slug
-            // is built from the label we have, or omitted — either resolves on the id.
-            <Link to={personPath(follow.entity_id, follow.name ?? "")} className="hover:underline">
+          {href ? (
+            <Link to={href} className="hover:underline">
               {label}
             </Link>
           ) : (
             label
-          )}
-          {!follow.name && link && (
-            <>
-              {" "}
-              <a
-                href={link}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs font-normal underline underline-offset-4 text-muted-foreground hover:text-foreground"
-              >
-                look up on TMDB
-              </a>
-            </>
           )}
         </p>
         <p className="truncate text-xs text-muted-foreground">
@@ -158,7 +153,7 @@ function FollowRow({ follow }: { follow: Follow }) {
  * Nothing on this page prunes on load (D-40): a follow whose entity has since left the catalog
  * still renders, because a grant that lapses and is restored must return the account exactly as
  * it was, and a list that quietly drops rows it cannot resolve is how that guarantee breaks.
- * Rows this browser has no name for say so and offer a TMDB link rather than disappearing.
+ * A row the catalog cannot name falls back to its type and id, and still links to its page.
  */
 export function MyFollows() {
   const { data, isLoading, isError, error } = useFollows();
