@@ -6,8 +6,8 @@ import { profileUrl } from "@/lib/poster";
 /**
  * One face in the onboarding grid, which is the follow control rather than carrying one
  * (D-17: "tap to follow"). The whole card is the button, so a thumb aimed anywhere near a name
- * follows it; the film page's separate {@link FollowButton} stays as it is, because there the
- * card around it is a link to somewhere else and cannot also be a toggle.
+ * follows it; the entity pages' separate {@link FollowButton} stays as it is, because a page
+ * is not a thing you can tap.
  *
  * A toggle, not a one-way add: the tap that follows the wrong Chris has to be undoable by the
  * same tap, and `aria-pressed` is what says which state it is in.

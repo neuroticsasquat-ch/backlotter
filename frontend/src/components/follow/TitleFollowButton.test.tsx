@@ -6,36 +6,33 @@ import userEvent from "@testing-library/user-event";
 import { createRoutesStub } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/components/AuthContext";
-import type { WatchlistItem } from "@/api/types";
+import type { Follow } from "@/api/types";
+import type { FollowTarget } from "@/lib/film-entities";
 import { server } from "@/test/msw/server";
 import { meHandler, unauthMeHandler } from "@/test/msw/me";
-import { followGraphHandlers, makeWatchlistFilm, makeWatchlistItem } from "@/test/msw/follows";
+import { followGraphHandlers, makeFollow } from "@/test/msw/follows";
 import { LOCKED_COPY } from "./access";
 import { TitleFollowButton } from "./TitleFollowButton";
 
-const film = makeWatchlistFilm();
+const FILM_ID = "11111111-1111-4111-8111-111111111111";
 
-/** A film reached only through someone the user follows — no direct title follow of its own,
- *  which is what makes it a "via …" row rather than one they chose. */
-const viaNolan = (extra: { name: string; id: string }[] = []): WatchlistItem =>
-  makeWatchlistItem({
-    followed: false,
-    covered_by: [
-      { entity_type: "person", entity_id: "525", name: "Christopher Nolan" },
-      ...extra.map((e) => ({ entity_type: "person" as const, entity_id: e.id, name: e.name })),
-    ],
-  });
+/** What `titleTarget()` builds on the film page: the film's UUID, not its TMDB id. */
+const target: FollowTarget = {
+  entityType: "title",
+  entityId: FILM_ID,
+  label: "The Odyssey",
+};
 
-function renderButton({
-  entitled = true,
-  anonymous = false,
-  watchlist = [] as WatchlistItem[],
-} = {}) {
-  const graph = followGraphHandlers({ watchlist });
+/** The reader's own follow of this film, as `GET /me/follows` returns it. */
+const titleFollow = (): Follow =>
+  makeFollow({ entity_type: "title", entity_id: FILM_ID, name: "The Odyssey" });
+
+function renderButton({ entitled = true, anonymous = false, follows = [] as Follow[] } = {}) {
+  const graph = followGraphHandlers({ follows });
   server.use(anonymous ? unauthMeHandler() : meHandler({ entitled }), ...graph.handlers);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const Stub = createRoutesStub([
-    { path: "/film/:ref", Component: () => <TitleFollowButton film={film} /> },
+    { path: "/film/:ref", Component: () => <TitleFollowButton target={target} /> },
     { path: "/login", Component: () => <h1>Log in</h1> },
   ]);
   render(
@@ -68,73 +65,71 @@ describe("TitleFollowButton — access states", () => {
   });
 });
 
-describe("TitleFollowButton — the three ready states", () => {
-  it("offers Follow for a film that is not on the list", async () => {
+describe("TitleFollowButton — state read from the follows cache", () => {
+  it("offers Follow for a film the reader does not follow", async () => {
     renderButton();
     const button = await screen.findByRole("button", { name: "Follow The Odyssey" });
     expect(button).toHaveTextContent("Follow");
     expect(button).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("says Following for a film the user hears about", async () => {
-    renderButton({ watchlist: [makeWatchlistItem()] });
-    const button = await screen.findByRole("button", { name: "Stop hearing about The Odyssey" });
+  it("says Following once the film's own title row is in the list", async () => {
+    renderButton({ follows: [titleFollow()] });
+    const button = await screen.findByRole("button", { name: "Unfollow The Odyssey" });
     expect(button).toHaveTextContent("Following");
     expect(button).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("says Muted, and is not pressed — a muted film is on the list and still silent", async () => {
-    renderButton({ watchlist: [makeWatchlistItem({ muted: true })] });
-    const button = await screen.findByRole("button", { name: "Hear about The Odyssey again" });
-    expect(button).toHaveTextContent("Muted");
+  it("stays unfollowed for a person follow that merely reaches the film", async () => {
+    // The whole of EF-16 in one assertion: following the director does not follow the film.
+    // The old control read a computed watchlist, where a directorial follow *did* light it up.
+    renderButton({ follows: [makeFollow({ entity_id: "525", name: "Christopher Nolan" })] });
+    const button = await screen.findByRole("button", { name: "Follow The Odyssey" });
     expect(button).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("does not answer to another film's title follow", async () => {
+    renderButton({
+      follows: [
+        makeFollow({ entity_type: "title", entity_id: "22222222-2222-4222-8222-222222222222" }),
+      ],
+    });
+    expect(await screen.findByRole("button", { name: "Follow The Odyssey" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 });
 
 describe("TitleFollowButton — what a press sends", () => {
-  it("wants a film that is not on the list, creating the title follow for it", async () => {
+  it("creates the title follow, keyed on the film's UUID", async () => {
     const graph = renderButton();
 
     await userEvent.click(await screen.findByRole("button", { name: "Follow The Odyssey" }));
 
-    await waitFor(() => expect(graph.watchlist).toHaveLength(1));
-    expect(graph.watchlist[0]).toMatchObject({ followed: true, muted: false });
-    expect(await screen.findByRole("button", { name: /stop hearing about/i })).toBeInTheDocument();
+    await waitFor(() => expect(graph.follows).toHaveLength(1));
+    expect(graph.follows[0]).toMatchObject({ entity_type: "title", entity_id: FILM_ID });
+    expect(await screen.findByRole("button", { name: "Unfollow The Odyssey" })).toBeInTheDocument();
   });
 
-  it("unmutes a muted film rather than adding a second row", async () => {
-    const graph = renderButton({ watchlist: [makeWatchlistItem({ muted: true })] });
+  it("deletes it again on a second press, leaving nothing behind", async () => {
+    // No mute to fall back to: the watchlist that made *stop* ambiguous is gone (EF-14), so
+    // unfollowing is the whole of it.
+    const graph = renderButton({ follows: [titleFollow()] });
 
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Hear about The Odyssey again" }),
-    );
+    await userEvent.click(await screen.findByRole("button", { name: "Unfollow The Odyssey" }));
 
-    await waitFor(() => expect(graph.watchlist[0].muted).toBe(false));
-    expect(graph.watchlist).toHaveLength(1);
-  });
-
-  it("mutes rather than removes when another follow still covers the film", async () => {
-    // *Stop* is two acts wearing one endpoint (D-45). Here something else reaches the film, so
-    // the row stays and goes quiet — the user can undo it from the Muted section.
-    const graph = renderButton({ watchlist: [viaNolan()] });
-
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Stop hearing about The Odyssey" }),
-    );
-
-    await waitFor(() => expect(graph.watchlist[0].muted).toBe(true));
-    expect(graph.watchlist).toHaveLength(1);
-  });
-
-  it("removes the row outright when the user's own follow was the only thing holding it", async () => {
-    const graph = renderButton({ watchlist: [makeWatchlistItem()] });
-
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Stop hearing about The Odyssey" }),
-    );
-
-    await waitFor(() => expect(graph.watchlist).toHaveLength(0));
+    await waitFor(() => expect(graph.follows).toHaveLength(0));
     expect(await screen.findByRole("button", { name: "Follow The Odyssey" })).toBeInTheDocument();
+  });
+
+  it("leaves a person follow alone when the film is unfollowed", async () => {
+    const nolan = makeFollow({ entity_id: "525", name: "Christopher Nolan" });
+    const graph = renderButton({ follows: [titleFollow(), nolan] });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Unfollow The Odyssey" }));
+
+    await waitFor(() => expect(graph.follows).toEqual([nolan]));
   });
 });
 
@@ -148,77 +143,16 @@ describe("TitleFollowButton — while the request is in flight", () => {
     // anything the button says from here can only be the optimistic edit, because the server
     // has not answered and cannot.
     server.use(
-      http.post(`${env.apiBaseUrl}/me/watchlist`, async () => {
+      http.post(`${env.apiBaseUrl}/me/follows`, async () => {
         await delay("infinite");
-        return HttpResponse.json(makeWatchlistItem(), { status: 200 });
+        return HttpResponse.json(titleFollow(), { status: 201 });
       }),
     );
 
     await userEvent.click(await screen.findByRole("button", { name: "Follow The Odyssey" }));
 
-    const pending = await screen.findByRole("button", {
-      name: "Stop hearing about The Odyssey",
-    });
+    const pending = await screen.findByRole("button", { name: "Unfollow The Odyssey" });
     expect(pending).toHaveTextContent("Following");
     expect(pending).toBeDisabled();
-  });
-});
-
-describe("TitleFollowButton — the reason line", () => {
-  it("names the follow that reached a film the user never asked for", async () => {
-    renderButton({ watchlist: [viaNolan()] });
-    expect(await screen.findByText("via Christopher Nolan")).toBeInTheDocument();
-  });
-
-  it("counts the rest rather than listing them", async () => {
-    renderButton({
-      watchlist: [
-        viaNolan([
-          { id: "1", name: "Emma Thomas" },
-          { id: "2", name: "Hoyte van Hoytema" },
-        ]),
-      ],
-    });
-    expect(await screen.findByText("via Christopher Nolan and 2 more")).toBeInTheDocument();
-  });
-
-  it("says nothing for a film the user followed themselves", async () => {
-    // They chose this one; explaining a decision they remember making is noise — even though
-    // another follow also covers it.
-    renderButton({
-      watchlist: [
-        makeWatchlistItem({
-          followed: true,
-          covered_by: [
-            { entity_type: "title", entity_id: film.id, name: film.title },
-            { entity_type: "person", entity_id: "525", name: "Christopher Nolan" },
-          ],
-        }),
-      ],
-    });
-
-    await screen.findByRole("button", { name: /stop hearing about/i });
-    expect(screen.queryByText(/^via /)).toBeNull();
-  });
-
-  it("says nothing for a muted film — the button already reads Muted", async () => {
-    renderButton({ watchlist: [makeWatchlistItem({ muted: true, followed: false })] });
-    await screen.findByRole("button", { name: /hear about the odyssey again/i });
-    expect(screen.queryByText(/^via /)).toBeNull();
-  });
-
-  it("says nothing rather than 'via null' for a cover the backend could not name", async () => {
-    // A follow outlives the entity it names and D-40 keeps the row, so a null name is a real
-    // payload, not a bug to render.
-    renderButton({
-      watchlist: [
-        makeWatchlistItem({
-          followed: false,
-          covered_by: [{ entity_type: "person", entity_id: "525", name: null }],
-        }),
-      ],
-    });
-    await screen.findByRole("button", { name: /stop hearing about/i });
-    expect(screen.queryByText(/^via /)).toBeNull();
   });
 });

@@ -26,9 +26,13 @@ export interface EntitySubject {
  * The person page's shape — name, image, the follow button, then Upcoming and Recently
  * released — minus everything that is about credits. A studio's relationship to a film is a
  * membership row and a franchise's is a column on the film: there is no job to name, and
- * nothing to narrow, so the rows are bare and the control is the film page's plain
- * {@link FollowButton} rather than the person page's tiered one. Coverage is a person-follow
- * setting (D-43) and the backend refuses a PATCH of it on these two types outright.
+ * nothing to narrow, so the rows are bare and the control is the plain {@link FollowButton}
+ * rather than the person page's tiered one. Coverage is a person-follow setting (D-43) and the
+ * backend refuses a PATCH of it on these two types outright.
+ *
+ * This page is where a studio or franchise follow is made, and since EF-16 it is the *only*
+ * place: the film page lists both and links them here rather than offering a button of its
+ * own.
  */
 export function EntityPage({ kind, subject }: { kind: EntityKind; subject: EntitySubject }) {
   const noun = ENTITY_NOUN[kind];

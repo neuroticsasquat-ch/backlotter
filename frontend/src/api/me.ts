@@ -194,15 +194,6 @@ export function useIsFollowing(target: FollowTarget | null): boolean {
   return useFollow(target) !== null;
 }
 
-/** The film's watchlist row, or null. The list carries muted films too (D-45), so a caller
- *  that wants "will I hear about this?" has to read {@link WatchlistItem.muted} rather than
- *  presence alone. */
-export function useWatchlistItem(filmId: string | null): WatchlistItem | null {
-  const { data } = useWatchlist();
-  if (!filmId) return null;
-  return (data?.items ?? []).find((item) => item.film.id === filmId) ?? null;
-}
-
 /** Follow or unfollow, applied to the cached list before the request goes out so the button
  *  flips under the user's finger. `following` is the state the target is in *now*, so the
  *  mutation moves it to the other one. */

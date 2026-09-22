@@ -6,7 +6,6 @@ import type {
   FilmCompany,
   FilmDetail,
   FollowEntityType,
-  WatchlistFilm,
 } from "@/api/types";
 
 /**
@@ -103,43 +102,17 @@ export const collectionTarget = (collection: FilmCollection | null): FollowTarge
 
 /** The companies to list, read from whichever spelling the payload carries: the id-bearing
  *  `companies` when the backend sends it, the bare names otherwise. Names-only entries get no
- *  follow button, by {@link companyTarget}, but still render. */
+ *  studio link, by {@link companyTarget}, but still render. */
 export function filmCompanies(film: FilmDetail): FilmCompany[] {
   return film.companies ?? film.production_companies.map((name) => ({ name }));
 }
 
-/** The cast rows that get a follow button: the top five by billing (D-11's seed grade). The
- *  backend sends up to twelve, billing-ordered; following someone credited below the fifth
- *  slot would put nothing on the user's timeline for this film, so the button stops there. */
-export const FOLLOWABLE_CAST_COUNT = 5;
-
-/** The crew jobs that get one, on the same rule: seed grade as the backend defines it, which
- *  is `Director` plus `WRITER_JOBS` in its `catalog/seed_grade.py` — and deliberately not
- *  `Story`, whose holder gets no timeline rows for this film for exactly the reason a
- *  cinematographer does not. */
-const FOLLOWABLE_CREW_JOBS = new Set(["Director", "Writer", "Screenplay"]);
-
-export const isFollowableCrew = (person: CrewMember): boolean =>
-  person.job !== null && FOLLOWABLE_CREW_JOBS.has(person.job);
-
-/** The film as a watchlist row, for the optimistic entry the toggle writes into the cached
- *  list before the server answers. `null` when the film has no id, like the targets above.
+/** The film itself as a follow target — the one thing the film page still offers to follow
+ *  (EF-16). `null` when the payload carries no film id, like the builders above, and the page
+ *  renders no button for a null target.
  *
- *  The slug is the decorative half of the ref (`<tmdb_id>-<slug>`); a ref that is a bare id
- *  has none, and `null` is what the backend stores for that case. */
-export function watchlistFilm(film: FilmDetail): WatchlistFilm | null {
-  if (film.id === undefined) return null;
-  const dash = film.ref.indexOf("-");
-  return {
-    id: film.id,
-    tmdb_id: film.tmdb_id,
-    slug: dash === -1 ? null : film.ref.slice(dash + 1),
-    title: film.title,
-    poster_path: film.poster_path,
-    // No headline release: choosing one is the backend's job (NEU-1397), over per-country rows
-    // and a tie-break the film page would have to reimplement to guess at. The row reads "No
-    // date yet" for the moment the optimistic entry is up, and the refetch supplies the real
-    // one — the same deal `covered_by` takes.
-    headline_release: null,
-  };
-}
+ *  A title follow keys on the film's UUID, not its TMDB id: that is what the backend stores
+ *  for `entity_type: "title"` and what `GET /me/follows` echoes back, so a button keyed on
+ *  anything else would never find its own row in the list. */
+export const titleTarget = (film: FilmDetail): FollowTarget | null =>
+  target("title", film.id, film.title);

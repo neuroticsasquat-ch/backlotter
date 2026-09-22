@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -164,6 +164,54 @@ describe("FilmHeader", () => {
     expect(screen.getAllByText("Christopher Nolan").length).toBeGreaterThan(0);
   });
 
+  it("links the billing rows to their person pages (EF-16)", () => {
+    // The most prominent person names on the page, and the ones that stayed plain text when
+    // NEU-1419 linked the cast and crew *lists*. With the row buttons gone the link is the
+    // only way to reach a director from here, so an unlinked one is a person the reader
+    // cannot follow at all.
+    const Stub = createRoutesStub([
+      {
+        path: "/film/:ref",
+        Component: () => (
+          <FilmHeader
+            film={{
+              ...film,
+              crew: [
+                {
+                  name: "Christopher Nolan",
+                  job: "Director",
+                  department: "Directing",
+                  person_id: 525,
+                },
+                { name: "Jonathan Nolan", job: "Story", department: "Writing", person_id: 527 },
+              ],
+            }}
+          />
+        ),
+      },
+    ]);
+    render(<Stub initialEntries={["/film/the-odyssey-2026"]} />);
+
+    expect(screen.getByRole("link", { name: "Christopher Nolan" })).toHaveAttribute(
+      "href",
+      "/person/525-christopher-nolan",
+    );
+    // A Story credit is linked too. It never carried a follow button, on D-11's seed grade,
+    // which is exactly the gap the link closes.
+    expect(screen.getByRole("link", { name: "Jonathan Nolan" })).toHaveAttribute(
+      "href",
+      "/person/527-jonathan-nolan",
+    );
+  });
+
+  it("leaves a billing name the payload cannot identify as plain text", () => {
+    // The default fixture's crew carries no `person_id` — today's every case for the public
+    // film DTO — and a link here would point at `/person/undefined`.
+    render(<FilmHeader film={film} />);
+    expect(screen.queryByRole("link", { name: "Christopher Nolan" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Christopher Nolan").length).toBeGreaterThan(0);
+  });
+
   it("renders the IMDb and TMDB links in the header", () => {
     render(<FilmHeader film={film} />);
     expect(screen.getByRole("link", { name: /imdb/i })).toBeInTheDocument();
@@ -188,16 +236,34 @@ describe("FilmHeader follow affordances", () => {
     );
   }
 
-  it("offers exactly one control under the title, not the old pair", async () => {
-    // The pair was two records with one meaning (ADR-0018). A second title-level button here
-    // is the regression this ticket exists to prevent, so the count is the assertion.
+  it("offers exactly one follow button on the whole header (EF-16)", async () => {
+    // The count is the assertion. The header used to carry the film's button *and* the
+    // franchise's, and the cast, crew and company rows carried more below it; a reader
+    // deciding whether to follow a film had four kinds of button to tell apart. One here,
+    // and the entity pages hold the rest.
     server.use(meHandler({ entitled: true }), ...followGraphHandlers().handlers);
-    renderHeader({ id: FILM_ID });
+    renderHeader({ id: FILM_ID, collection: { name: "The Odyssey Collection", id: 726871 } });
 
     expect(
       await screen.findByRole("button", { name: /^follow the odyssey$/i }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /watchlist/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /follow/i })).toHaveLength(1);
+  });
+
+  it("follows the film by its UUID, not its TMDB id", async () => {
+    // A title follow keyed on anything else would never match its own row in
+    // `["me","follows"]`, so the button would read "Follow" forever.
+    const graph = followGraphHandlers();
+    server.use(meHandler({ entitled: true }), ...graph.handlers);
+    renderHeader({ id: FILM_ID });
+
+    await userEvent.click(await screen.findByRole("button", { name: /^follow the odyssey$/i }));
+
+    await waitFor(() =>
+      expect(graph.follows).toEqual([
+        expect.objectContaining({ entity_type: "title", entity_id: FILM_ID }),
+      ]),
+    );
   });
 
   it("says what following a film does, as text rather than a tooltip", async () => {
@@ -237,14 +303,17 @@ describe("FilmHeader follow affordances", () => {
     expect(screen.queryByText(FOLLOW_CUE)).not.toBeInTheDocument();
   });
 
-  it("names the collection, with a follow button when it is identified", async () => {
+  it("names the collection and links it, without a button beside it", async () => {
     server.use(meHandler({ entitled: true }), ...followGraphHandlers().handlers);
-    renderHeader({ collection: { name: "The Odyssey Collection", id: 726871 } });
+    renderHeader({ id: FILM_ID, collection: { name: "The Odyssey Collection", id: 726871 } });
 
     expect(screen.getByText("Collection")).toBeInTheDocument();
+    // Waited out through the film's own button, so this is the settled header rather than the
+    // pre-auth paint that has no buttons in it either.
+    await screen.findByRole("button", { name: /^follow the odyssey$/i });
     expect(
-      await screen.findByRole("button", { name: /follow the odyssey collection/i }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /follow the odyssey collection/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("links an identified collection to its franchise page", () => {
@@ -255,12 +324,10 @@ describe("FilmHeader follow affordances", () => {
     );
   });
 
-  it("names a collection with no id without offering a follow or a link", () => {
+  it("names a collection with no id without linking it", () => {
     renderHeader({ collection: { name: "The Odyssey Collection" } });
     expect(screen.getByText("The Odyssey Collection")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /follow/i })).not.toBeInTheDocument();
-    // The same branch as the missing button: a link here would point at
-    // `/franchise/undefined`.
+    // A link here would point at `/franchise/undefined`.
     expect(screen.queryByRole("link", { name: "The Odyssey Collection" })).not.toBeInTheDocument();
   });
 });

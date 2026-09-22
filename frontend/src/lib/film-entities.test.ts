@@ -5,11 +5,10 @@ import {
   companyTarget,
   filmCompanies,
   franchisePath,
-  isFollowableCrew,
   personPath,
   personTarget,
   studioPath,
-  watchlistFilm,
+  titleTarget,
 } from "./film-entities";
 
 const FILM_ID = "11111111-1111-4111-8111-111111111111";
@@ -45,11 +44,9 @@ function makeFilm(overrides: Partial<FilmDetail> = {}): FilmDetail {
 }
 
 describe("follow targets", () => {
-  // No `titleTarget` case: the film page has one control now and it is keyed on the watchlist
-  // item, not on a title follow (NEU-1405, ADR-0018). The helper went with the button.
   it("offers no target for an entity the payload does not identify", () => {
     // The public film DTO carries no ids yet, so this is today's every case: no id, no
-    // button, rather than a button that would post a follow of nothing.
+    // link and no button, rather than a link to `/person/undefined`.
     expect(
       personTarget({ name: "Christopher Nolan", job: "Director", department: null }),
     ).toBeNull();
@@ -87,44 +84,25 @@ describe("filmCompanies", () => {
     expect(filmCompanies(film)).toEqual([{ id: 33, name: "Universal Pictures" }]);
   });
 
-  it("falls back to the bare names, which render without a follow button", () => {
+  it("falls back to the bare names, which render without a studio link", () => {
     const film = makeFilm({ production_companies: ["Universal Pictures", "Legendary"] });
     expect(filmCompanies(film)).toEqual([{ name: "Universal Pictures" }, { name: "Legendary" }]);
   });
 });
 
-describe("isFollowableCrew", () => {
-  it("covers the seed-grade credits and nothing else", () => {
-    expect(isFollowableCrew({ name: "A", job: "Director", department: "Directing" })).toBe(true);
-    expect(isFollowableCrew({ name: "B", job: "Screenplay", department: "Writing" })).toBe(true);
-    expect(isFollowableCrew({ name: "C", job: "Gaffer", department: "Lighting" })).toBe(false);
-    // Seed grade is Director + Writer/Screenplay (backend `catalog/seed_grade.py`); a Story
-    // credit is not in it, so following one would put nothing on the timeline for this film.
-    expect(isFollowableCrew({ name: "E", job: "Story", department: "Writing" })).toBe(false);
-    expect(isFollowableCrew({ name: "D", job: null, department: null })).toBe(false);
-  });
-});
-
-describe("watchlistFilm", () => {
-  it("builds the row from the film the page already has", () => {
-    expect(watchlistFilm(makeFilm({ id: FILM_ID }))).toEqual({
-      id: FILM_ID,
-      tmdb_id: 603,
-      slug: "the-odyssey",
-      title: "The Odyssey",
-      poster_path: "/poster.jpg",
-      // Not `film.release_date`: the headline release is the backend's choice (NEU-1397), and
-      // the optimistic row waits for the refetch rather than guessing at it.
-      headline_release: null,
+describe("titleTarget", () => {
+  it("keys the film's own follow on its UUID, not its TMDB id", () => {
+    // `entity_id` is what `GET /me/follows` echoes back for a title row, so a button keyed on
+    // the TMDB id would never match its own follow and would read "Follow" forever.
+    expect(titleTarget(makeFilm({ id: FILM_ID }))).toEqual({
+      entityType: "title",
+      entityId: FILM_ID,
+      label: "The Odyssey",
     });
   });
 
-  it("reads no slug out of a ref that is a bare id", () => {
-    expect(watchlistFilm(makeFilm({ id: FILM_ID, ref: "603" }))?.slug).toBeNull();
-  });
-
-  it("is null for a film with no id, like the follow targets", () => {
-    expect(watchlistFilm(makeFilm())).toBeNull();
+  it("is null for a film with no id, like the follow targets beside it", () => {
+    expect(titleTarget(makeFilm())).toBeNull();
   });
 });
 

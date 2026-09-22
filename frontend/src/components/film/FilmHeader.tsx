@@ -1,12 +1,12 @@
 import { Link } from "react-router";
-import type { FilmDetail } from "@/api/types";
+import type { CrewMember, FilmDetail } from "@/api/types";
 import { formatRuntime, pickRating } from "@/lib/format";
 import { posterUrl } from "@/lib/poster";
-import { collectionTarget, franchisePath, watchlistFilm } from "@/lib/film-entities";
+import { collectionTarget, franchisePath, titleTarget } from "@/lib/film-entities";
 import { latestTrailerKey } from "@/lib/trailers";
-import { FollowButton } from "@/components/follow/FollowButton";
 import { TitleFollowButton } from "@/components/follow/TitleFollowButton";
 import { FOLLOW_CUE } from "@/components/follow/access";
+import { PersonName } from "./PersonName";
 import { ArcStepper } from "./ArcStepper";
 import { ExternalLinks } from "./ExternalLinks";
 import { TrailerEmbed } from "./TrailerEmbed";
@@ -21,22 +21,27 @@ import { TrailerEmbed } from "./TrailerEmbed";
  *  parenthetical stays year-only here so the director is not repeated 100px above its own
  *  labelled row.
  *  Production companies render in their own collapsible section below the cast.
- *  One control sits under the title — `TitleFollowButton`, with {@link FOLLOW_CUE} beneath it
- *  — and the collection gets a labelled row of its own with the franchise follow (NEU-1353,
- *  NEU-1405). The pair this used to carry became one when the watchlist stopped being a second
- *  record (ADR-0018); people, companies and franchises keep their own follow buttons. */
+ *  **One follow button on the page** — `TitleFollowButton`, under the title, with
+ *  {@link FOLLOW_CUE} beneath it (EF-16). The collection keeps its labelled row, but the row
+ *  is a link now: a person, studio or franchise is followed from its own page, which is the
+ *  one place that can show what the follow would deliver (EF-18). */
 export function FilmHeader({ film }: { film: FilmDetail }) {
   const poster = posterUrl(film.poster_path, "w342");
   const runtime = film.runtime != null && film.runtime > 0 ? formatRuntime(film.runtime) : null;
   const rating = pickRating(film.release_dates);
-  const watchlistRow = watchlistFilm(film);
+  const followTitle = titleTarget(film);
   const followCollection = collectionTarget(film.collection);
   // Promoted out of the timeline: the newest trailer is the one thing on this page a visitor
   // is likely to have come for, and it is otherwise buried under however many updates the
   // film has collected since (D-35).
   const trailerKey = latestTrailerKey(film.day_groups);
 
-  const billing: [string, string[]][] = (
+  // The crew members themselves, not their names: these are the most prominent person names
+  // on the page and EF-16 wants every one of them linked, which needs the `person_id` a bare
+  // string has already thrown away. `PersonName` decides linked-or-not from the same
+  // `personTarget` test the credit lists use, so the header cannot disagree with the block
+  // below it about who the catalog can identify.
+  const billing: [string, CrewMember[]][] = (
     [
       ["Director", "Director"],
       ["Screenplay", "Screenplay"],
@@ -45,10 +50,9 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
     ] as const
   )
     .map(
-      ([label, job]) =>
-        [label, film.crew.filter((c) => c.job === job).map((c) => c.name)] as [string, string[]],
+      ([label, job]) => [label, film.crew.filter((c) => c.job === job)] as [string, CrewMember[]],
     )
-    .filter(([, names]) => names.length > 0);
+    .filter(([, people]) => people.length > 0);
 
   return (
     <header>
@@ -61,10 +65,10 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
 
       {/* No id in the payload means no film to follow, so neither the control nor the cue
           renders — a cue explaining a button that is not there would be worse than silence. */}
-      {watchlistRow && (
+      {followTitle && (
         <div className="mt-3">
           <div className="flex flex-wrap items-center gap-2">
-            <TitleFollowButton film={watchlistRow} />
+            <TitleFollowButton target={followTitle} />
           </div>
           <p className="mt-1.5 text-sm text-muted-foreground">{FOLLOW_CUE}</p>
         </div>
@@ -104,12 +108,14 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
             </dd>
           </>
         )}
-        {billing.map(([label, names]) => (
+        {billing.map(([label, people]) => (
           <div key={label} className="contents">
             <dt className="text-muted-foreground">{label}</dt>
             <dd>
-              {names.map((name, i) => (
-                <div key={`${name}-${i}`}>{name}</div>
+              {people.map((person, i) => (
+                <div key={`${person.name}-${i}`}>
+                  <PersonName person={person} />
+                </div>
               ))}
             </dd>
           </div>
@@ -118,9 +124,9 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
           <>
             <dt className="text-muted-foreground">Collection</dt>
             <dd className="flex flex-wrap items-center gap-2">
-              {/* Linked when the payload identifies the collection, which is the same test the
-                  button beside it runs — a franchise with no id gets neither, rather than a
-                  link to `/franchise/undefined` (NEU-1429). */}
+              {/* Linked when the payload identifies the collection — a franchise with no id
+                  renders as plain text rather than a link to `/franchise/undefined`
+                  (NEU-1429). */}
               {followCollection ? (
                 <Link
                   to={franchisePath(followCollection.entityId, followCollection.label)}
@@ -131,7 +137,6 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
               ) : (
                 <span>{film.collection.name}</span>
               )}
-              {followCollection && <FollowButton target={followCollection} />}
             </dd>
           </>
         )}

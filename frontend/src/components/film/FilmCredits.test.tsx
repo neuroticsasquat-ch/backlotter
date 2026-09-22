@@ -1,9 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoutesStub } from "react-router";
-import { AuthProvider } from "@/components/AuthContext";
-import { FOLLOWABLE_CAST_COUNT } from "@/lib/film-entities";
 import { FilmCredits } from "@/components/film/FilmCredits";
 import type { CastMember } from "@/api/types";
 
@@ -38,64 +35,46 @@ describe("FilmCredits", () => {
     expect(li?.textContent).toBe("Rebecca Ferguson");
   });
 
-  describe("follow buttons", () => {
-    // One more than the page offers a button for, each identified, so the cut-off is the
-    // billing rule rather than a missing id.
-    const billed: CastMember[] = Array.from(
-      { length: FOLLOWABLE_CAST_COUNT + 1 },
-      (_, i): CastMember => ({
-        name: `Actor ${i + 1}`,
-        character: null,
-        profile_path: null,
-        person_id: i + 1,
-      }),
-    );
+  describe("credit links", () => {
+    const billed: CastMember[] = Array.from({ length: 6 }, (_, i): CastMember => ({
+      name: `Actor ${i + 1}`,
+      character: null,
+      profile_path: null,
+      person_id: i + 1,
+    }));
 
+    /** No `QueryClientProvider` and no `AuthProvider`, deliberately: a follow hook left on one
+     *  of these rows would throw for want of a query client rather than quietly rendering, so
+     *  the bare stub is the assertion that the buttons are gone (EF-16). */
     function renderCast(cast: CastMember[]) {
-      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       const Stub = createRoutesStub([{ path: "/", Component: () => <FilmCredits cast={cast} /> }]);
-      return render(
-        <QueryClientProvider client={qc}>
-          <AuthProvider>
-            <Stub initialEntries={["/"]} />
-          </AuthProvider>
-        </QueryClientProvider>,
-      );
+      return render(<Stub initialEntries={["/"]} />);
     }
 
-    it("stops at the top billed rows", async () => {
+    it("links every name to that person's page, at any billing", async () => {
+      // No cut-off any more. The billed rows used to be the only ones with a button, on D-11's
+      // seed grade, which made the page assert that a 6th-billed actor was not worth
+      // following; the person page is where that is decided now (EF-16, EF-18).
       renderCast(billed);
-      expect(await screen.findByRole("link", { name: /follow actor 1/i })).toBeInTheDocument();
-      expect(
-        screen.getByRole("link", {
-          name: new RegExp(`follow actor ${FOLLOWABLE_CAST_COUNT}`, "i"),
-        }),
-      ).toBeInTheDocument();
-      expect(
-        screen.queryByRole("link", {
-          name: new RegExp(`follow actor ${FOLLOWABLE_CAST_COUNT + 1}`, "i"),
-        }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("offers none for cast the payload does not identify", () => {
-      const { container } = renderCast([castWithCharacter]);
-      expect(container.querySelectorAll("a")).toHaveLength(0);
-    });
-
-    it("links every name to that person's page, past the billed cut-off (NEU-1419)", async () => {
-      renderCast(billed);
-      const last = FOLLOWABLE_CAST_COUNT + 1;
       expect(await screen.findByRole("link", { name: "Actor 1" })).toHaveAttribute(
         "href",
         "/person/1-actor-1",
       );
-      // The row below the cut-off has no follow button and is still a link: the person page is
-      // where a tier that reaches them can be picked.
-      expect(screen.getByRole("link", { name: `Actor ${last}` })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "Actor 6" })).toHaveAttribute(
         "href",
-        `/person/${last}-actor-${last}`,
+        "/person/6-actor-6",
       );
+    });
+
+    it("carries no follow button on any row", () => {
+      renderCast(billed);
+      expect(screen.queryAllByRole("button")).toHaveLength(0);
+    });
+
+    it("renders cast the payload does not identify as plain text", () => {
+      const { container } = renderCast([castWithCharacter]);
+      expect(container.querySelectorAll("a")).toHaveLength(0);
+      expect(screen.getByText(/Timothée Chalamet/)).toBeInTheDocument();
     });
   });
 

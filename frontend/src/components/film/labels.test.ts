@@ -17,6 +17,23 @@ describe("eventTypeLabel", () => {
     // "Now Available", which is the one word of difference the rest of the vocabulary avoids.
     expect(eventTypeLabel("now_available")).toBe("Now available");
   });
+
+  it("names the organisation beats Studio and Franchise, never the payload's words", () => {
+    // EF-19: the code keeps `company` / `collection` and the reader never sees either. The
+    // title-case fallback would render "Company Attached", which is wrong twice over.
+    expect(eventTypeLabel("company_attached")).toBe("Studio attached");
+    expect(eventTypeLabel("company_removed")).toBe("Studio removed");
+    expect(eventTypeLabel("collection_attached")).toBe("Franchise attached");
+    expect(eventTypeLabel("collection_removed")).toBe("Franchise removed");
+  });
+
+  it("names the canceled beat", () => {
+    expect(eventTypeLabel("canceled")).toBe("Canceled");
+  });
+
+  it("still title-cases a beat it has never heard of", () => {
+    expect(eventTypeLabel("reshoots_started")).toBe("Reshoots Started");
+  });
 });
 
 describe("arcStageLabel", () => {

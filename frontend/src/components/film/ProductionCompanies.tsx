@@ -1,19 +1,18 @@
 import { Link } from "react-router";
 import type { FilmCompany } from "@/api/types";
 import { companyTarget, studioPath } from "@/lib/film-entities";
-import { FollowButton } from "@/components/follow/FollowButton";
 import { CollapsibleSection } from "./CollapsibleSection";
 
 /** Production companies: a collapsed disclosure (closed by default) that expands
- *  to a vertical list of companies, one per line, each linking to its studio page and
- *  carrying a follow button (NEU-1353, NEU-1429). Mirrors the cast disclosure.
+ *  to a vertical list of companies, one per line, each linking to its studio page
+ *  (NEU-1429). Mirrors the cast disclosure. No follow button — the studio page holds it now,
+ *  with every other entity's (EF-16).
  *
- *  Takes the companies as objects rather than names because a `company` follow keys on the
+ *  Takes the companies as objects rather than names because the studio page is keyed on the
  *  TMDB company id; `filmCompanies()` is what turns the film payload into this shape. A
- *  names-only entry has no id, so it gets neither the link nor the button — the same branch,
- *  once, through {@link companyTarget}, rather than a second test here that could mint a link
- *  to `/studio/undefined`. The button stays until M3's film-page ticket takes every entity
- *  button off this page. */
+ *  names-only entry has no id, so it renders as plain text — the same branch, once, through
+ *  {@link companyTarget}, rather than a second test here that could mint a link to
+ *  `/studio/undefined`. */
 export function ProductionCompanies({ companies }: { companies: FilmCompany[] }) {
   if (companies.length === 0) return null;
 
@@ -36,7 +35,6 @@ export function ProductionCompanies({ companies }: { companies: FilmCompany[] })
                   company.name
                 )}
               </span>
-              {target && <FollowButton target={target} />}
             </li>
           );
         })}

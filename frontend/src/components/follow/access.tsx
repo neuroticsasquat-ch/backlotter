@@ -10,10 +10,16 @@ export type FollowAccess = "anonymous" | "locked" | "ready";
 /** Says what access is missing without pretending there is a way to buy it — there is not,
  *  until *bl: Subscription & Billing* ships (D-41). */
 export const LOCKED_COPY =
-  "Following and the watchlist are part of the subscription. Access is limited while we build that tier.";
+  "Following is part of the subscription. Access is limited while we build that tier.";
 
 /**
  * What following a film actually gets you, said on the film page where the choice is made.
+ *
+ * It describes the film's own follow and nothing else, which is now the only follow this page
+ * offers (EF-16). It used to have to hedge — a film could arrive on the reader's surfaces
+ * through a director they followed, so "following a film" was one of several ways to hear
+ * about it. An entity follow delivers that entity's attachment stream and nothing more
+ * (EF-3), so the sentence can be flat.
  *
  * Beside {@link LOCKED_COPY} because the two share a row and must not fight. This one is
  * **ordinary text under the control**, never a `title` or an `aria-describedby`: a disabled

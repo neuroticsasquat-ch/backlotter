@@ -10,8 +10,11 @@ import { personPath, personTarget } from "@/lib/film-entities";
  * place that decides whether a credit names somebody the follow graph can key on, and it
  * rejects a null id as well as a missing one. Restating it would leave two rules to keep in
  * step, and the narrower of the two would mint a link to `/person/null`. So a payload the
- * catalog cannot fully identify renders plain text — the same branch, and the same degradation,
- * as the follow button that sits on the row beside it.
+ * catalog cannot fully identify renders plain text.
+ *
+ * Every person on the film page goes through this — the header's billing rows as well as the
+ * cast and crew lists — because the link is the only way to follow somebody from here now
+ * (EF-16), so a name it silently declined to link would be a person the reader cannot reach.
  */
 export function PersonName({
   person,
