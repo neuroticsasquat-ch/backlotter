@@ -8,10 +8,10 @@ import { server } from "@/test/msw/server";
 import { env } from "@/env";
 import { meHandler, unauthMeHandler } from "@/test/msw/me";
 import {
-  emptyWatchlistCalendarHandler,
-  failingWatchlistCalendarHandler,
-  lockedWatchlistCalendarHandler,
-  watchlistCalendarHandler,
+  emptyMyFilmsCalendarHandler,
+  failingMyFilmsCalendarHandler,
+  lockedMyFilmsCalendarHandler,
+  myFilmsCalendarHandler,
 } from "@/test/msw/calendar";
 import type { CalendarItem, CalendarResponse } from "@/api/types";
 import { AuthProvider, useAuth } from "@/components/AuthContext";
@@ -34,7 +34,7 @@ function item(overrides: Partial<CalendarItem> & { film_ref: string }): Calendar
 }
 
 /** The SSR'd all-releases calendar the loader hands the island. Titles are deliberately unlike
- *  the watchlist fixture's, so a `getByText` says which panel it found. */
+ *  the My films fixture's, so a `getByText` says which panel it found. */
 const publicCalendar: CalendarResponse = {
   items: [
     item({ film_ref: "public-odyssey", film_title: "Public Odyssey", release_date: "2026-07-04" }),
@@ -54,7 +54,7 @@ const pagedPublicCalendar: CalendarResponse = {
   offset: 0,
 };
 
-const watchlistItems = [
+const myFilmsItems = [
   item({ film_ref: "mine-dune", film_title: "Mine Dune", release_date: "2026-08-01" }),
   item({
     film_ref: "mine-sinners",
@@ -115,13 +115,13 @@ function renderCalendar(calendar: CalendarResponse = publicCalendar) {
 }
 
 const tabStrip = () => screen.queryByRole("tablist", { name: "Calendar view" });
-const watchlistTab = () => screen.getByRole("tab", { name: "My watchlist" });
+const myFilmsTab = () => screen.getByRole("tab", { name: "My films" });
 const allReleasesTab = () => screen.getByRole("tab", { name: "All releases" });
 
 /** A `/me/calendar` handler that counts what was asked for, so a test can prove how many
  *  requests a switch cost and at which offsets. Pages by date over the fixture, as
- *  `watchlistCalendarHandler` does — spelled out here because the record is the point. */
-function countingWatchlistCalendar(items: CalendarItem[]) {
+ *  `myFilmsCalendarHandler` does — spelled out here because the record is the point. */
+function countingMyFilmsCalendar(items: CalendarItem[]) {
   const calls: { limit: string | null; offset: string | null; credentials: RequestCredentials }[] =
     [];
   const dates = [...new Set(items.map((i) => i.release_date))];
@@ -146,7 +146,7 @@ function countingWatchlistCalendar(items: CalendarItem[]) {
 }
 
 describe("calendar view — no tabs for anyone without a grant", () => {
-  it("renders the SSR'd calendar alone for an anonymous visitor, and asks for no watchlist", async () => {
+  it("renders the SSR'd calendar alone for an anonymous visitor, and asks for no films calendar", async () => {
     let asked = false;
     server.use(
       unauthMeHandler(),
@@ -169,7 +169,7 @@ describe("calendar view — no tabs for anyone without a grant", () => {
     // request pass as a silent forbidden rather than trip MSW's unhandled-request guard, and
     // the point of this test is that the request is never made at all.
     let asked = false;
-    const locked = lockedWatchlistCalendarHandler();
+    const locked = lockedMyFilmsCalendarHandler();
     server.use(
       meHandler({ entitled: false }),
       http.get(`${base}/me/calendar`, (info) => {
@@ -183,20 +183,20 @@ describe("calendar view — no tabs for anyone without a grant", () => {
     await accountResolvedAs("locked");
     expect(tabStrip()).toBeNull();
     expect(screen.queryByRole("tab")).toBeNull();
-    expect(screen.queryByText(/nothing on your watchlist/i)).toBeNull();
+    expect(screen.queryByText(/none of the films you follow/i)).toBeNull();
     expect(asked).toBe(false);
   });
 });
 
 describe("calendar view — entitled", () => {
-  it("opens on the reader's watchlist, with the all-releases panel mounted and hidden", async () => {
-    server.use(meHandler({ entitled: true }), watchlistCalendarHandler(watchlistItems));
+  it("opens on the reader's films, with the all-releases panel mounted and hidden", async () => {
+    server.use(meHandler({ entitled: true }), myFilmsCalendarHandler(myFilmsItems));
     const { container } = renderCalendar();
 
     expect(await screen.findByText("Mine Dune")).toBeVisible();
     expect(screen.getByText("Mine Sinners")).toBeVisible();
     expect(tabStrip()).toBeInTheDocument();
-    expect(watchlistTab()).toHaveAttribute("aria-selected", "true");
+    expect(myFilmsTab()).toHaveAttribute("aria-selected", "true");
     expect(allReleasesTab()).toHaveAttribute("aria-selected", "false");
 
     // The public calendar is still in the document, holding the loader's rows, but hidden.
@@ -207,11 +207,11 @@ describe("calendar view — entitled", () => {
   });
 
   it("wires each tab to its own panel", async () => {
-    server.use(meHandler({ entitled: true }), watchlistCalendarHandler(watchlistItems));
+    server.use(meHandler({ entitled: true }), myFilmsCalendarHandler(myFilmsItems));
     const { container } = renderCalendar();
 
     await screen.findByText("Mine Dune");
-    for (const tab of [watchlistTab(), allReleasesTab()]) {
+    for (const tab of [myFilmsTab(), allReleasesTab()]) {
       const panelId = tab.getAttribute("aria-controls");
       const panel = container.querySelector(`#${CSS.escape(panelId!)}`);
       expect(panel).toHaveAttribute("role", "tabpanel");
@@ -223,7 +223,7 @@ describe("calendar view — entitled", () => {
     let publicCalls = 0;
     server.use(
       meHandler({ entitled: true }),
-      watchlistCalendarHandler(watchlistItems),
+      myFilmsCalendarHandler(myFilmsItems),
       http.get(`${base}/calendar`, () => {
         publicCalls += 1;
         return HttpResponse.json(publicCalendar);
@@ -247,7 +247,7 @@ describe("calendar view — entitled", () => {
     let publicCalls = 0;
     server.use(
       meHandler({ entitled: true }),
-      watchlistCalendarHandler(watchlistItems),
+      myFilmsCalendarHandler(myFilmsItems),
       http.get(`${base}/calendar`, () => {
         publicCalls += 1;
         return HttpResponse.json({
@@ -265,14 +265,14 @@ describe("calendar view — entitled", () => {
     await userEvent.click(screen.getByRole("button", { name: /view more/i }));
     expect(await screen.findByText("Public Avatar")).toBeVisible();
 
-    await userEvent.click(watchlistTab());
+    await userEvent.click(myFilmsTab());
     await userEvent.click(allReleasesTab());
 
     expect(screen.getByText("Public Avatar")).toBeVisible();
     expect(publicCalls).toBe(1);
   });
 
-  it("pages the watchlist by date, from the count of dates already on screen", async () => {
+  it("pages My films by date, from the count of dates already on screen", async () => {
     let captured: Request | undefined;
     server.use(
       meHandler({ entitled: true }),
@@ -303,7 +303,7 @@ describe("calendar view — entitled", () => {
   });
 
   it("keeps paging progress across a tab switch, and pays for each page once", async () => {
-    const counted = countingWatchlistCalendar(twentyOneDates);
+    const counted = countingMyFilmsCalendar(twentyOneDates);
     server.use(meHandler({ entitled: true }), counted.handler);
     renderCalendar();
 
@@ -313,7 +313,7 @@ describe("calendar view — entitled", () => {
 
     await userEvent.click(allReleasesTab());
     expect(screen.getByText("Public Odyssey")).toBeVisible();
-    await userEvent.click(watchlistTab());
+    await userEvent.click(myFilmsTab());
 
     // Both pages are still on screen, and nothing was fetched a second time to get them back.
     expect(screen.getByText("Mine Film 20")).toBeVisible();
@@ -323,13 +323,13 @@ describe("calendar view — entitled", () => {
   });
 });
 
-describe("calendar view — the three watchlist states", () => {
-  it("reads an empty watchlist as empty, and offers the other tab and onboarding", async () => {
-    server.use(meHandler({ entitled: true }), emptyWatchlistCalendarHandler());
+describe("calendar view — the three My films states", () => {
+  it("reads no dated follows as empty, and offers the other tab and onboarding", async () => {
+    server.use(meHandler({ entitled: true }), emptyMyFilmsCalendarHandler());
     renderCalendar();
 
-    expect(await screen.findByText(/nothing on your watchlist has a date yet/i)).toBeVisible();
-    expect(screen.queryByText(/couldn't load your watchlist calendar/i)).toBeNull();
+    expect(await screen.findByText(/none of the films you follow has a date yet/i)).toBeVisible();
+    expect(screen.queryByText(/couldn't load your films calendar/i)).toBeNull();
     expect(screen.getByRole("link", { name: /get started/i })).toHaveAttribute("href", "/welcome");
 
     await userEvent.click(screen.getByRole("button", { name: /browse all releases/i }));
@@ -338,11 +338,11 @@ describe("calendar view — the three watchlist states", () => {
   });
 
   it("reads a failed load as unavailable, without the onboarding link", async () => {
-    server.use(meHandler({ entitled: true }), failingWatchlistCalendarHandler());
+    server.use(meHandler({ entitled: true }), failingMyFilmsCalendarHandler());
     renderCalendar();
 
-    expect(await screen.findByText(/couldn't load your watchlist calendar/i)).toBeVisible();
-    expect(screen.queryByText(/nothing on your watchlist has a date yet/i)).toBeNull();
+    expect(await screen.findByText(/couldn't load your films calendar/i)).toBeVisible();
+    expect(screen.queryByText(/none of the films you follow has a date yet/i)).toBeNull();
     expect(screen.queryByRole("link", { name: /get started/i })).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: /browse all releases/i }));
@@ -367,7 +367,7 @@ describe("calendar view — the three watchlist states", () => {
           csrf_token: "test-csrf",
         });
       }),
-      lockedWatchlistCalendarHandler(),
+      lockedMyFilmsCalendarHandler(),
     );
     renderCalendar();
 
@@ -379,8 +379,8 @@ describe("calendar view — the three watchlist states", () => {
     await accountResolvedAs("locked");
     await waitFor(() => expect(tabStrip()).toBeNull());
     expect(screen.getByText("Public Odyssey")).toBeVisible();
-    expect(screen.queryByText(/couldn't load your watchlist calendar/i)).toBeNull();
-    expect(screen.queryByText(/nothing on your watchlist has a date yet/i)).toBeNull();
+    expect(screen.queryByText(/couldn't load your films calendar/i)).toBeNull();
+    expect(screen.queryByText(/none of the films you follow has a date yet/i)).toBeNull();
     expect(meCalls).toBeGreaterThan(1);
   });
 });

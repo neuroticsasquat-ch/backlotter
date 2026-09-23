@@ -75,7 +75,7 @@ function GrantControls({ row }: { row: AdminUser }) {
             </Button>
           }
           title="Revoke access?"
-          description={`${row.email} loses access immediately. Their follows, watchlist and settings are kept, so a later grant restores the account as it was.`}
+          description={`${row.email} loses access immediately. Their follows and settings are kept, so a later grant restores the account as it was.`}
           confirmLabel="Revoke"
           onConfirm={() => revoke.mutate({ userId: row.id })}
         />

@@ -1,38 +1,26 @@
 import { HttpResponse, http } from "msw";
 import { env } from "@/env";
-import type { Follow, WatchlistFilm, WatchlistItem } from "@/api/types";
+import type { Follow } from "@/api/types";
 
 const base = env.apiBaseUrl;
 
-/** A stateful stand-in for `/me/follows` and `/me/watchlist`: the writes land in memory and
- *  the reads see them, so a test can click a toggle and assert on what the next refetch gets
- *  back rather than on the request alone. One store per `followGraphHandlers()` call, so
- *  tests never share state.
+/** A stateful stand-in for `/me/follows`: the writes land in memory and the reads see them, so
+ *  a test can click a toggle and assert on what the next refetch gets back rather than on the
+ *  request alone. One store per `followGraphHandlers()` call, so tests never share state.
  *
- *  Mirrors the backend's toggle semantics (NEU-1349, NEU-1414): a follow create answers 201
- *  with the new row and 200 with the existing one, so clicking twice is not an error; a follow
- *  delete answers 204. The watchlist is *computed* (D-42), so its writes are want/stop rather
- *  than insert/delete: `POST` clears a mute or adds a directly followed row, and `DELETE`
- *  answers 200 with the now-muted item while another follow still covers the film, or 204 once
- *  nothing does and the row is gone. */
+ *  Mirrors the backend's toggle semantics (NEU-1349, NEU-1432): a create answers 201 with the
+ *  new row and 200 with the existing one, so clicking twice is not an error; a delete answers
+ *  204. A follow is binary, and every kind — a film's included, since EF-14 retired the
+ *  watchlist — goes through this one pair of routes. */
 export function followGraphHandlers(
   initial: {
     follows?: Follow[];
-    watchlist?: WatchlistItem[];
     /** What the catalog can name, keyed `"<entity_type>:<entity_id>"` — consulted by the
      *  create below, the way the backend consults `follow_repo.get_entity_label`. */
     catalog?: Record<string, { name: string; image_path?: string | null }>;
   } = {},
 ) {
   const follows: Follow[] = [...(initial.follows ?? [])];
-  const watchlist: WatchlistItem[] = [...(initial.watchlist ?? [])];
-
-  /** Whether anything but the film's own title follow covers it — what decides between a mute
-   *  and a removal, exactly as the backend's `stop` does. */
-  const coveredIndirectly = (item: WatchlistItem) =>
-    item.covered_by.some(
-      (cover) => !(cover.entity_type === "title" && cover.entity_id === item.film.id),
-    );
 
   const handlers = [
     http.get(`${base}/me/follows`, () => HttpResponse.json({ items: follows })),
@@ -77,50 +65,9 @@ export function followGraphHandlers(
       follows.splice(i, 1);
       return new HttpResponse(null, { status: 204 });
     }),
-
-    http.get(`${base}/me/watchlist`, () => HttpResponse.json({ items: watchlist })),
-
-    // *Want*: clear the mute on a film already covered, or add one the user now directly
-    // follows. Always 200 with the resulting item.
-    http.post(`${base}/me/watchlist`, async ({ request }) => {
-      const body = (await request.json()) as { film_id: string };
-      const existing = watchlist.find((item) => item.film.id === body.film_id);
-      if (existing) {
-        existing.muted = false;
-        return HttpResponse.json(existing, { status: 200 });
-      }
-      const film = makeWatchlistFilm({ id: body.film_id });
-      const item: WatchlistItem = {
-        film,
-        covered_by: [{ entity_type: "title", entity_id: film.id, name: film.title }],
-        followed: true,
-        muted: false,
-        created_at: new Date().toISOString(),
-      };
-      watchlist.push(item);
-      return HttpResponse.json(item, { status: 200 });
-    }),
-
-    // *Stop*: drop the direct title follow, and mute the film if anything else still covers it.
-    http.delete(`${base}/me/watchlist/:filmId`, ({ params }) => {
-      const i = watchlist.findIndex((item) => item.film.id === params.filmId);
-      if (i === -1)
-        return HttpResponse.json({ detail: "watchlist_item_not_found" }, { status: 404 });
-      const item = watchlist[i];
-      if (!coveredIndirectly(item)) {
-        watchlist.splice(i, 1);
-        return new HttpResponse(null, { status: 204 });
-      }
-      item.muted = true;
-      item.followed = false;
-      item.covered_by = item.covered_by.filter(
-        (cover) => !(cover.entity_type === "title" && cover.entity_id === item.film.id),
-      );
-      return HttpResponse.json(item, { status: 200 });
-    }),
   ];
 
-  return { handlers, follows, watchlist };
+  return { handlers, follows };
 }
 
 /** The 403 every `/me/*` route answers with for an account that has not been granted access
@@ -131,9 +78,6 @@ export function entitlementRequiredHandlers() {
     http.get(`${base}/me/follows`, deny),
     http.post(`${base}/me/follows`, deny),
     http.delete(`${base}/me/follows/:entityType/:entityId`, deny),
-    http.get(`${base}/me/watchlist`, deny),
-    http.post(`${base}/me/watchlist`, deny),
-    http.delete(`${base}/me/watchlist/:filmId`, deny),
   ];
 }
 
@@ -154,39 +98,6 @@ export function makeFollow(overrides: Partial<Follow> = {}): Follow {
     created_at: "2026-09-12T00:00:00Z",
     last_activity_at: null,
     ...overrides,
-  };
-}
-
-export function makeWatchlistFilm(overrides: Partial<WatchlistFilm> = {}): WatchlistFilm {
-  return {
-    id: "11111111-1111-4111-8111-111111111111",
-    tmdb_id: 603,
-    slug: "the-odyssey",
-    title: "The Odyssey",
-    poster_path: "/poster.jpg",
-    // An upcoming wide US opening — the ordinary case, so a test naming no headline release
-    // gets the row that renders every part of the line.
-    headline_release: { date: "2026-07-17", kind: "upcoming", country: "US", bucket: "wide" },
-    ...overrides,
-  };
-}
-
-/** `makeWatchlistFilm`'s counterpart for a whole row. The default is the film the user
- *  directly follows — `covered_by` naming its own title follow and nothing else — because that
- *  is the row whose *stop* removes it outright; a film reached only by a person follow is the
- *  case a test opts into, by passing its own `covered_by`. */
-export function makeWatchlistItem(
-  overrides: Partial<Omit<WatchlistItem, "film">> & { film?: Partial<WatchlistFilm> } = {},
-): WatchlistItem {
-  const { film, ...rest } = overrides;
-  const built = makeWatchlistFilm(film);
-  return {
-    film: built,
-    covered_by: [{ entity_type: "title", entity_id: built.id, name: built.title }],
-    followed: true,
-    muted: false,
-    created_at: "2026-09-01T00:00:00Z",
-    ...rest,
   };
 }
 

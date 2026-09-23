@@ -57,7 +57,7 @@ describe("HeaderAccount", () => {
     expect(adminLink).toHaveAttribute("href", "/admin/ingest");
   });
 
-  it("shows the Follows and Watchlist links to an entitled account", async () => {
+  it("shows the Follows link to an entitled account, and no Watchlist beside it (EF-14)", async () => {
     server.use(meHandler({ entitled: true }));
     renderAccountArea();
 
@@ -65,10 +65,7 @@ describe("HeaderAccount", () => {
       "href",
       "/me/follows",
     );
-    expect(screen.getByRole("link", { name: "Watchlist" })).toHaveAttribute(
-      "href",
-      "/me/watchlist",
-    );
+    expect(screen.queryByRole("link", { name: "Watchlist" })).not.toBeInTheDocument();
   });
 
   it("hides them from an account without a grant rather than rendering them dead (D-41)", async () => {
@@ -79,7 +76,6 @@ describe("HeaderAccount", () => {
     // resolved: the account is signed in and the links are still absent.
     await screen.findByRole("button", { name: /log out/i });
     expect(screen.queryByRole("link", { name: "Follows" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Watchlist" })).not.toBeInTheDocument();
   });
 
   it("shows the Settings link to every signed-in account, grant or not", async () => {

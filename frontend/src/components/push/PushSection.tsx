@@ -27,7 +27,7 @@ export function PushSection({ className }: { className?: string }) {
         Browser notifications
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Trailer drops and release-date changes for your watchlist, on this device. Each device you
+        Trailer drops and release-date changes for what you follow, on this device. Each device you
         want them on has to be turned on separately.
       </p>
 

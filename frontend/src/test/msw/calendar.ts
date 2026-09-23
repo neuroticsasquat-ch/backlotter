@@ -8,7 +8,7 @@ const base = env.apiBaseUrl;
  *  more" and get the next slice back rather than the same one twice. `limit`/`offset` count
  *  *distinct release dates*, matching NEU-1411's contract and what the panel compares its date
  *  count against — a film with two dates is two rows on two of them. */
-export function watchlistCalendarHandler(items: CalendarItem[], total = countDates(items)) {
+export function myFilmsCalendarHandler(items: CalendarItem[], total = countDates(items)) {
   return http.get(`${base}/me/calendar`, ({ request }) => {
     const url = new URL(request.url);
     const limit = Number(url.searchParams.get("limit") ?? 20);
@@ -22,16 +22,16 @@ export function watchlistCalendarHandler(items: CalendarItem[], total = countDat
   });
 }
 
-/** An entitled reader whose watchlist has nothing upcoming — a 200 with nothing in it, which
- *  is the empty state and not an error (NEU-1411). */
-export function emptyWatchlistCalendarHandler() {
-  return watchlistCalendarHandler([], 0);
+/** An entitled reader with nothing upcoming among the films they follow — a 200 with nothing
+ *  in it, which is the empty state and not an error (NEU-1411). */
+export function emptyMyFilmsCalendarHandler() {
+  return myFilmsCalendarHandler([], 0);
 }
 
 /** The 403 `/me/calendar` answers for an account without a grant (D-39). The page should only
  *  provoke it when a grant lapsed mid-session, so a test installs this either to prove the
  *  request was never made or to drive the re-read that follows it. */
-export function lockedWatchlistCalendarHandler() {
+export function lockedMyFilmsCalendarHandler() {
   return http.get(`${base}/me/calendar`, () =>
     HttpResponse.json({ detail: "entitlement_required" }, { status: 403 }),
   );
@@ -39,7 +39,7 @@ export function lockedWatchlistCalendarHandler() {
 
 /** A failure that is not the entitlement gate — the "unavailable" state, which must never be
  *  confused with the empty one. */
-export function failingWatchlistCalendarHandler() {
+export function failingMyFilmsCalendarHandler() {
   return http.get(`${base}/me/calendar`, () =>
     HttpResponse.json({ detail: "server_error" }, { status: 500 }),
   );

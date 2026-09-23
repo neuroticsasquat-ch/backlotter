@@ -3,6 +3,9 @@ import { type RouteConfig, index, layout, route } from "@react-router/dev/routes
 export default [
   route("robots.txt", "routes/robots.ts"),
   route("sitemap.xml", "routes/sitemap.ts"),
+  // Retired by EF-14; the redirect is the whole route module. See it for why it sits out here
+  // rather than under `RequireAuth` with the page it replaced.
+  route("me/watchlist", "routes/watchlist-redirect.ts"),
 
   layout("routes/public-layout.tsx", [
     index("routes/feed.tsx"),
@@ -39,10 +42,7 @@ export default [
       // The account pages sit behind entitlement as well as sign-in (D-41). The gate renders
       // the locked panel instead of redirecting, so an ungranted account is told what it is
       // missing rather than bounced.
-      layout("components/follow/RequireEntitled.tsx", [
-        route("me/follows", "pages/MyFollows.tsx"),
-        route("me/watchlist", "pages/MyWatchlist.tsx"),
-      ]),
+      layout("components/follow/RequireEntitled.tsx", [route("me/follows", "pages/MyFollows.tsx")]),
       layout("components/RequireAdmin.tsx", [
         layout("components/layout/AdminLayout.tsx", [
           route("admin/ingest", "pages/AdminIngest.tsx"),

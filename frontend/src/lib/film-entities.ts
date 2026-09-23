@@ -1,29 +1,11 @@
 import type {
   CastMember,
-  CoveringFollow,
   CrewMember,
   FilmCollection,
   FilmCompany,
   FilmDetail,
   FollowEntityType,
 } from "@/api/types";
-
-/**
- * Is this cover the film's own direct title follow, rather than a person, company or franchise
- * that reaches it?
- *
- * Load-bearing in two places that have to agree — the label on the watchlist row's button and
- * the optimistic cache edit behind it — because it is what decides whether *stop* mutes the
- * film or takes it off the list outright. One definition, so the two cannot drift apart and
- * start describing different acts.
- */
-export const isDirectTitleCover = (cover: CoveringFollow, filmId: string) =>
-  cover.entity_type === "title" && cover.entity_id === filmId;
-
-/** Whether anything but the film's own title follow covers it — so *stop* leaves it on the
- *  list, muted, rather than removing it. */
-export const coveredBeyondTitleFollow = (covers: CoveringFollow[], filmId: string) =>
-  covers.some((cover) => !isDirectTitleCover(cover, filmId));
 
 /** One thing on the film page that can be followed: what the follow graph needs to key on
  *  (D-10), plus the name to put in the button's accessible label. */

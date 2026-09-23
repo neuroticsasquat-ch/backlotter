@@ -186,7 +186,7 @@ export function filmParenthetical(input: FilmParentheticalInput): string {
 }
 
 /**
- * The watchlist row's date line (NEU-1398) — one string per {@link HeadlineRelease} kind.
+ * A film row's date line (NEU-1398) — one string per {@link HeadlineRelease} kind.
  *
  * The three kinds are not interchangeable and must not render alike. `upcoming` and `released`
  * are theatrical dates the film page lists too, so they carry their bucket and country and can

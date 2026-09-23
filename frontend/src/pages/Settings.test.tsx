@@ -244,10 +244,8 @@ describe("Settings", () => {
       expect(await screen.findByRole("heading", { name: /digest/i })).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Alerts" })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /follows/i })).toHaveAttribute("href", "/me/follows");
-      expect(screen.getByRole("link", { name: /watchlist/i })).toHaveAttribute(
-        "href",
-        "/me/watchlist",
-      );
+      // No Watchlist row beside it: the page it linked to is gone (EF-14).
+      expect(screen.queryByRole("link", { name: /watchlist/i })).toBeNull();
       expect(screen.getByRole("link", { name: /redo onboarding/i })).toHaveAttribute(
         "href",
         "/welcome",

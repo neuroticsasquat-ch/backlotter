@@ -74,14 +74,11 @@ describe("AccountMenu", () => {
       expect(screen.getByText("tom@tomboone.com")).toBeInTheDocument();
     });
 
-    it("links an entitled account to its collections", async () => {
+    it("links an entitled account to its follows, and offers no Watchlist (EF-14)", async () => {
       renderMenu({ entitled: true });
       await openMenu();
       expect(screen.getByRole("link", { name: "Follows" })).toHaveAttribute("href", "/me/follows");
-      expect(screen.getByRole("link", { name: "Watchlist" })).toHaveAttribute(
-        "href",
-        "/me/watchlist",
-      );
+      expect(screen.queryByRole("link", { name: "Watchlist" })).toBeNull();
       expect(screen.getByRole("link", { name: /redo onboarding/i })).toHaveAttribute(
         "href",
         "/welcome",
@@ -95,7 +92,6 @@ describe("AccountMenu", () => {
       await openMenu();
       expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Follows" })).toBeNull();
-      expect(screen.queryByRole("link", { name: "Watchlist" })).toBeNull();
       expect(screen.queryByRole("link", { name: /redo onboarding/i })).toBeNull();
     });
 

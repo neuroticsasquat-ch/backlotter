@@ -12,9 +12,9 @@ const panelClass = "z-50 w-56 rounded-md border border-border bg-background p-1 
 /**
  * The account control in the wide-viewport header: an avatar that opens a menu.
  *
- * It replaces seven inline text links — name, Follows, Watchlist, Redo onboarding, Settings,
- * Admin, Log out — that used to sit in the header row at the same weight and spacing as the
- * site navigation beside them. Ten items could not fit the header's `max-w-4xl` measure at
+ * It replaces the inline text links — name, Follows, Redo onboarding, Settings, Admin, Log
+ * out — that used to sit in the header row at the same weight and spacing as the site
+ * navigation beside them. Ten items could not fit the header's `max-w-4xl` measure at
  * *any* desktop width, so they compressed until the labels broke mid-phrase ("Log out"
  * rendered 27px wide, stacked). Folding them behind one control takes the row to four items
  * and leaves room to spare.
@@ -116,15 +116,8 @@ export function AccountMenu({ user, onLogout }: { user: AuthedUser | null; onLog
                     </Popover.Close>
                   </li>
                   <li>
-                    <Popover.Close asChild>
-                      <Link to="/me/watchlist" className={itemClass}>
-                        Watchlist
-                      </Link>
-                    </Popover.Close>
-                  </li>
-                  <li>
-                    {/* The way back into onboarding (D-17), beside the two collections it
-                        fills and gated with them. */}
+                    {/* The way back into onboarding (D-17), beside the list it fills and
+                        gated with it. */}
                     <Popover.Close asChild>
                       <Link to="/welcome" className={itemClass}>
                         Redo onboarding

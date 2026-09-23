@@ -67,7 +67,7 @@ function RunningProgress({ job }: { job: ImportJob }) {
             // — so the minutes go on reading paged lists and crediting the favourites, not on
             // matching. Saying "looked up against TMDB" here would describe work that is not
             // happening.
-            "We are reading your watchlist and favourites a page at a time — you can carry on and it will keep going."
+            "We are reading your TMDB watchlist and favourites a page at a time — you can carry on and it will keep going."
           : "Every title is looked up against TMDB, so a large library takes a few minutes — you can carry on and it will keep going."}
       </p>
     </>
@@ -83,9 +83,8 @@ function SucceededReport({ job }: { job: ImportJob }) {
           : "Import finished."}
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
-        {job.follows_created} {job.follows_created === 1 ? "follow" : "follows"} and{" "}
-        {job.watchlist_created} {job.watchlist_created === 1 ? "watchlist film" : "watchlist films"}{" "}
-        added.
+        {job.watchlist_created} {job.watchlist_created === 1 ? "film" : "films"} and{" "}
+        {job.follows_created} {job.follows_created === 1 ? "person" : "people"} followed.
       </p>
       {job.unmatched.length > 0 && <UnmatchedList unmatched={job.unmatched} source={job.source} />}
     </>

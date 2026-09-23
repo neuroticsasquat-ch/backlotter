@@ -88,8 +88,8 @@ export function ImportStep({
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Upload your Letterboxd export and we will follow the directors and cast of everything you
-        rated four stars or higher, and put your watchlist on your watchlist. Nothing is guessed at
-        — anything we cannot place we will show you.
+        rated four stars or higher, and follow every film on your Letterboxd watchlist. Nothing is
+        guessed at — anything we cannot place we will show you.
       </p>
 
       <div

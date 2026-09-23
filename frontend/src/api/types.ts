@@ -244,14 +244,14 @@ export interface FilmDetail {
   // `<tmdb_id>-<slug-of-current-title>`, the film's canonical URL segment. Resolved on the
   // leading id, so the trailing half is decorative and follows the current title (NEU-1143).
   ref: string;
-  // `catalog.film`'s UUID — the id `/me/watchlist` takes and the `title` entity id in the
-  // follow graph (D-10). The public film DTO does not carry it, or any of the other entity
-  // ids on this interface, yet: `/films/{ref}` answers with display names alone, so the film
-  // page can only offer a follow button for an entity the payload actually identifies. Every
-  // such id is therefore optional and every affordance that needs one renders only when it is
-  // present — today none are, so the page is unchanged until the backend widens the DTO, and
-  // lights up per entity as it does. Deploys are independent in either direction, so this
-  // stays optional even after that lands.
+  // `catalog.film`'s UUID — the `title` entity id in the follow graph (D-10). The public film
+  // DTO does not carry it, or any of the other entity ids on this interface, yet:
+  // `/films/{ref}` answers with display names alone, so the film page can only offer a follow
+  // button for an entity the payload actually identifies. Every such id is therefore optional
+  // and every affordance that needs one renders only when it is present — today none are, so
+  // the page is unchanged until the backend widens the DTO, and lights up per entity as it
+  // does. Deploys are independent in either direction, so this stays optional even after that
+  // lands.
   id?: string;
   title: string;
   tmdb_id: number;
@@ -389,7 +389,7 @@ export interface SourceDomain {
   updated_at: string;
 }
 
-// --- The follow graph and the watchlist (NEU-1353, M3 contracts) ---
+// --- The follow graph (NEU-1353, M3 contracts) ---
 
 /** What can be followed (D-10). `franchise` is a TMDB collection, `title` a `catalog.film`. */
 export type FollowEntityType = "person" | "company" | "franchise" | "title";
@@ -449,7 +449,7 @@ export interface FollowListResponse {
 export type AlertStore = "buy" | "rent" | "stream";
 
 /**
- * The one release date a watchlist row shows, chosen by the backend (NEU-1397).
+ * The one release date a film row shows, chosen by the backend (NEU-1397).
  *
  * Not `film.release_date`: that is TMDB's primary date — the earliest release anywhere, of any
  * type — which the film page never lists, so a row citing it could disagree with the page it
@@ -470,63 +470,24 @@ export interface HeadlineRelease {
   bucket: string | null; // "limited" | "wide" — rendered via releaseBucketLabel; null when primary
 }
 
-/** Enough of a film to render a watchlist row without a request per item. */
-export interface WatchlistFilm {
+// --- The person page (NEU-1418 contracts, D-1416.6) ---
+
+/** The film as an entity page cites it — a person's, a studio's or a franchise's: enough to
+ *  render a row without a request per item, plus the URL ref.
+ *
+ *  `ref` rather than the bare `tmdb_id`: the backend already knows the canonical
+ *  `<tmdb_id>-<slug>`, so linking by it spares the reader a 301.
+ *
+ *  Named for the backend's `FilmRowOut`, which three endpoints emit: the studio and franchise
+ *  pages return it bare, the person page wraps it in {@link PersonFilm} to hang that person's
+ *  credits off it, and that wrapper is the only thing the three pages do differently. */
+export interface FilmRow {
   id: string;
   tmdb_id: number;
   slug: string | null;
   title: string;
   poster_path: string | null;
   headline_release: HeadlineRelease | null;
-}
-
-/** One follow that puts a film on the watchlist. `name` is nullable and that is load-bearing:
- *  a follow outlives the entity it names and D-40 keeps the row, so a cover the backend cannot
- *  resolve arrives with a null name rather than being dropped — which would make a covered
- *  film look uncovered. */
-export interface CoveringFollow {
-  entity_type: FollowEntityType;
-  entity_id: string;
-  name: string | null;
-}
-
-/**
- * One film on the computed watchlist (D-42), and how it got there.
- *
- * Nothing *put* it here, so there is no `source`: the watchlist is the set of in-play films the
- * user's follows cover, not a list they maintain. `covered_by` is every follow that covers it,
- * the direct title follow first; `followed` says whether one of them is that direct title
- * follow — the difference between a film the user asked for and one their follows reached.
- *
- * `muted` is a field rather than a reason to omit the row: a muted film is listed and marked,
- * because the person looking at their watchlist is exactly who wants to undo one (D-45).
- */
-export interface WatchlistItem {
-  film: WatchlistFilm;
-  covered_by: CoveringFollow[];
-  followed: boolean;
-  muted: boolean;
-  // The earliest of the covering follows' — when this film first started being covered.
-  created_at: string;
-}
-
-export interface WatchlistListResponse {
-  items: WatchlistItem[];
-}
-
-// --- The person page (NEU-1418 contracts, D-1416.6) ---
-
-/** The film as an entity page cites it — a person's, a studio's or a franchise's: the
- *  watchlist row's shape plus the URL ref.
- *
- *  `ref` rather than the bare `tmdb_id` the watchlist row falls back to — the backend already
- *  knows the canonical `<tmdb_id>-<slug>`, so linking by it costs the reader the 301 the
- *  watchlist still eats.
- *
- *  Named for the backend's `FilmRowOut`, which three endpoints emit: the studio and franchise
- *  pages return it bare, the person page wraps it in {@link PersonFilm} to hang that person's
- *  credits off it, and that wrapper is the only thing the three pages do differently. */
-export interface FilmRow extends WatchlistFilm {
   ref: string;
 }
 
@@ -676,7 +637,11 @@ export interface ImportJob {
   status: ImportJobStatus;
   rows_total: number;
   rows_done: number;
+  // The backend's name, kept because it is the field it sends: the count of *title* follows
+  // made from the source account's watchlist. The watchlist itself is gone (EF-14) — one of
+  // these rows is a followed film — so the screen says "films", not "watchlist films".
   watchlist_created: number;
+  // Person follows, inferred from what the source account rated highly or favourited.
   follows_created: number;
   unmatched: ImportUnmatched[];
   tmdb_username: string | null;

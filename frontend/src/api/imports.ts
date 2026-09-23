@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { env } from "@/env";
 import { apiFetch } from "./client";
-import { followsKey, importJobKey, timelineKey, watchlistKey } from "./query-keys";
+import { followsKey, importJobKey, timelineKey } from "./query-keys";
 import type { ImportJob, ImportJobStarted } from "./types";
 
 /** How often the UI asks a live job how far it has got (NEU-1356 §1). Two seconds is the
@@ -59,15 +59,15 @@ export function useImportJob(jobId: string | null) {
     queryKey: importJobKey(jobId ?? ""),
     queryFn: async () => {
       const job = await fetchImportJob(jobId!);
-      // The import writes follows and watchlist items straight into the account, so the
-      // cached copies of both are stale the moment it succeeds — and so is the timeline,
-      // which is the feed filtered by exactly those follows (D-11). Invalidated here, on the
-      // poll that first sees the terminal status, because nothing else in the app is watching
-      // this job: step 2's grid is rendering follow buttons against the very list the import
-      // just added rows to.
+      // The import writes follows — title ones for the films, person ones for the taste it
+      // infers — straight into the account, so the cached copy is stale the moment it
+      // succeeds, and so is the timeline, which is the feed filtered by exactly those follows
+      // (D-11). `followsKey` covers the My films calendar too, whose key sits under it
+      // (EF-14). Invalidated here, on the poll that first sees the terminal status, because
+      // nothing else in the app is watching this job: step 2's grid is rendering follow
+      // buttons against the very list the import just added rows to.
       if (job.status === "succeeded") {
         void qc.invalidateQueries({ queryKey: followsKey });
-        void qc.invalidateQueries({ queryKey: watchlistKey });
         void qc.invalidateQueries({ queryKey: timelineKey });
       }
       return job;

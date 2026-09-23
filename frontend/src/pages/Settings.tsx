@@ -28,7 +28,7 @@ const MAX_PASSWORD_LENGTH = 128;
 const CADENCES: { value: DigestCadence; label: string; help: string }[] = [
   { value: "daily", label: "Daily", help: "Every morning, when there is something to say." },
   { value: "weekly", label: "Weekly", help: "Your slate for the week, in one mail. The default." },
-  { value: "off", label: "Off", help: "No digest. Alerts for your watchlist still arrive." },
+  { value: "off", label: "Off", help: "No digest. Alerts for the films you follow still arrive." },
 ];
 
 /** The refusals the password-checked account routes give, in the user's terms. Both routes
@@ -327,8 +327,8 @@ function AlertsSection() {
         Alerts
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        We always tell you when a film on your watchlist gets a date, moves, or gets a trailer.
-        These choose which ways of watching at home are worth an alert too.
+        We always tell you when a film you follow gets a date, moves, or gets a trailer. These
+        choose which ways of watching at home are worth an alert too.
       </p>
 
       {isLoading && <p className="mt-3 text-sm text-muted-foreground">Loading…</p>}
@@ -381,8 +381,8 @@ function DigestSection() {
         Digest email
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        A round-up of what happened to the films your follows reach, and the dates coming up on your
-        watchlist.
+        A round-up of what happened to the films, people, studios and franchises you follow, and the
+        dates coming up for the films among them.
       </p>
 
       {isLoading && <p className="mt-3 text-sm text-muted-foreground">Loading…</p>}
@@ -478,8 +478,8 @@ function CalendarSection() {
         Calendar
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Subscribe your calendar to your watchlist&apos;s release dates — in theaters, digital and
-        disc, each as an all-day event that moves when the date does.
+        Subscribe your calendar to the release dates of the films you follow — in theaters, digital
+        and disc, each as an all-day event that moves when the date does.
       </p>
 
       {isLoading && <p className="mt-3 text-sm text-muted-foreground">Loading…</p>}
@@ -522,7 +522,8 @@ function CalendarSection() {
               of the same link.
             </p>
             <p className="mt-2">
-              Anyone with this link can read your watchlist&apos;s dates, so keep it to yourself.
+              Anyone with this link can read the dates of the films you follow, so keep it to
+              yourself.
             </p>
           </div>
 
@@ -569,14 +570,8 @@ function LibrarySection() {
           </Link>
           <span className="text-muted-foreground">
             {" "}
-            — the people, studios and collections you track.
+            — the films, people, studios and franchises you track.
           </span>
-        </li>
-        <li>
-          <Link to="/me/watchlist" className={linkClass}>
-            Watchlist
-          </Link>
-          <span className="text-muted-foreground"> — the films you get alerts about.</span>
         </li>
         <li>
           <Link to="/welcome" className={linkClass}>
@@ -612,8 +607,8 @@ function LockedDeliverySection() {
       </h2>
       <p className="mt-2 text-sm text-muted-foreground">
         Digest emails, calendar subscriptions and push notifications are part of the subscription,
-        along with following people and the watchlist. Access is limited while we build that tier,
-        so there is nothing to buy yet.
+        along with following films and people. Access is limited while we build that tier, so there
+        is nothing to buy yet.
       </p>
       <p className="mt-2 text-sm text-muted-foreground">
         Anything you set up before is kept. If your access is restored, it all comes back exactly as

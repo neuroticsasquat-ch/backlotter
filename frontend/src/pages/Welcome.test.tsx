@@ -124,7 +124,7 @@ describe("Welcome", () => {
     await userEvent.upload(await screen.findByLabelText(/letterboxd export file/i), zip());
 
     expect(await screen.findByText(/import finished/i)).toBeInTheDocument();
-    expect(screen.getByText(/5 follows and 2 watchlist films added/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 films and 5 people followed/i)).toBeInTheDocument();
     expect(screen.getByText(/1 title we could not match/i)).toBeInTheDocument();
   });
 
@@ -234,7 +234,7 @@ describe("Welcome", () => {
       });
 
       expect(await screen.findByText(/import finished, from @cinephile/i)).toBeInTheDocument();
-      expect(screen.getByText(/4 follows and 3 watchlist films added/i)).toBeInTheDocument();
+      expect(screen.getByText(/3 films and 4 people followed/i)).toBeInTheDocument();
       expect(callback.posted).toEqual([{ request_token: "rt-123", approved: true }]);
     });
 

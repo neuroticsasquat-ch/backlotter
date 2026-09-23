@@ -6,7 +6,7 @@ import { CalendarFilmRow } from "@/components/calendar/CalendarFilmRow";
  * The year → month → date → bucket body of a calendar: one section per year, with sticky year
  * and month headings above a dated list of release buckets.
  *
- * Shared by the all-releases calendar and the reader's watchlist calendar, which render the
+ * Shared by the all-releases calendar and the reader's My films calendar, which render the
  * same DTO — `/me/calendar` answers with `/calendar`'s exact shape (NEU-1411) — so the two
  * differ in what they fetch and never in how a date looks.
  */

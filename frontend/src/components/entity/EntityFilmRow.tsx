@@ -5,8 +5,8 @@ import { formatHeadlineRelease } from "@/lib/format";
 import { posterSrcSet, posterUrl } from "@/lib/poster";
 
 /**
- * One film cited on an entity page — a person's, a studio's or a franchise's — in the
- * watchlist row's shape: poster, title, the one release date the backend chose.
+ * One film cited on an entity page — a person's, a studio's or a franchise's: poster, title,
+ * the one release date the backend chose.
  *
  * That is the whole row for a studio and a franchise, whose relationship to a film has nothing
  * to name. A person's adds a line of credits and a tier badge through `children` and `badge`,

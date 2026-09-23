@@ -1,15 +1,14 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/components/AuthContext";
-import { coveredBeyondTitleFollow, type FollowTarget } from "@/lib/film-entities";
+import type { FollowTarget } from "@/lib/film-entities";
 import { ApiError, apiFetch } from "./client";
 import {
   followsKey,
+  myFilmsCalendarPageKey,
   settingsKey,
   timelineKey,
   timelinePageKey,
-  watchlistCalendarPageKey,
-  watchlistKey,
 } from "./query-keys";
 import type {
   AlertStore,
@@ -19,14 +18,9 @@ import type {
   Follow,
   FollowListResponse,
   UserSettings,
-  WatchlistFilm,
-  WatchlistItem,
-  WatchlistListResponse,
 } from "./types";
 
 export const fetchFollows = () => apiFetch<FollowListResponse>("/me/follows");
-
-export const fetchWatchlist = () => apiFetch<WatchlistListResponse>("/me/watchlist");
 
 /** The whole body: a follow is binary now (EF-1), so what to follow is all there is to say.
  *  The `coverage` tier this used to carry is gone, and with it the PATCH that changed one — a
@@ -39,24 +33,6 @@ export const createFollow = (target: FollowTarget) =>
 
 export const deleteFollow = (target: FollowTarget) =>
   apiFetch<void>(`/me/follows/${target.entityType}/${encodeURIComponent(target.entityId)}`, {
-    method: "DELETE",
-  });
-
-/** *Want* this film (D-45): clear any mute, and create a manual title follow if nothing else
- *  covers it. Takes no preferences — the stores an availability alert is worth are one setting
- *  per account now ({@link updateAlertStores}), not a choice per film. */
-export const addToWatchlist = (filmId: string) =>
-  apiFetch<WatchlistItem>("/me/watchlist", {
-    method: "POST",
-    body: JSON.stringify({ film_id: filmId }),
-  });
-
-/** *Stop* hearing about the film (D-45): delete a direct title follow, and mute the film if
- *  another follow still covers it. Two answers, because there are two outcomes — `200` with the
- *  now-muted item while something still covers it, and `204` once nothing does and there is no
- *  item left to describe. `apiFetch` gives `undefined` for the `204`. */
-export const removeFromWatchlist = (filmId: string) =>
-  apiFetch<WatchlistItem | undefined>(`/me/watchlist/${encodeURIComponent(filmId)}`, {
     method: "DELETE",
   });
 
@@ -76,14 +52,14 @@ export function isEntitlementError(error: unknown): boolean {
 
 /** A grant that lapsed mid-session shows up as that 403 and nowhere else — the cached account
  *  still says `entitled`. Re-reading `/me` flips it, which re-renders every follow button on
- *  the page into its locked state. `exact` so the collections below, which are about to be
- *  refetched by their own mutation, are not invalidated twice. */
+ *  the page into its locked state. `exact` so the follow list below, which is about to be
+ *  refetched by its own mutation, is not invalidated twice. */
 const refreshAccount = (qc: QueryClient) => qc.invalidateQueries({ queryKey: ["me"], exact: true });
 
-/** Whether the signed-in account may read the follow graph at all. Both collections are
- *  subscriber-only, so an unentitled account would only ever get the 403 above, and a
- *  signed-out one a 401 — neither is worth a request. Under SSR the account query never
- *  resolves, so this is false there and the server render fetches nothing. */
+/** Whether the signed-in account may read the follow graph at all. It is subscriber-only, so
+ *  an unentitled account would only ever get the 403 above, and a signed-out one a 401 —
+ *  neither is worth a request. Under SSR the account query never resolves, so this is false
+ *  there and the server render fetches nothing. */
 function useFollowGraphEnabled(): boolean {
   const { user } = useAuth();
   return Boolean(user?.entitled);
@@ -94,16 +70,6 @@ export function useFollows() {
   return useQuery({
     queryKey: followsKey,
     queryFn: fetchFollows,
-    enabled,
-    staleTime: 60_000,
-  });
-}
-
-export function useWatchlist() {
-  const enabled = useFollowGraphEnabled();
-  return useQuery({
-    queryKey: watchlistKey,
-    queryFn: fetchWatchlist,
     enabled,
     staleTime: 60_000,
   });
@@ -132,23 +98,23 @@ export function useTimeline({ limit, offset }: { limit: number; offset: number }
   });
 }
 
-/** One page of the reader's watchlist release calendar (NEU-1411): `GET /calendar`'s exact
- *  shape, narrowed to the films on their watchlist. `limit`/`offset` count distinct release
+/** One page of the reader's **My films** release calendar (NEU-1411, EF-14): `GET /calendar`'s
+ *  exact shape, narrowed to the films they follow. `limit`/`offset` count distinct release
  *  dates rather than film rows, as the public route's do, so a page is a span of dates. */
-export const fetchWatchlistCalendar = ({ limit, offset }: { limit: number; offset: number }) =>
+export const fetchMyFilmsCalendar = ({ limit, offset }: { limit: number; offset: number }) =>
   apiFetch<CalendarResponse>(`/me/calendar?limit=${limit}&offset=${offset}`);
 
-/** The watchlist tab of `/calendar`, mounted once the account resolves as entitled.
+/** The **My films** tab of `/calendar`, mounted once the account resolves as entitled.
  *
- *  `refetchOnMount: "always"` for the timeline's reason: the reader goes to a film page, adds
- *  it to their watchlist, comes back, and the calendar they return to has to show it. The
- *  watchlist mutations invalidate `watchlistKey`, a prefix of this key, which covers the case
- *  where they never leave the page. */
-export function useWatchlistCalendar({ limit, offset }: { limit: number; offset: number }) {
+ *  `refetchOnMount: "always"` for the timeline's reason: the reader goes to a film page,
+ *  follows it, comes back, and the calendar they return to has to show it. The follow
+ *  mutations invalidate `followsKey`, a prefix of this key, which covers the case where they
+ *  never leave the page. */
+export function useMyFilmsCalendar({ limit, offset }: { limit: number; offset: number }) {
   const enabled = useFollowGraphEnabled();
   return useQuery({
-    queryKey: watchlistCalendarPageKey(limit, offset),
-    queryFn: () => fetchWatchlistCalendar({ limit, offset }),
+    queryKey: myFilmsCalendarPageKey(limit, offset),
+    queryFn: () => fetchMyFilmsCalendar({ limit, offset }),
     enabled,
     staleTime: 60_000,
     refetchOnMount: "always",
@@ -233,103 +199,11 @@ export function useToggleFollow() {
     // keeps the reader from having to guess why a newly followed director's day is missing.
     // On success only, unlike the follows list below: a failed follow is rolled back to the
     // graph the timeline was already built from, so re-reading it would fetch the same days.
-    // The watchlist has no such line at all — it does not feed the timeline.
     onSuccess: () => qc.invalidateQueries({ queryKey: timelineKey }),
+    // The My films calendar needs no line of its own: its key sits *under* `followsKey`, so
+    // this one invalidation reaches it too, and a film followed from its page is on the
+    // calendar when the reader goes back to it (EF-14).
     onSettled: () => qc.invalidateQueries({ queryKey: followsKey }),
-  });
-}
-
-/**
- * *Want* or *stop* the film (D-45), applied to the cached list before the request goes out so
- * the control flips under the user's finger.
- *
- * `onList` is the state the film is in *now* — heard about, or not — so the mutation moves it
- * to the other one. Neither direction is a plain insert or delete any more, because the
- * watchlist is computed: *want* on a muted row unmutes it rather than adding a second one, and
- * *stop* on a row something else still covers mutes it rather than removing it. The cache edit
- * mirrors what the backend will do, read from the item already in hand, so the row does not
- * jump when the refetch lands.
- */
-export function useToggleWatchlist() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ film, onList }: { film: WatchlistFilm; onList: boolean }) =>
-      onList ? removeFromWatchlist(film.id) : addToWatchlist(film.id),
-    onMutate: async ({ film, onList }) => {
-      await qc.cancelQueries({ queryKey: watchlistKey });
-      // Just this film's row, and where it sat, for the reason given in `useToggleFollow` —
-      // and so a rollback puts it back in its place rather than at the end of a list the
-      // server orders by `created_at`.
-      const items = qc.getQueryData<WatchlistListResponse>(watchlistKey)?.items ?? [];
-      const index = items.findIndex((item) => item.film.id === film.id);
-      const previous = index === -1 ? undefined : items[index];
-      qc.setQueryData<WatchlistListResponse>(watchlistKey, (old) => {
-        const items = old?.items ?? [];
-        if (onList) {
-          // Something other than the film's own title follow covers it, so stopping leaves it
-          // on the list, muted — and no longer directly followed, since that follow is what
-          // the DELETE removes.
-          if (previous && coveredBeyondTitleFollow(previous.covered_by, film.id)) {
-            return {
-              items: items.map((item) =>
-                item.film.id === film.id ? { ...item, muted: true, followed: false } : item,
-              ),
-            };
-          }
-          return { items: items.filter((item) => item.film.id !== film.id) };
-        }
-        // Wanting a muted film unmutes it in place; the mute is the only thing that was
-        // keeping it quiet, and its covers are unchanged.
-        if (previous) {
-          return {
-            items: items.map((item) =>
-              item.film.id === film.id ? { ...item, muted: false } : item,
-            ),
-          };
-        }
-        const optimistic: WatchlistItem = {
-          film,
-          // The title follow the POST is about to create. The refetch replaces this with the
-          // server's `covered_by`, which also names anything else that reaches the film.
-          covered_by: [{ entity_type: "title", entity_id: film.id, name: film.title }],
-          followed: true,
-          muted: false,
-          created_at: new Date().toISOString(),
-        };
-        return { items: [...items, optimistic] };
-      });
-      return { previous, index };
-    },
-    // The server's answer is authoritative, and the optimistic edit above is a *guess*: it
-    // reads the covers from the cached row, which a surface that never loaded the list does
-    // not have. `undefined` is the `204` — nothing covers the film any more, so the row is
-    // gone; an item is the row as saved, muted or not.
-    onSuccess: (item, { film }) => {
-      qc.setQueryData<WatchlistListResponse>(watchlistKey, (old) => {
-        const items = (old?.items ?? []).filter((row) => row.film.id !== film.id);
-        return { items: item ? [...items, item] : items };
-      });
-      // A title follow changes what the timeline shows, which the old watchlist toggle never
-      // did — and a mute silences the film there too (D-45). On success only: a rolled-back
-      // toggle left the follow graph the timeline was already built from.
-      void qc.invalidateQueries({ queryKey: timelineKey });
-    },
-    onError: (error, { film }, context) => {
-      // Restore the row exactly as it was — muted flag, covers, position and all — rather than
-      // guessing at an inverse, because neither edit above is a simple one.
-      qc.setQueryData<WatchlistListResponse>(watchlistKey, (old) => {
-        const items = (old?.items ?? []).filter((item) => item.film.id !== film.id);
-        if (!context?.previous) return { items };
-        items.splice(context.index, 0, context.previous);
-        return { items };
-      });
-      if (isEntitlementError(error)) {
-        void refreshAccount(qc);
-        return;
-      }
-      toast.error(error instanceof Error ? error.message : "Failed to update your watchlist");
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: watchlistKey }),
   });
 }
 

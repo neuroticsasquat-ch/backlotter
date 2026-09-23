@@ -38,7 +38,7 @@ describe("ImportProgress", () => {
     );
 
     expect(screen.getByText(/import finished/i)).toBeInTheDocument();
-    expect(screen.getByText(/7 follows and 3 watchlist films added/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 films and 7 people followed/i)).toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
@@ -83,7 +83,9 @@ describe("ImportProgress", () => {
       );
 
       expect(screen.getByText(/5 of 20 films read/i)).toBeInTheDocument();
-      expect(screen.getByText(/watchlist and favourites a page at a time/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/TMDB watchlist and favourites a page at a time/i),
+      ).toBeInTheDocument();
       expect(screen.queryByText(/every title is looked up against TMDB/i)).not.toBeInTheDocument();
     });
 

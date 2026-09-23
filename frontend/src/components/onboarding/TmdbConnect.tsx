@@ -45,9 +45,9 @@ export function TmdbConnect({ job }: { job: ImportJob | null }) {
     <div className="mt-4 rounded-lg border border-border p-4">
       <p className="text-sm font-medium text-foreground">Import from TMDB instead</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        Connect your TMDB account and we will bring over your watchlist, and follow the directors
-        and cast of everything you have favourited. You approve it on TMDB — we never see your
-        password, and we drop the connection as soon as the import is done.
+        Connect your TMDB account and we will follow everything on your TMDB watchlist, and the
+        directors and cast of everything you have favourited. You approve it on TMDB — we never see
+        your password, and we drop the connection as soon as the import is done.
       </p>
 
       {previous && (
