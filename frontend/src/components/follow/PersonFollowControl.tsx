@@ -12,9 +12,11 @@ import { LockedToggle, SignInToggle, useFollowAccess } from "./access";
  * changed one afterwards are all gone — so what is left is the button and the access states
  * around it, and this is the film page's {@link FollowButton} in all but its access wiring.
  *
- * It stays a component of its own rather than collapsing into that one because NEU-1444 is
- * about to give the person page a Recent activity section fed from the same follow; the seam
- * is where that lands.
+ * The seam it was held open for has closed: NEU-1444's Recent activity section reads the
+ * entity's own `/events` route rather than the follow, so it hangs off the page beside the
+ * film lists and not off this control. What is left here is the flex wrapper the header's
+ * spacing wants; the day anything needs a second control beside the button is the day this
+ * earns its own file again.
  */
 export function PersonFollowControl({ target }: { target: FollowTarget }) {
   const access = useFollowAccess();

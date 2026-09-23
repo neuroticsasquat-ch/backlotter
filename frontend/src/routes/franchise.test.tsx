@@ -8,6 +8,8 @@ import { AuthProvider } from "@/components/AuthContext";
 import { server } from "@/test/msw/server";
 import { meHandler } from "@/test/msw/me";
 import { followGraphHandlers, makeFollow } from "@/test/msw/follows";
+import { entityEventsHandler, makeEvent } from "@/test/msw/entity-events";
+import { EMPTY_ACTIVITY } from "@/api/public";
 import { cloudflareContext, type AppEnv } from "@/lib/load-context";
 import FranchisePage, { ErrorBoundary, loader, meta } from "@/routes/franchise";
 import type { CollectionDetail, FilmRow, Follow } from "@/api/types";
@@ -158,13 +160,17 @@ describe("franchise route meta", () => {
 
 function renderPage(
   detail: CollectionDetail = collection,
-  { entitled = true, follows = [] as Follow[] } = {},
+  { entitled = true, follows = [] as Follow[], activity = EMPTY_ACTIVITY } = {},
 ) {
   const graph = followGraphHandlers({ follows });
   server.use(meHandler({ entitled }), ...graph.handlers);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const Stub = createRoutesStub([
-    { path: "/franchise/:ref", Component: FranchisePage, loader: () => ({ collection: detail }) },
+    {
+      path: "/franchise/:ref",
+      Component: FranchisePage,
+      loader: () => ({ collection: detail, activity }),
+    },
   ]);
   render(
     <QueryClientProvider client={qc}>
@@ -204,6 +210,33 @@ describe("franchise page", () => {
     );
 
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+  });
+
+  it("previews the cards a follow would deliver, and pages them", async () => {
+    // EF-18: the section is the argument for the button above it. The first page is the
+    // loader's; "Load more" reads the entity's own `/events` route from the browser.
+    const cards = [
+      makeEvent({ summary: "FIRST_CARD" }),
+      makeEvent({
+        event_id: "e2222222-2222-4222-8222-222222222222",
+        summary: "SECOND_CARD",
+        created_at: "2026-09-19T10:00:00Z",
+        occurred_at: "2026-09-19T10:00:00Z",
+      }),
+    ];
+    server.use(entityEventsHandler("franchise", cards));
+    renderPage(collection, { activity: { items: [cards[0]], next_cursor: "1" } });
+
+    expect(await screen.findByText(/FIRST_CARD/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    expect(await screen.findByText(/SECOND_CARD/)).toBeInTheDocument();
+  });
+
+  it("says nothing has happened yet rather than hiding the activity section", async () => {
+    renderPage();
+    expect(
+      await screen.findByText("Nothing yet — you'll hear when they join or leave a film"),
+    ).toBeInTheDocument();
   });
 
   it("says so rather than hiding a section with nothing in it", async () => {

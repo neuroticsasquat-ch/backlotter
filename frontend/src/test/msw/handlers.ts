@@ -1,5 +1,6 @@
 import { HttpResponse, http } from "msw";
 import { env } from "@/env";
+import { entityEventsDefaults } from "./entity-events";
 
 const base = env.apiBaseUrl;
 
@@ -19,6 +20,11 @@ export const handlers = [
   // password, an address already taken — are what a test overrides to see.
   http.post(`${base}/auth/email-change/request`, () => new HttpResponse(null, { status: 202 })),
   http.post(`${base}/auth/email-change/confirm`, () => new HttpResponse(null, { status: 204 })),
+
+  // The entity pages' Recent activity section (EF-18), empty. Every person, studio and
+  // franchise page fetches its cards in the loader now, so a default keeps the tests that are
+  // about the rest of those pages from having to stub a stream they never assert on.
+  ...entityEventsDefaults,
 ];
 
 /** The 400 both consume routes answer with for a token that is unknown, spent, or expired. */

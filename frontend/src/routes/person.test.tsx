@@ -8,6 +8,8 @@ import { AuthProvider } from "@/components/AuthContext";
 import { server } from "@/test/msw/server";
 import { meHandler } from "@/test/msw/me";
 import { followGraphHandlers, makeFollow } from "@/test/msw/follows";
+import { entityEventsHandler, makeEvent } from "@/test/msw/entity-events";
+import { EMPTY_ACTIVITY } from "@/api/public";
 import { cloudflareContext, type AppEnv } from "@/lib/load-context";
 import PersonPage, { ErrorBoundary, loader, meta } from "@/routes/person";
 import type { Follow, PersonDetail, PersonFilm } from "@/api/types";
@@ -28,18 +30,17 @@ const filmRow = (overrides: Partial<PersonFilm["film"]> = {}): PersonFilm["film"
   ...overrides,
 });
 
-/** A writer-director: two credits on one film, and the row's own tier is the narrowest of
- *  them — which is the number the badge reads. */
+/** A writer-director: two credits on one film, listed rather than folded. */
 const directed: PersonFilm = {
   film: filmRow(),
   credits: [
-    { credit_type: "crew", job: "Director", character: null, credit_order: null, tier: "lead" },
-    { credit_type: "crew", job: "Writer", character: null, credit_order: null, tier: "major" },
+    { credit_type: "crew", job: "Director", character: null, credit_order: null },
+    { credit_type: "crew", job: "Writer", character: null, credit_order: null },
   ],
-  tier: "lead",
 };
 
-/** A 12th-billed part: only a follow at `any` reaches this film at all. */
+/** A 12th-billed part. Once it took a follow at `any` to reach this film; a follow is binary
+ *  now (EF-1), so this row is delivered exactly like the one above. */
 const bitPart: PersonFilm = {
   film: filmRow({
     id: "22222222-2222-4222-8222-222222222222",
@@ -49,8 +50,7 @@ const bitPart: PersonFilm = {
     title: "A Quiet Year",
     headline_release: { date: "2026-02-02", kind: "released", country: "US", bucket: "limited" },
   }),
-  credits: [{ credit_type: "cast", job: null, character: "Barman", credit_order: 11, tier: "any" }],
-  tier: "any",
+  credits: [{ credit_type: "cast", job: null, character: "Barman", credit_order: 11 }],
 };
 
 const person: PersonDetail = {
@@ -161,13 +161,17 @@ describe("person route meta", () => {
 
 function renderPage(
   detail: PersonDetail = person,
-  { entitled = true, follows = [] as Follow[] } = {},
+  { entitled = true, follows = [] as Follow[], activity = EMPTY_ACTIVITY } = {},
 ) {
   const graph = followGraphHandlers({ follows });
   server.use(meHandler({ entitled }), ...graph.handlers);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const Stub = createRoutesStub([
-    { path: "/person/:ref", Component: PersonPage, loader: () => ({ person: detail }) },
+    {
+      path: "/person/:ref",
+      Component: PersonPage,
+      loader: () => ({ person: detail, activity }),
+    },
   ]);
   render(
     <QueryClientProvider client={qc}>
@@ -189,7 +193,7 @@ describe("person page", () => {
     expect(screen.getByText("Born Jul 30, 1970")).toBeInTheDocument();
   });
 
-  it("renders both sections, each row linking to the film and badged with its tier", async () => {
+  it("renders both sections, each row linking to the film and naming the credits", async () => {
     renderPage();
 
     const upcomingHeading = await screen.findByRole("heading", { name: /upcoming \(1\)/i });
@@ -198,16 +202,50 @@ describe("person page", () => {
       "href",
       "/film/603-the-odyssey",
     );
-    // A writer-director's two credits read in the order the backend sent them, and the row's
-    // badge is the narrowest of the two.
+    // A writer-director's two credits read in the order the backend sent them.
     expect(within(upcoming).getByText("Director · Writer")).toBeInTheDocument();
-    expect(within(upcoming).getByText("Lead")).toBeInTheDocument();
 
     const recent = screen.getByRole("heading", { name: /recently released \(1\)/i })
       .parentElement as HTMLElement;
     expect(within(recent).getByText("Barman")).toBeInTheDocument();
-    // Only a follow at "Every credit" reaches this one.
-    expect(within(recent).getByText("Any")).toBeInTheDocument();
+  });
+
+  it("badges no row with a tier — every credit is one a follow reaches now", async () => {
+    // The badge named the narrowest coverage setting that would reach a film. A follow is
+    // binary (EF-1) and reaches every credit (EF-2), so there is no cut left for it to name:
+    // the 12th-billed part above is delivered exactly like the directing credit.
+    renderPage();
+    await screen.findByRole("heading", { name: /upcoming \(1\)/i });
+    for (const label of ["Lead", "Major", "Any"]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
+  });
+
+  it("previews the cards a follow would deliver, and pages them", async () => {
+    // EF-18: the section is the argument for the button above it. The first page is the
+    // loader's; "Load more" reads the entity's own `/events` route from the browser.
+    const cards = [
+      makeEvent({ summary: "FIRST_CARD" }),
+      makeEvent({
+        event_id: "e2222222-2222-4222-8222-222222222222",
+        summary: "SECOND_CARD",
+        created_at: "2026-09-19T10:00:00Z",
+        occurred_at: "2026-09-19T10:00:00Z",
+      }),
+    ];
+    server.use(entityEventsHandler("person", cards));
+    renderPage(person, { activity: { items: [cards[0]], next_cursor: "1" } });
+
+    expect(await screen.findByText(/FIRST_CARD/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Load more" }));
+    expect(await screen.findByText(/SECOND_CARD/)).toBeInTheDocument();
+  });
+
+  it("says nothing has happened yet rather than hiding the activity section", async () => {
+    renderPage();
+    expect(
+      await screen.findByText("Nothing yet — you'll hear when they join or leave a film"),
+    ).toBeInTheDocument();
   });
 
   it("says so rather than hiding a section with nothing in it", async () => {
@@ -219,7 +257,6 @@ describe("person page", () => {
   it("draws no tier control beside the follow button — a follow is binary now", async () => {
     // The three-tier `CoverageControl` went with the `coverage` field it wrote (EF-1): there is
     // nothing left to narrow, and a control over a field the backend ignores would be a lie.
-    // The tier *badges* on the film rows above are NEU-1444's to remove.
     renderPage();
     await screen.findByRole("button", { name: "Follow Christopher Nolan" });
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();

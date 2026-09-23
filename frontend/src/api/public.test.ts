@@ -7,6 +7,7 @@ import {
   getCollectionsSearch,
   getCompaniesSearch,
   getCompany,
+  getEntityEvents,
   getFeedGrouped,
   getFilm,
   getFilmSearch,
@@ -248,6 +249,63 @@ describe("getFilmSearch", () => {
     const controller = new AbortController();
     controller.abort();
     await expect(getFilmSearch(BACKEND, "matrix", { signal: controller.signal })).rejects.toThrow();
+  });
+});
+
+describe("getEntityEvents", () => {
+  const page = { items: [], next_cursor: "abc" };
+
+  // The one place the on-screen word, the follow graph's word and the backend path all differ
+  // (EF-19). A kind wired to the wrong path 404s in production and nowhere else.
+  it.each([
+    ["person", "people"],
+    ["company", "companies"],
+    ["franchise", "collections"],
+  ] as const)("reads a %s's cards from /%s", async (kind, segment) => {
+    server.use(http.get(`${BACKEND}/${segment}/525-nolan/events`, () => HttpResponse.json(page)));
+    await expect(getEntityEvents(BACKEND, kind, "525-nolan")).resolves.toEqual(page);
+  });
+
+  it("asks for the backend's own page size and omits the cursor on the first page", async () => {
+    let url: URL | undefined;
+    server.use(
+      http.get(`${BACKEND}/people/525-nolan/events`, ({ request }) => {
+        url = new URL(request.url);
+        return HttpResponse.json(page);
+      }),
+    );
+    await getEntityEvents(BACKEND, "person", "525-nolan");
+    expect(url?.searchParams.get("limit")).toBe("20");
+    expect(url?.searchParams.has("cursor")).toBe(false);
+  });
+
+  it("echoes the cursor back on a later page", async () => {
+    let url: URL | undefined;
+    server.use(
+      http.get(`${BACKEND}/people/525-nolan/events`, ({ request }) => {
+        url = new URL(request.url);
+        return HttpResponse.json({ items: [], next_cursor: null });
+      }),
+    );
+    await getEntityEvents(BACKEND, "person", "525-nolan", { cursor: "abc" });
+    expect(url?.searchParams.get("cursor")).toBe("abc");
+  });
+
+  it("returns null for an entity the catalog does not hold", async () => {
+    server.use(
+      http.get(
+        `${BACKEND}/collections/missing/events`,
+        () => new HttpResponse(null, { status: 404 }),
+      ),
+    );
+    await expect(getEntityEvents(BACKEND, "franchise", "missing")).resolves.toBeNull();
+  });
+
+  it("throws on any other non-OK response", async () => {
+    server.use(
+      http.get(`${BACKEND}/people/525-nolan/events`, () => new HttpResponse(null, { status: 500 })),
+    );
+    await expect(getEntityEvents(BACKEND, "person", "525-nolan")).rejects.toThrow(/500/);
   });
 });
 

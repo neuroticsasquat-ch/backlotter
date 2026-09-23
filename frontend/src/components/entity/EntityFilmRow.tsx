@@ -9,21 +9,12 @@ import { posterSrcSet, posterUrl } from "@/lib/poster";
  * the one release date the backend chose.
  *
  * That is the whole row for a studio and a franchise, whose relationship to a film has nothing
- * to name. A person's adds a line of credits and a tier badge through `children` and `badge`,
- * which is the only difference between the three pages — the same split the backend made when
- * it pulled `FilmRowOut` out from under `PersonFilmOut` (NEU-1428). Keeping the poster, the
- * link and the date here means a film cannot render differently depending on whose page it is
- * cited on.
+ * to name. A person's adds a line of credits through `children`, which is the only difference
+ * between the three pages — the same split the backend made when it pulled `FilmRowOut` out
+ * from under `PersonFilmOut` (NEU-1428). Keeping the poster, the link and the date here means a
+ * film cannot render differently depending on whose page it is cited on.
  */
-export function EntityFilmRow({
-  film,
-  children,
-  badge,
-}: {
-  film: FilmRow;
-  children?: ReactNode;
-  badge?: ReactNode;
-}) {
+export function EntityFilmRow({ film, children }: { film: FilmRow; children?: ReactNode }) {
   const poster = posterUrl(film.poster_path, "w92");
   const href = `/film/${film.ref}`;
 
@@ -53,8 +44,6 @@ export function EntityFilmRow({
         </p>
         {children}
       </div>
-
-      {badge}
     </li>
   );
 }

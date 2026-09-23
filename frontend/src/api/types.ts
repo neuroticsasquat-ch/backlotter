@@ -398,17 +398,6 @@ export type FollowEntityType = "person" | "company" | "franchise" | "title";
  *  backend; anything this app creates is `manual`. */
 export type FollowSource = "manual" | "letterboxd_import" | "tmdb_import" | "derived";
 
-/** How prominent one credit is, narrowest first: `lead` (director or top-3 billing), `major`
- *  (every seed-grade credit — director, writers, top-5 billing) and `any` (every credit at any
- *  billing and any crew job).
- *
- *  A property of the *credit*, not of the follow. A follow is binary now (EF-1): the tier a
- *  reader could once set it to is gone, along with the `coverage` field that carried it and
- *  the control that wrote it, so the three words survive only as the badge on a person page's
- *  film row — how deep in that film's credits the person sits. NEU-1444 removes the badge and
- *  this type with it. */
-export type CreditTier = "lead" | "major" | "any";
-
 export interface Follow {
   entity_type: FollowEntityType;
   // A TMDB id for `person` / `company` / `franchise`, a film UUID for `title` — a string in
@@ -494,23 +483,24 @@ export interface FilmRow {
 /** One credit a person holds on one film. A writer-director holds two of these on the same
  *  film; they are listed rather than folded, because "Director · Writer" is what the page
  *  reads. `credit_order` is TMDB's 0-indexed billing, null for crew and for an unbilled cast
- *  entry. The backend orders them narrowest tier first, then billing — render them in the
- *  order they arrive rather than re-sorting, or the two renderings can disagree. */
+ *  entry. The backend still orders them narrowest first, then billing — render them in the
+ *  order they arrive rather than re-sorting, or the two renderings can disagree.
+ *
+ *  No `tier` since EF-1: a follow is binary and reaches every credit, so there is no cut left
+ *  for a badge to name. */
 export interface PersonCredit {
   credit_type: "cast" | "crew";
   job: string | null;
   character: string | null;
   credit_order: number | null;
-  tier: CreditTier;
 }
 
-/** One film on a person's page. `tier` is the **narrowest** across `credits` — the tier a
- *  follow has to be at for this row to reach the reader at all, which is the question the
- *  badge beside it answers. */
+/** One film on a person's page, with every credit they hold on it. Every row is reached by a
+ *  follow of this person (EF-2), so the row carries no tier of its own — the list *is* what
+ *  following them delivers. */
 export interface PersonFilm {
   film: FilmRow;
   credits: PersonCredit[];
-  tier: CreditTier;
 }
 
 /**
@@ -570,6 +560,25 @@ export interface CollectionDetail {
   poster_path: string | null;
   upcoming: FilmRow[];
   recent: FilmRow[];
+}
+
+/**
+ * `GET /people/{ref}/events`, `/companies/{ref}/events`, `/collections/{ref}/events` — one
+ * page of an entity's own cards, newest first (EF-18).
+ *
+ * The items are the same {@link FilmEvent} the feed and the film page carry, so an entity page
+ * renders a card with the component those already use rather than a second one that drifts.
+ * Note what that shape does *not* carry: a film. The backend's `EventOut` has no film ref, so
+ * these cards cannot link anywhere — the summary text is the only place the film is named.
+ *
+ * **Keyset-paginated, so no `total`.** The list grows at the top while it is read — the next
+ * attachment lands above whatever the visitor is looking at — and an offset would push unread
+ * cards past the boundary. `next_cursor` is null on the last page, which is how a caller knows
+ * it has reached the end.
+ */
+export interface EntityEventsPage {
+  items: FilmEvent[];
+  next_cursor: string | null;
 }
 
 // --- Entity search, the follow graph's add path (NEU-1350 contracts) ---

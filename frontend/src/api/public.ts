@@ -4,6 +4,7 @@ import type {
   CollectionSearchItem,
   CompanyDetail,
   CompanySearchItem,
+  EntityEventsPage,
   EntitySearchResponse,
   FeedDayResponse,
   FilmDetail,
@@ -110,6 +111,59 @@ export async function getCollection(
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`GET /collections/${encodeURIComponent(ref)} failed: ${res.status}`);
   return (await res.json()) as CollectionDetail;
+}
+
+/** How many cards an entity page's Recent activity section asks for at a time. The backend's
+ *  own default (`service.ENTITY_EVENTS_PAGE_SIZE`), spelled here because the section pages
+ *  itself and "Load more" has to ask for the same span each time. */
+export const ENTITY_EVENTS_PAGE_SIZE = 20;
+
+/** What a loader hands the Recent activity section when the events route did not resolve while
+ *  the entity's own did. A page with no cards is a normal page, so the skew reads as an empty
+ *  stream rather than an error. Frozen and shared by the three loaders; it is never written. */
+export const EMPTY_ACTIVITY: EntityEventsPage = Object.freeze({ items: [], next_cursor: null });
+
+/** Which entity's cards to read, in the follow graph's vocabulary — the same word the button
+ *  on the page posts as `entity_type`. The route paths differ from all three: a franchise's
+ *  cards come from `/collections` (EF-19). */
+export type EntityEventsKind = "person" | "company" | "franchise";
+
+const ENTITY_EVENTS_PATH: Record<EntityEventsKind, string> = {
+  person: "/people",
+  company: "/companies",
+  franchise: "/collections",
+};
+
+/**
+ * One page of an entity's own attach, detach and `canceled` cards (EF-18).
+ *
+ * One kind-keyed fetcher rather than three exports, mirroring the backend's single
+ * `_entity_events` handler: the page size, the cursor and the 404 are one contract for all
+ * three, and three copies here would be three places to change when it moves.
+ *
+ * Null on 404, like the detail fetchers — the events route 404s on the same terms as the
+ * entity's own, tombstones included. Takes `headers` because an SSR loader fetches the first
+ * page (signed, NEU-1344 §4) and `signal` because the browser pages the rest.
+ */
+export async function getEntityEvents(
+  baseUrl: string,
+  kind: EntityEventsKind,
+  ref: string,
+  {
+    limit = ENTITY_EVENTS_PAGE_SIZE,
+    cursor,
+    headers,
+    signal,
+  }: { limit?: number; cursor?: string | null; signal?: AbortSignal } & ExtraHeaders = {},
+): Promise<EntityEventsPage | null> {
+  const path = `${ENTITY_EVENTS_PATH[kind]}/${encodeURIComponent(ref)}/events`;
+  const url = apiUrl(baseUrl, path);
+  url.searchParams.set("limit", String(limit));
+  if (cursor) url.searchParams.set("cursor", cursor);
+  const res = await fetch(url, { headers: { Accept: "application/json", ...headers }, signal });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+  return (await res.json()) as EntityEventsPage;
 }
 
 /** No `headers` option: search runs only from the browser (the type-ahead in `SearchBox`), which

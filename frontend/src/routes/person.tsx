@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- route files intentionally export loader + meta + ErrorBoundary alongside the component */
 import { isRouteErrorResponse, Link, redirect } from "react-router";
 import type { Route } from "./+types/person";
-import { getPerson } from "@/api/public";
+import { EMPTY_ACTIVITY, getEntityEvents, getPerson } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
 import { ssrOriginHeaders } from "@/lib/ssr-origin";
 import { buildMeta } from "@/lib/seo";
@@ -9,14 +9,21 @@ import { profileUrl } from "@/lib/poster";
 import { formatEventDate } from "@/lib/format";
 import type { FollowTarget } from "@/lib/film-entities";
 import { PersonFollowControl } from "@/components/follow/PersonFollowControl";
+import { EntityActivitySection } from "@/components/entity/EntityActivity";
 import { EntityFilmSection } from "@/components/entity/EntityFilmRow";
 import { PersonFilmRow } from "@/components/person/PersonFilmRow";
 
 export async function loader({ params, request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
-  const person = await getPerson(env.API_BASE_URL, params.ref, {
-    headers: ssrOriginHeaders(env, request),
-  });
+  const headers = ssrOriginHeaders(env, request);
+  // In parallel, not in sequence: the two routes 404 on identical terms, so the detail fetch
+  // still owns that decision and the activity fetch costs nothing but a wasted request on the
+  // rare ref that redirects. `?? EMPTY_ACTIVITY` covers only the skew where one resolved and
+  // the other did not — a page with no cards is a normal page, not an error.
+  const [person, activity] = await Promise.all([
+    getPerson(env.API_BASE_URL, params.ref, { headers }),
+    getEntityEvents(env.API_BASE_URL, "person", params.ref, { headers }),
+  ]);
   if (!person) {
     throw new Response(null, { status: 404, statusText: "Person not found" });
   }
@@ -29,7 +36,7 @@ export async function loader({ params, request, context }: Route.LoaderArgs) {
     url.pathname = `/person/${person.ref}`;
     throw redirect(url.toString(), 301);
   }
-  return { person };
+  return { person, activity: activity ?? EMPTY_ACTIVITY };
 }
 
 export function meta({ loaderData, location }: Route.MetaArgs): Route.MetaDescriptors {
@@ -63,7 +70,7 @@ function lifespan(birthday: string | null, deathday: string | null): string | nu
 }
 
 export default function PersonPage({ loaderData }: Route.ComponentProps) {
-  const { person } = loaderData;
+  const { person, activity } = loaderData;
   const photo = profileUrl(person.profile_path, "w185");
   const dates = lifespan(person.birthday, person.deathday);
 
@@ -122,6 +129,9 @@ export default function PersonPage({ loaderData }: Route.ComponentProps) {
           <PersonFilmRow key={row.film.id} row={row} />
         ))}
       </EntityFilmSection>
+      {/* Under the film lists (EF-18): the lists say which films a follow reaches, this says
+          what it would actually have put in front of the reader. */}
+      <EntityActivitySection kind="person" entityRef={person.ref} initial={activity} />
     </main>
   );
 }

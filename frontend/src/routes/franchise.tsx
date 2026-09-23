@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- route files intentionally export loader + meta + ErrorBoundary alongside the component */
 import { isRouteErrorResponse, redirect } from "react-router";
 import type { Route } from "./+types/franchise";
-import { getCollection } from "@/api/public";
+import { EMPTY_ACTIVITY, getCollection, getEntityEvents } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
 import { ssrOriginHeaders } from "@/lib/ssr-origin";
 import { buildMeta } from "@/lib/seo";
@@ -11,11 +11,17 @@ import { EntityNotFound, EntityPage } from "@/components/entity/EntityPage";
 
 export async function loader({ params, request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
+  const headers = ssrOriginHeaders(env, request);
   // `/collections/{ref}` upstream, `/franchise/:ref` here: the backend keeps TMDB's word for
   // the thing and the reader never sees it (EF-19).
-  const collection = await getCollection(env.API_BASE_URL, params.ref, {
-    headers: ssrOriginHeaders(env, request),
-  });
+  //
+  // Parallel, for the person page's reason: the two routes 404 on identical terms, so the
+  // detail fetch still owns that decision and the activity fetch costs only a wasted request
+  // on the rare ref that redirects.
+  const [collection, activity] = await Promise.all([
+    getCollection(env.API_BASE_URL, params.ref, { headers }),
+    getEntityEvents(env.API_BASE_URL, "franchise", params.ref, { headers }),
+  ]);
   if (!collection) {
     throw new Response(null, { status: 404, statusText: "Franchise not found" });
   }
@@ -25,7 +31,7 @@ export async function loader({ params, request, context }: Route.LoaderArgs) {
     url.pathname = `/franchise/${collection.ref}`;
     throw redirect(url.toString(), 301);
   }
-  return { collection };
+  return { collection, activity: activity ?? EMPTY_ACTIVITY };
 }
 
 export function meta({ loaderData, location }: Route.MetaArgs): Route.MetaDescriptors {
@@ -46,12 +52,14 @@ export function meta({ loaderData, location }: Route.MetaArgs): Route.MetaDescri
 }
 
 export default function FranchisePage({ loaderData }: Route.ComponentProps) {
-  const { collection } = loaderData;
+  const { collection, activity } = loaderData;
   return (
     <EntityPage
       kind="franchise"
+      activity={activity}
       subject={{
         id: collection.id,
+        ref: collection.ref,
         name: collection.name,
         imagePath: collection.poster_path,
         upcoming: collection.upcoming,

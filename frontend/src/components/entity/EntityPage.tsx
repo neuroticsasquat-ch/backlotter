@@ -1,6 +1,7 @@
 import { Link } from "react-router";
-import type { FilmRow } from "@/api/types";
+import type { EntityEventsPage, FilmRow } from "@/api/types";
 import { FollowButton } from "@/components/follow/FollowButton";
+import { EntityActivitySection } from "./EntityActivity";
 import { EntityFilmRow, EntityFilmSection } from "./EntityFilmRow";
 import { ENTITY_NOUN, type EntityKind } from "@/lib/entity-page";
 import type { FollowTarget } from "@/lib/film-entities";
@@ -11,9 +12,13 @@ import { logoUrl, posterUrl } from "@/lib/poster";
  *  one its payload carries before handing it over.
  *
  *  `imagePath` stays the bare TMDB path rather than a resolved URL: it rides on the follow
- *  target too, where the optimistic `/me/follows` row wants exactly what the API stores. */
+ *  target too, where the optimistic `/me/follows` row wants exactly what the API stores.
+ *
+ *  `ref` is the canonical URL segment, carried because the Recent activity section pages itself
+ *  against `/{kind}/{ref}/events` after the loader has fetched the first page. */
 export interface EntitySubject {
   id: number;
+  ref: string;
   name: string;
   imagePath: string | null;
   upcoming: FilmRow[];
@@ -34,7 +39,15 @@ export interface EntitySubject {
  * place: the film page lists both and links them here rather than offering a button of its
  * own.
  */
-export function EntityPage({ kind, subject }: { kind: EntityKind; subject: EntitySubject }) {
+export function EntityPage({
+  kind,
+  subject,
+  activity,
+}: {
+  kind: EntityKind;
+  subject: EntitySubject;
+  activity: EntityEventsPage;
+}) {
   const noun = ENTITY_NOUN[kind];
   // A company's image is a logo and a collection's is a poster, which TMDB serves from
   // different paths; both are asked for at the width the header box renders.
@@ -95,6 +108,9 @@ export function EntityPage({ kind, subject }: { kind: EntityKind; subject: Entit
           <EntityFilmRow key={film.id} film={film} />
         ))}
       </EntityFilmSection>
+      {/* Under the film lists (EF-18): the lists say which films a follow reaches, this says
+          what it would actually have put in front of the reader. */}
+      <EntityActivitySection kind={kind} entityRef={subject.ref} initial={activity} />
     </main>
   );
 }
