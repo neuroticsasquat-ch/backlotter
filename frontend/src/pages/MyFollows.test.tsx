@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRoutesStub } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -32,59 +32,259 @@ function renderPage(follows: Follow[] = []) {
   return graph;
 }
 
+/** The follows list itself, told apart by its label from the add box's results list, which is
+ *  also a `<ul>` of followable entities on the same page. */
+const followsList = () => screen.findByRole("list", { name: "Your follows" });
+
+/** The rows on screen, in the order the page put them — the name cell of each, so the sorts
+ *  can be asserted on as a plain array. */
+async function rowNames(): Promise<string[]> {
+  const list = await followsList();
+  return within(list)
+    .getAllByRole("listitem")
+    .map((li) => (li.querySelector("p > span")?.textContent ?? "").trim());
+}
+
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+
 beforeEach(() => localStorage.clear());
 
 describe("MyFollows", () => {
-  it("groups follows by entity type under their own headings", async () => {
+  it("puts every type in one flat list, with no heading per type", async () => {
+    // EF-15 replaces NEU-1415's four groups: the reader's question is "what do I follow", and
+    // a heading per kind answered it by making them read four lists to find one row.
+    renderPage([
+      follow(),
+      follow({ entity_type: "company", entity_id: "41", name: "A24" }),
+      follow({ entity_type: "franchise", entity_id: "10", name: "Star Wars Collection" }),
+      follow({
+        entity_type: "title",
+        entity_id: "11111111-1111-4111-8111-111111111111",
+        name: "Dune: Part Three",
+      }),
+    ]);
+
+    expect(await screen.findByText("Christopher Nolan")).toBeInTheDocument();
+    expect(await rowNames()).toHaveLength(4);
+    for (const heading of [/people/i, /companies/i, /collections/i, /studios \(/i]) {
+      expect(screen.queryByRole("heading", { name: heading })).not.toBeInTheDocument();
+    }
+  });
+
+  it("names each row's type on the row itself, in the on-screen vocabulary (EF-19)", async () => {
+    renderPage([
+      follow({ entity_type: "company", entity_id: "41", name: "A24" }),
+      follow({ entity_type: "franchise", entity_id: "10", name: "Star Wars Collection" }),
+    ]);
+
+    await screen.findByText("A24");
+    // The payload says `company` and `franchise`; the reader is shown Studio and Franchise.
+    expect(screen.getByText("Studio")).toBeInTheDocument();
+    expect(screen.getByText("Franchise")).toBeInTheDocument();
+  });
+
+  // --- Chips ---------------------------------------------------------------
+
+  it("shows every type until a chip is pressed", async () => {
+    // None selected means all, not none: the empty selection is the page's resting state.
+    renderPage([follow(), follow({ entity_type: "company", entity_id: "41", name: "A24" })]);
+
+    await screen.findByText("Christopher Nolan");
+    const chips = screen.getByRole("group", { name: /filter by type/i });
+    for (const chip of within(chips).getAllByRole("button")) {
+      expect(chip).toHaveAttribute("aria-pressed", "false");
+    }
+    expect(await rowNames()).toHaveLength(2);
+  });
+
+  it("narrows the list to the pressed chip, and widens again when it is released", async () => {
     renderPage([
       follow(),
       follow({ entity_type: "company", entity_id: "41", name: "A24" }),
       follow({ entity_type: "franchise", entity_id: "10", name: "Star Wars Collection" }),
     ]);
 
-    expect(await screen.findByText("Christopher Nolan")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /people \(1\)/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /companies \(1\)/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /collections \(1\)/i })).toBeInTheDocument();
-    // No films followed, so no Films heading — the groups are fixed in order but only the
-    // occupied ones render.
-    expect(screen.queryByRole("heading", { name: /films/i })).not.toBeInTheDocument();
+    await screen.findByText("Christopher Nolan");
+    const chips = screen.getByRole("group", { name: /filter by type/i });
+    const studios = within(chips).getByRole("button", { name: "Studios" });
+
+    await userEvent.click(studios);
+    expect(studios).toHaveAttribute("aria-pressed", "true");
+    await waitFor(async () => expect(await rowNames()).toHaveLength(1));
+    expect(screen.getByText("A24")).toBeInTheDocument();
+    expect(screen.queryByText("Christopher Nolan")).not.toBeInTheDocument();
+
+    await userEvent.click(studios);
+    expect(studios).toHaveAttribute("aria-pressed", "false");
+    await waitFor(async () => expect(await rowNames()).toHaveLength(3));
   });
 
-  it("labels a row from the name the API resolved, with no localStorage involved", async () => {
-    // The whole point of NEU-1422: a follow made on another device, or by an import, is named
-    // on first paint. It used to read "Person 525" until the user happened to visit them.
-    renderPage([follow({ image_path: "/nolan.jpg" })]);
+  it("adds up multiple chips rather than replacing the selection", async () => {
+    renderPage([
+      follow(),
+      follow({ entity_type: "company", entity_id: "41", name: "A24" }),
+      follow({ entity_type: "franchise", entity_id: "10", name: "Star Wars Collection" }),
+    ]);
 
-    expect(await screen.findByText("Christopher Nolan")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Unfollow Christopher Nolan" })).toBeInTheDocument();
+    await screen.findByText("Christopher Nolan");
+    const chips = screen.getByRole("group", { name: /filter by type/i });
+    await userEvent.click(within(chips).getByRole("button", { name: "Studios" }));
+    await userEvent.click(within(chips).getByRole("button", { name: "Franchises" }));
+
+    await waitFor(async () => expect(await rowNames()).toHaveLength(2));
+    expect(screen.getByText("A24")).toBeInTheDocument();
+    expect(screen.getByText("Star Wars Collection")).toBeInTheDocument();
+    expect(screen.queryByText("Christopher Nolan")).not.toBeInTheDocument();
   });
 
-  it("falls back to the type and the id for a person the catalog cannot resolve", async () => {
-    // A follow outlives the entity it names and D-40 keeps the row, so the API answers with a
-    // null name rather than dropping it. This is the placeholder's only remaining job.
-    renderPage([follow({ entity_id: "287", name: null })]);
+  it("remembers the chip selection for the next visit", async () => {
+    const rows = [follow(), follow({ entity_type: "company", entity_id: "41", name: "A24" })];
+    renderPage(rows);
+    await screen.findByText("Christopher Nolan");
+    await userEvent.click(screen.getByRole("button", { name: "Studios" }));
+    await waitFor(async () => expect(await rowNames()).toEqual(["A24"]));
 
-    // The placeholder links to the person's own page rather than out to TMDB (NEU-1419): a row
-    // reading "Person 287" is exactly the one whose reader needs somewhere to go and find out
-    // who that is, and our page tells them what the person has coming as well.
-    const link = await screen.findByRole("link", { name: "Person 287" });
-    expect(link).toHaveAttribute("href", "/person/287");
-    expect(screen.queryByRole("link", { name: /look up on tmdb/i })).not.toBeInTheDocument();
-  });
+    // A second mount, as a return visit would be: the chip comes back pressed and the list
+    // comes back narrowed, without the reader doing it again.
+    cleanup();
+    renderPage(rows);
 
-  it("links a company row it has no name for to the studio page anyway", async () => {
-    // Well formed from the id alone, the same deal person rows have taken since NEU-1419. The
-    // page it reaches 404s while the catalog cannot name the id — the entity endpoint reads the
-    // table the label lookup just missed — which is the honest answer for a row D-40 keeps after
-    // its entity left the catalog. The outbound TMDB link this replaced is gone (NEU-1431).
-    renderPage([follow({ entity_type: "company", entity_id: "41", name: null })]);
-
-    expect(await screen.findByRole("link", { name: "Company 41" })).toHaveAttribute(
-      "href",
-      "/studio/41",
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Studios" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
     );
-    expect(screen.queryByRole("link", { name: /look up on tmdb/i })).not.toBeInTheDocument();
+    expect(await rowNames()).toEqual(["A24"]);
+  });
+
+  it("ignores a stored selection it cannot read rather than rendering nothing", async () => {
+    // A value written by another build, or corrupted. Falling back to "no chips" is the page's
+    // resting state, so the reader sees every row instead of an empty list with no visible
+    // chip to switch back off.
+    localStorage.setItem("backlotter:follows-types", "{not json");
+    renderPage([follow()]);
+
+    expect(await screen.findByText("Christopher Nolan")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "People" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  // --- Sorts ---------------------------------------------------------------
+
+  it("sorts by newest followed by default", async () => {
+    renderPage([
+      follow({ entity_id: "1", name: "Older", created_at: "2026-01-01T00:00:00Z" }),
+      follow({ entity_id: "2", name: "Newest", created_at: "2026-09-01T00:00:00Z" }),
+      follow({ entity_id: "3", name: "Middle", created_at: "2026-05-01T00:00:00Z" }),
+    ]);
+
+    expect(await screen.findByLabelText("Sort by")).toHaveValue("created");
+    expect(await rowNames()).toEqual(["Newest", "Middle", "Older"]);
+  });
+
+  it("sorts by name A–Z, with the rows it cannot name last", async () => {
+    renderPage([
+      follow({ entity_id: "1", name: "Zoe Kravitz" }),
+      follow({ entity_id: "2", name: null }),
+      follow({ entity_id: "3", name: "Ava DuVernay" }),
+    ]);
+
+    await screen.findByText("Zoe Kravitz");
+    await userEvent.selectOptions(screen.getByLabelText("Sort by"), "name");
+
+    // Null is an absence the reader is not looking for, so it sinks rather than leading.
+    expect(await rowNames()).toEqual(["Ava DuVernay", "Zoe Kravitz", "Person 2"]);
+  });
+
+  it("sorts by last activity, newest first, with the quiet follows last", async () => {
+    renderPage([
+      follow({ entity_id: "1", name: "Quiet", last_activity_at: null }),
+      follow({ entity_id: "2", name: "Stale", last_activity_at: "2026-01-01T00:00:00Z" }),
+      follow({ entity_id: "3", name: "Fresh", last_activity_at: "2026-09-20T00:00:00Z" }),
+    ]);
+
+    await screen.findByText("Quiet");
+    await userEvent.selectOptions(screen.getByLabelText("Sort by"), "activity");
+
+    // Null means "nothing has happened yet", a real state rather than a missing value, and it
+    // belongs at the bottom of this sort rather than the top.
+    expect(await rowNames()).toEqual(["Fresh", "Stale", "Quiet"]);
+  });
+
+  // --- Text filter ---------------------------------------------------------
+
+  it("filters the list by name as the user types, case-insensitively", async () => {
+    renderPage([
+      follow({ entity_id: "1", name: "Christopher Nolan" }),
+      follow({ entity_id: "2", name: "Greta Gerwig" }),
+      follow({ entity_type: "company", entity_id: "41", name: "A24" }),
+    ]);
+
+    await screen.findByText("Greta Gerwig");
+    await userEvent.type(screen.getByLabelText("Find"), "gret");
+
+    await waitFor(async () => expect(await rowNames()).toEqual(["Greta Gerwig"]));
+  });
+
+  it("says so when the filters leave nothing, rather than showing an empty list", async () => {
+    renderPage([follow()]);
+
+    await screen.findByText("Christopher Nolan");
+    await userEvent.type(screen.getByLabelText("Find"), "nobody");
+
+    expect(await screen.findByText(/nothing here matches/i)).toBeInTheDocument();
+  });
+
+  it("combines the text filter with the chips", async () => {
+    renderPage([
+      follow({ entity_id: "1", name: "A24 Films Person" }),
+      follow({ entity_type: "company", entity_id: "41", name: "A24" }),
+    ]);
+
+    await screen.findByText("A24");
+    await userEvent.click(screen.getByRole("button", { name: "Studios" }));
+    await userEvent.type(screen.getByLabelText("Find"), "a24");
+
+    await waitFor(async () => expect(await rowNames()).toEqual(["A24"]));
+  });
+
+  // --- The row -------------------------------------------------------------
+
+  it("gives a film row its headline release, and no other type one", async () => {
+    renderPage([
+      follow({
+        entity_type: "title",
+        entity_id: "11111111-1111-4111-8111-111111111111",
+        name: "Dune: Part Three",
+        headline_release: { date: "2026-07-17", kind: "upcoming", country: "US", bucket: "wide" },
+      }),
+      follow({ entity_id: "1", name: "Christopher Nolan" }),
+    ]);
+
+    expect(await screen.findByText(/Opens Jul 17, 2026/)).toBeInTheDocument();
+    // One date line on the page, on the one row that has a date of its own (EF-15).
+    expect(screen.getAllByText(/Opens |No date yet/, { selector: "p" })).toHaveLength(1);
+  });
+
+  it("says when a follow last delivered something, and stays quiet when it never has", async () => {
+    renderPage([
+      follow({ entity_id: "1", name: "Busy", last_activity_at: daysAgo(3) }),
+      follow({ entity_id: "2", name: "Quiet", last_activity_at: null }),
+    ]);
+
+    expect(await screen.findByText(/Last activity 3 days ago/)).toBeInTheDocument();
+    // "Last activity never" would read as a fault; a follow made this morning has simply not
+    // delivered anything yet. Pinned to the meta line, since an ancestor's text matches too.
+    expect(screen.getAllByText(/Last activity/, { selector: "p" })).toHaveLength(1);
+  });
+
+  it("links a named person row to their page, slugged from the name the API gave", async () => {
+    renderPage([follow()]);
+
+    expect(await screen.findByRole("link", { name: "Christopher Nolan" })).toHaveAttribute(
+      "href",
+      "/person/525-christopher-nolan",
+    );
   });
 
   it("links a named company row to its studio page, slugged from the name", async () => {
@@ -97,8 +297,6 @@ describe("MyFollows", () => {
   });
 
   it("links a franchise row to its franchise page", async () => {
-    // On-screen vocabulary is EF-19's: the payload says `franchise`, the URL says franchise,
-    // and TMDB's word "collection" survives only in the heading this page has not rebuilt yet.
     renderPage([
       follow({ entity_type: "franchise", entity_id: "10", name: "Star Wars Collection" }),
     ]);
@@ -109,19 +307,21 @@ describe("MyFollows", () => {
     );
   });
 
-  it("links a named person row to their page, slugged from the name the API gave", async () => {
-    renderPage([follow()]);
+  it("links a row it has no name for to its page anyway", async () => {
+    // Well formed from the id alone (NEU-1419). The page it reaches 404s while the catalog
+    // cannot name the id, which is the honest answer for a row D-40 keeps after its entity
+    // left the catalog — better than rendering the id as dead text.
+    renderPage([follow({ entity_id: "287", name: null })]);
 
-    expect(await screen.findByRole("link", { name: "Christopher Nolan" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Person 287" })).toHaveAttribute(
       "href",
-      "/person/525-christopher-nolan",
+      "/person/287",
     );
   });
 
   it("leaves a title row unlinked — the payload carries no film ref to link to", async () => {
     // A title follow's `entity_id` is our film UUID, and `/film/:ref` is addressed by
-    // `<tmdb_id>-<slug>`; `GET /me/follows` ships neither, so the row cannot mint a link. It
-    // never had a TMDB one either — TMDB cannot address our UUIDs.
+    // `<tmdb_id>-<slug>`; `GET /me/follows` ships neither, so the row cannot mint a link.
     renderPage([
       follow({
         entity_type: "title",
@@ -130,8 +330,7 @@ describe("MyFollows", () => {
       }),
     ]);
 
-    expect(await screen.findByRole("heading", { name: /films \(1\)/i })).toBeInTheDocument();
-    expect(screen.getByText("Dune: Part Three")).toBeInTheDocument();
+    expect(await screen.findByText("Dune: Part Three")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Dune: Part Three" })).not.toBeInTheDocument();
   });
 
@@ -142,10 +341,9 @@ describe("MyFollows", () => {
       follow({ name: null }),
       follow({ entity_type: "company", entity_id: "41", name: null }),
       follow({ entity_type: "franchise", entity_id: "10", name: null }),
-      follow({ entity_type: "title", entity_id: "11111111-1111-4111-8111-111111111111" }),
     ]);
 
-    await screen.findByRole("heading", { name: /companies \(1\)/i });
+    await screen.findByRole("link", { name: "Studio 41" });
     for (const link of screen.getAllByRole("link")) {
       expect(link.getAttribute("href")).not.toContain("themoviedb.org");
     }
@@ -163,6 +361,22 @@ describe("MyFollows", () => {
     expect(screen.queryByText(/· manual/)).not.toBeInTheDocument();
   });
 
+  it("draws no coverage control on any row — a follow is binary now", async () => {
+    // EF-1: the tier is gone from the payload, the PATCH that set it is a no-op, and the
+    // radios that wrote it went with `FollowCoverageControl`.
+    renderPage([
+      follow(),
+      follow({ entity_type: "company", entity_id: "41" }),
+      follow({ entity_type: "title", entity_id: "11111111-1111-4111-8111-111111111111" }),
+    ]);
+
+    await followsList();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    for (const label of ["Lead roles", "Major credits", "Every credit"]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
+  });
+
   it("unfollows a row, and the row goes", async () => {
     const graph = renderPage([follow()]);
 
@@ -173,50 +387,7 @@ describe("MyFollows", () => {
     await waitFor(() => expect(screen.queryByText("Christopher Nolan")).not.toBeInTheDocument());
   });
 
-  it("offers a person follow all three coverage tiers, on the default", async () => {
-    renderPage([follow()]);
-
-    expect(await screen.findByRole("radio", { name: "Lead roles" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Major credits" })).not.toBeChecked();
-    expect(screen.getByRole("radio", { name: "Every credit" })).not.toBeChecked();
-  });
-
-  it("widening a person follow to every credit PATCHes its coverage", async () => {
-    const graph = renderPage([follow()]);
-
-    await userEvent.click(await screen.findByRole("radio", { name: "Every credit" }));
-
-    await waitFor(() => expect(graph.follows[0].coverage).toBe("any"));
-  });
-
-  it("PATCHes the middle tier as `major`, the value that replaced `all`", async () => {
-    const graph = renderPage([follow()]);
-
-    await userEvent.click(await screen.findByRole("radio", { name: "Major credits" }));
-
-    await waitFor(() => expect(graph.follows[0].coverage).toBe("major"));
-  });
-
-  it("says that the widest tier widens the timeline as well as the alerts (D-47)", async () => {
-    // The note the group carried before NEU-1419 said the timeline was untouched whatever the
-    // reader picked, which `any` made false.
-    renderPage([follow()]);
-
-    expect(await screen.findByText(/Every credit widens both/)).toBeInTheDocument();
-  });
-
-  it("gives company, franchise and title rows no coverage control", async () => {
-    // They name one thing each, so there is nothing to narrow — and the backend refuses a
-    // `coverage` on them outright, so a control here would only ever mint a 422.
-    renderPage([
-      follow({ entity_type: "company", entity_id: "41" }),
-      follow({ entity_type: "franchise", entity_id: "10" }),
-      follow({ entity_type: "title", entity_id: "11111111-1111-4111-8111-111111111111" }),
-    ]);
-
-    await screen.findByRole("heading", { name: /companies \(1\)/i });
-    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
-  });
+  // --- The add box and the empty states ------------------------------------
 
   it("names a row the moment it is followed, before the server answers", async () => {
     // The optimistic row carries the name and face the search result already had, so following
@@ -225,7 +396,6 @@ describe("MyFollows", () => {
     const graph = followGraphHandlers();
     server.use(
       // First, so it beats the graph's own POST — `server.use` resolves in the order given.
-      // The request never completes, so anything on screen can only be the optimistic edit.
       http.post(`${env.apiBaseUrl}/me/follows`, async () => {
         await delay("infinite");
         return HttpResponse.json(makeFollow(), { status: 201 });
@@ -244,15 +414,15 @@ describe("MyFollows", () => {
       </QueryClientProvider>,
     );
 
-    await userEvent.type(screen.getByRole("searchbox"), "nolan");
+    await userEvent.type(screen.getByLabelText("Search people…"), "nolan");
     await userEvent.click(
       await screen.findByRole("button", { name: /^follow christopher nolan$/i }),
     );
 
-    // The People group now holds a named row, not a placeholder.
-    const people = await screen.findByRole("heading", { name: /people \(1\)/i });
-    const list = people.parentElement as HTMLElement;
-    expect(within(list).getByRole("link", { name: "Christopher Nolan" })).toBeInTheDocument();
+    const list = await followsList();
+    expect(
+      await within(list).findByRole("link", { name: "Christopher Nolan" }),
+    ).toBeInTheDocument();
     expect(within(list).queryByText(/Person 525/)).toBeNull();
   });
 
@@ -279,17 +449,16 @@ describe("MyFollows", () => {
       </QueryClientProvider>,
     );
 
-    await userEvent.type(screen.getByRole("searchbox"), "nolan");
+    await userEvent.type(screen.getByLabelText("Search people…"), "nolan");
     await userEvent.click(
       await screen.findByRole("button", { name: /^follow christopher nolan$/i }),
     );
 
     await waitFor(() => expect(graph.follows).toHaveLength(1));
     expect(graph.follows[0].name).toBe("Christopher Nolan");
+    expect(graph.follows[0]).not.toHaveProperty("coverage");
 
-    // Still named after the refetch the settle triggered — no flash back to "Person 525".
-    const people = await screen.findByRole("heading", { name: /people \(1\)/i });
-    const list = people.parentElement as HTMLElement;
+    const list = await followsList();
     await waitFor(() =>
       expect(within(list).getByRole("link", { name: "Christopher Nolan" })).toBeInTheDocument(),
     );
@@ -306,16 +475,17 @@ describe("MyFollows", () => {
   it("invites the user to search or use a film page when they follow nothing", async () => {
     renderPage([]);
     expect(await screen.findByText(/do not follow anything yet/i)).toBeInTheDocument();
+    // No controls over an empty list — the chips and sorts would have nothing to act on.
+    expect(screen.queryByRole("group", { name: /filter by type/i })).not.toBeInTheDocument();
   });
 
   it("keeps a row whose entity it cannot name rather than pruning it (D-40)", async () => {
-    // Two rows, neither with a remembered label. A list that quietly dropped what it could not
-    // resolve is exactly how the "restored exactly as you left them" guarantee breaks.
-    renderPage([follow({ entity_id: "1" }), follow({ entity_id: "2" })]);
+    // Two rows, neither with a name the catalog could resolve. A list that quietly dropped what
+    // it could not resolve is exactly how the "restored exactly as you left them" guarantee
+    // breaks.
+    renderPage([follow({ entity_id: "1", name: null }), follow({ entity_id: "2", name: null })]);
 
-    const people = await screen.findByRole("heading", { name: /people \(2\)/i });
-    expect(people).toBeInTheDocument();
-    const list = people.parentElement as HTMLElement;
+    const list = await followsList();
     expect(within(list).getAllByRole("button", { name: /unfollow/i })).toHaveLength(2);
   });
 });

@@ -280,8 +280,7 @@ describe("watchlist calendar", () => {
   });
 
   it("caches every page under the watchlist, so a watchlist change refreshes it", () => {
-    // `useToggleWatchlist` and `useUpdateFollowCoverage` invalidate `watchlistKey`, which
-    // is a prefix match — the calendar refetches with no extra wiring in either mutation, and a
+    // `useToggleWatchlist` invalidates `watchlistKey`, which is a prefix match — the calendar refetches with no extra wiring in either mutation, and a
     // re-read of `/me` drops it with the collection it is a view of (D-1412.3).
     expect(watchlistCalendarPageKey(20, 0).slice(0, watchlistKey.length)).toEqual([
       ...watchlistKey,

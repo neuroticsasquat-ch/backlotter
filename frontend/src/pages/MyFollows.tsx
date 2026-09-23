@@ -1,29 +1,35 @@
+import { useId, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { useFollows, useToggleFollow, useUpdateFollowCoverage } from "@/api/me";
+import { useFollows, useToggleFollow } from "@/api/me";
 import type { Follow, FollowEntityType } from "@/api/types";
-import { CoverageControl } from "@/components/follow/CoverageControl";
 import { FollowEntitySearch } from "@/components/follow/FollowEntitySearch";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { franchisePath, personPath, studioPath, type FollowTarget } from "@/lib/film-entities";
-import { formatEventDate } from "@/lib/format";
+import { formatEventDate, formatHeadlineRelease, formatRelativeDate } from "@/lib/format";
 import { profileUrl } from "@/lib/poster";
 
-/** The groups, in the order they appear. Fixed rather than derived from the data so the page
- *  does not reshuffle its headings as the user follows things. */
-const GROUPS: { type: FollowEntityType; heading: string; note?: string }[] = [
-  // The note answers the obvious misreading of the coverage radios below — that narrowing them
-  // empties the timeline too. Once, on the group, rather than on every person row. The last
-  // sentence is not a flourish: `any` is the one tier that moves the timeline as well as the
-  // alerts (D-47), and a note that stopped at "this only narrows your alerts" would now be
-  // wrong about a third of its own control.
-  {
-    type: "person",
-    heading: "People",
-    note: "Lead roles and Major credits narrow what we alert you about; your timeline shows every major credit either way. Every credit widens both.",
-  },
-  { type: "company", heading: "Companies" },
-  { type: "franchise", heading: "Collections" },
-  { type: "title", heading: "Films" },
+/** The four chips, in a fixed order — the on-screen vocabulary of EF-19 over the payload's
+ *  words, which the code keeps: a `company` is a Studio and a `franchise` is a Franchise.
+ *  Films first because a title follow is the one most readers have most of. */
+const TYPES: { type: FollowEntityType; chip: string; pill: string }[] = [
+  { type: "title", chip: "Films", pill: "Film" },
+  { type: "person", chip: "People", pill: "Person" },
+  { type: "company", chip: "Studios", pill: "Studio" },
+  { type: "franchise", chip: "Franchises", pill: "Franchise" },
+];
+
+const PILL = new Map(TYPES.map(({ type, pill }) => [type, pill]));
+
+type SortKey = "activity" | "created" | "name";
+
+const SORTS: { value: SortKey; label: string }[] = [
+  // `created` first because it is the default, and a select whose default is not its first
+  // option reads as a value somebody already changed.
+  { value: "created", label: "Newest followed" },
+  { value: "activity", label: "Last activity" },
+  { value: "name", label: "Name A–Z" },
 ];
 
 /** Where a follow came from, shown only when it is not the user's own click — "manual" is the
@@ -34,9 +40,38 @@ const SOURCE_LABELS: Record<string, string> = {
   derived: "added automatically",
 };
 
-/** The followed entity's own page. Every row that can have one links inward now (EF-15) —
- *  people since NEU-1419, studios and franchises since they got pages in NEU-1429 — and
- *  nothing on this page links out to TMDB any more.
+/** Which chips are lit, remembered across visits. A per-viewer convenience and nothing more —
+ *  a reader who filtered to People last week should not have to do it again — so every access
+ *  is wrapped: storage throws outright in a private window with site data blocked, and an
+ *  unreadable preference must cost the page a filter, not a render. */
+const CHIPS_KEY = "backlotter:follows-types";
+
+function readChips(): FollowEntityType[] {
+  try {
+    const raw = localStorage.getItem(CHIPS_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // Filtered against the known four rather than trusted: the value survives deploys, and a
+    // type this build has never heard of would otherwise hide every row forever with no
+    // visible chip to turn back off.
+    return TYPES.map((t) => t.type).filter((type) => parsed.includes(type));
+  } catch {
+    return [];
+  }
+}
+
+function writeChips(types: FollowEntityType[]): void {
+  try {
+    localStorage.setItem(CHIPS_KEY, JSON.stringify(types));
+  } catch {
+    // Nothing to do and nothing to tell the user: the filter still works for this visit.
+  }
+}
+
+/** The followed entity's own page. Every row that can have one links inward (EF-15) — people
+ *  since NEU-1419, studios and franchises since they got pages in NEU-1429 — and nothing on
+ *  this page links out to TMDB any more.
  *
  *  Linked whether or not we have a name, on the precedent NEU-1419 set for people: the ref
  *  resolves on its leading id and the slug half is decorative, so the link is well formed with
@@ -62,38 +97,81 @@ function entityPagePath(follow: Follow): string | null {
   }
 }
 
-const PLACEHOLDER: Record<FollowEntityType, string> = {
-  person: "Person",
-  company: "Company",
-  franchise: "Collection",
-  title: "Film",
-};
+/** What the row calls itself. Straight off the payload (NEU-1396); the placeholder is for a
+ *  follow the catalog can no longer resolve — a person TMDB deleted, a row written before a
+ *  backfill — which D-40 keeps rather than prunes. */
+const rowLabel = (follow: Follow): string =>
+  follow.name ?? `${PILL.get(follow.entity_type) ?? "Follow"} ${follow.entity_id}`;
+
+/** Newest first, with a stable tiebreak so two follows made in the same second do not swap
+ *  places between renders. */
+const byCreatedDesc = (a: Follow, b: Follow) =>
+  b.created_at.localeCompare(a.created_at) ||
+  `${a.entity_type}:${a.entity_id}`.localeCompare(`${b.entity_type}:${b.entity_id}`);
 
 /**
- * The shared {@link CoverageControl}, bound to a follow that already exists: every change is a
- * PATCH, because there is no state before the follow here the way there is on a person page.
+ * The three sorts (EF-15). Each is total: **nulls last** in both the sorts that have them, and
+ * "newest followed" beneath that as the tiebreak, so the order never depends on what `GET
+ * /me/follows` happened to return first.
+ *
+ * Nulls sort last rather than first because in both cases null is an absence the reader is not
+ * looking for — an unresolvable name, and a follow that has delivered nothing yet, which is a
+ * real and common state rather than a missing value (EF-15).
  */
-function FollowCoverageControl({ follow, label }: { follow: Follow; label: string }) {
-  const update = useUpdateFollowCoverage();
+const COMPARATORS: Record<SortKey, (a: Follow, b: Follow) => number> = {
+  created: byCreatedDesc,
+  name: (a, b) => {
+    if (a.name === null || b.name === null) {
+      if (a.name !== b.name) return a.name === null ? 1 : -1;
+      return byCreatedDesc(a, b);
+    }
+    return a.name.localeCompare(b.name) || byCreatedDesc(a, b);
+  },
+  activity: (a, b) => {
+    const left = a.last_activity_at;
+    const right = b.last_activity_at;
+    if (left === null || right === null) {
+      if (left !== right) return left === null ? 1 : -1;
+      return byCreatedDesc(a, b);
+    }
+    return right.localeCompare(left) || byCreatedDesc(a, b);
+  },
+};
+
+function TypeChips({
+  selected,
+  onToggle,
+}: {
+  selected: FollowEntityType[];
+  onToggle: (type: FollowEntityType) => void;
+}) {
   return (
-    <CoverageControl
-      className="mt-1"
-      value={follow.coverage}
-      onChange={(coverage) => update.mutate({ follow, coverage })}
-      label={label}
-      disabled={update.isPending}
-    />
+    // Toggle buttons rather than checkboxes: each one acts on the list immediately, and none of
+    // them is part of anything to submit. `aria-pressed` is what carries the on/off state.
+    <div role="group" aria-label="Filter by type" className="flex flex-wrap gap-2">
+      {TYPES.map(({ type, chip }) => {
+        const on = selected.includes(type);
+        return (
+          <Button
+            key={type}
+            type="button"
+            size="sm"
+            variant={on ? "secondary" : "outline"}
+            aria-pressed={on}
+            onClick={() => onToggle(type)}
+          >
+            {chip}
+          </Button>
+        );
+      })}
+    </div>
   );
 }
 
 function FollowRow({ follow }: { follow: Follow }) {
   const toggle = useToggleFollow();
-  // Straight off the payload (NEU-1396). The placeholder below is for a follow the catalog
-  // can no longer resolve — a person TMDB deleted, a row written before a backfill — which
-  // D-40 keeps rather than prunes, not for the ordinary case it used to cover.
-  const label = follow.name ?? `${PLACEHOLDER[follow.entity_type]} ${follow.entity_id}`;
+  const label = rowLabel(follow);
   const href = entityPagePath(follow);
-  const source = SOURCE_LABELS[follow.source];
   const image = profileUrl(follow.image_path, "w92");
 
   // The unfollow goes through the same mutation as every follow button in the app, so it takes
@@ -105,6 +183,14 @@ function FollowRow({ follow }: { follow: Follow }) {
     label,
     imagePath: follow.image_path,
   };
+
+  const meta = [`Followed ${formatEventDate(follow.created_at)}`];
+  const source = SOURCE_LABELS[follow.source];
+  if (source) meta.push(source);
+  // Only when there is one: "Last activity never" would read as a fault, and a follow that has
+  // delivered nothing yet is the ordinary state of one taken out this morning.
+  if (follow.last_activity_at)
+    meta.push(`Last activity ${formatRelativeDate(follow.last_activity_at)}`);
 
   return (
     <li className="flex items-center gap-3 py-2">
@@ -119,20 +205,28 @@ function FollowRow({ follow }: { follow: Follow }) {
         <div aria-hidden="true" className="h-10 w-10 flex-none rounded bg-muted" />
       )}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">
-          {href ? (
-            <Link to={href} className="hover:underline">
-              {label}
-            </Link>
-          ) : (
-            label
-          )}
+        <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <span className="truncate">
+            {href ? (
+              <Link to={href} className="hover:underline">
+                {label}
+              </Link>
+            ) : (
+              label
+            )}
+          </span>
+          <span className="flex-none rounded-full border border-border px-1.5 py-0.5 text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
+            {PILL.get(follow.entity_type)}
+          </span>
         </p>
-        <p className="truncate text-xs text-muted-foreground">
-          Followed {formatEventDate(follow.created_at)}
-          {source ? ` · ${source}` : ""}
-        </p>
-        {follow.entity_type === "person" && <FollowCoverageControl follow={follow} label={label} />}
+        {/* Films only: it is the one type with a date of its own (EF-15), and the backend
+            sends null on the other three rather than inventing one. */}
+        {follow.entity_type === "title" && (
+          <p className="truncate text-xs text-muted-foreground">
+            {formatHeadlineRelease(follow.headline_release)}
+          </p>
+        )}
+        <p className="truncate text-xs text-muted-foreground">{meta.join(" · ")}</p>
       </div>
       <Button
         size="sm"
@@ -148,16 +242,50 @@ function FollowRow({ follow }: { follow: Follow }) {
 }
 
 /**
- * `/me/follows` — everything the user follows, grouped by kind, plus the box that adds more.
+ * `/me/follows` — one flat list of everything the user follows, plus the box that adds more.
  *
- * Nothing on this page prunes on load (D-40): a follow whose entity has since left the catalog
- * still renders, because a grant that lapses and is restored must return the account exactly as
- * it was, and a list that quietly drops rows it cannot resolve is how that guarantee breaks.
- * A row the catalog cannot name falls back to its type and id, and still links to its page.
+ * One list rather than a heading per type (EF-15, replacing NEU-1415's grouped page): the
+ * reader's question is "what do I follow", and four headings answered it by making them read
+ * four lists to find one row. The chips narrow it when they *do* want one type, the sorts
+ * answer "what have I added lately" and "what has been quiet", and the text filter finds a
+ * single row without any of that. All three are client-side because the list arrives whole.
+ *
+ * Nothing here prunes on load (D-40): a follow whose entity has since left the catalog still
+ * renders, because a grant that lapses and is restored must return the account exactly as it
+ * was, and a list that quietly drops rows it cannot resolve is how that guarantee breaks. A row
+ * the catalog cannot name falls back to its type and id, and still links to its page.
  */
 export function MyFollows() {
   const { data, isLoading, isError, error } = useFollows();
-  const items = data?.items ?? [];
+  const [types, setTypes] = useState<FollowEntityType[]>(readChips);
+  const [sort, setSort] = useState<SortKey>("created");
+  const [query, setQuery] = useState("");
+  const sortId = useId();
+  const filterId = useId();
+
+  const items = useMemo(() => data?.items ?? [], [data]);
+
+  const visible = useMemo(() => {
+    // No chip lit means every type, not none: the empty selection is the page's resting state,
+    // and reading it as "show nothing" would greet most readers with an empty list.
+    const byType = types.length === 0 ? items : items.filter((f) => types.includes(f.entity_type));
+    const needle = query.trim().toLowerCase();
+    // Matched against the label the row actually shows, which is the name whenever there is
+    // one: a reader typing what is on screen should find it, including the "Person 287" a row
+    // falls back to when the catalog cannot name it.
+    const byName = needle
+      ? byType.filter((f) => rowLabel(f).toLowerCase().includes(needle))
+      : byType;
+    return [...byName].sort(COMPARATORS[sort]);
+  }, [items, types, query, sort]);
+
+  const toggleType = (type: FollowEntityType) => {
+    setTypes((current) => {
+      const next = current.includes(type) ? current.filter((t) => t !== type) : [...current, type];
+      writeChips(next);
+      return next;
+    });
+  };
 
   return (
     <div className="mx-auto max-w-3xl p-8">
@@ -184,25 +312,59 @@ export function MyFollows() {
         </p>
       )}
 
-      {items.length > 0 &&
-        GROUPS.map((group) => {
-          const rows = items.filter((follow) => follow.entity_type === group.type);
-          if (rows.length === 0) return null;
-          return (
-            <section key={group.type} className="mt-6">
-              <h2 className="text-sm font-semibold text-foreground">
-                {group.heading}{" "}
-                <span className="font-normal text-muted-foreground">({rows.length})</span>
-              </h2>
-              {group.note && <p className="mt-0.5 text-xs text-muted-foreground">{group.note}</p>}
-              <ul className="mt-1 divide-y divide-border">
-                {rows.map((follow) => (
-                  <FollowRow key={`${follow.entity_type}:${follow.entity_id}`} follow={follow} />
-                ))}
-              </ul>
-            </section>
-          );
-        })}
+      {items.length > 0 && (
+        <>
+          <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
+            <TypeChips selected={types} onToggle={toggleType} />
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <Label htmlFor={filterId} className="text-xs text-muted-foreground">
+                  Find
+                </Label>
+                <Input
+                  id={filterId}
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Filter by name"
+                  className="mt-1 h-9 w-48"
+                />
+              </div>
+              <div>
+                <Label htmlFor={sortId} className="text-xs text-muted-foreground">
+                  Sort by
+                </Label>
+                <select
+                  id={sortId}
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as SortKey)}
+                  className="mt-1 h-9 rounded-md border border-input bg-background px-2 text-sm"
+                >
+                  {SORTS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {visible.length === 0 ? (
+            <p className="mt-6 text-muted-foreground">
+              Nothing here matches. Try another type or clear the filter.
+            </p>
+          ) : (
+            // Named so it can be told apart from the add box's own results list, which sits
+            // above it on the same page and is also a list of followable entities.
+            <ul aria-label="Your follows" className="mt-2 divide-y divide-border">
+              {visible.map((follow) => (
+                <FollowRow key={`${follow.entity_type}:${follow.entity_id}`} follow={follow} />
+              ))}
+            </ul>
+          )}
+        </>
+      )}
     </div>
   );
 }

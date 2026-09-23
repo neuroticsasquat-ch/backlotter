@@ -398,30 +398,16 @@ export type FollowEntityType = "person" | "company" | "franchise" | "title";
  *  backend; anything this app creates is `manual`. */
 export type FollowSource = "manual" | "letterboxd_import" | "tmdb_import" | "derived";
 
-/**
- * How deep into a followed person's credits we go (D-48). Three tiers, narrowest first:
+/** How prominent one credit is, narrowest first: `lead` (director or top-3 billing), `major`
+ *  (every seed-grade credit — director, writers, top-5 billing) and `any` (every credit at any
+ *  billing and any crew job).
  *
- * - `lead` — director, or top-3 billing. The default, and the cut that keeps a prolific actor
- *   from becoming a push firehose.
- * - `major` — every seed-grade credit: director, writers, top-5 billing. Called `all` until
- *   NEU-1418 renamed it, because a tier named "all" sitting beside one that reaches further is
- *   exactly the vocabulary drift the glossary exists to stop.
- * - `any` — every credit the person holds on the film, at any billing and any crew job.
- *
- * `lead` and `major` narrow *alerts only*; the timeline shows every seed-grade credit at
- * either. `any` is the one tier that widens both (D-47), so a 12th-billed role reaches the
- * timeline as well as the alerts. The backend echoes it on every follow and it is always
- * `lead` for a company, franchise or title, which cover one thing each and have nothing to
- * narrow — so only person rows draw the control.
- */
-export type FollowCoverage = "lead" | "major" | "any";
-
-/** The narrowest tier that reaches one credit — what a follow has to be set to for it to
- *  arrive at all. Deliberately the same type as {@link FollowCoverage} rather than a parallel
- *  spelling of the same three strings: the backend answers it from `credit_tier`, the function
- *  its alert query's predicates are built from, so a badge and the follow it describes cannot
- *  mean different things. */
-export type CreditTier = FollowCoverage;
+ *  A property of the *credit*, not of the follow. A follow is binary now (EF-1): the tier a
+ *  reader could once set it to is gone, along with the `coverage` field that carried it and
+ *  the control that wrote it, so the three words survive only as the badge on a person page's
+ *  film row — how deep in that film's credits the person sits. NEU-1444 removes the badge and
+ *  this type with it. */
+export type CreditTier = "lead" | "major" | "any";
 
 export interface Follow {
   entity_type: FollowEntityType;
@@ -437,8 +423,20 @@ export interface Follow {
   /** TMDB `profile_path` / `logo_path` / `poster_path` for the entity, on the same terms. */
   image_path: string | null;
   source: FollowSource;
-  coverage: FollowCoverage;
+  /** The one release date a **title** row leads with, from the same batch query the film and
+   *  entity pages read (EF-15), so two surfaces cannot disagree about a film's date. Null on
+   *  every other type — a followed person has no date of their own, and the next release they
+   *  are credited on would be exactly the indirect reach this project took away, smuggled back
+   *  in as a column — and null for a title row whose film has no displayable date either. */
+  headline_release: HeadlineRelease | null;
   created_at: string;
+  /** When the newest card this follow delivers was published — every beat on the film for a
+   *  title row, the entity's own attach, detach and `canceled` cards for the other three.
+   *
+   *  **Null means nothing has happened yet**, not "unknown": a follow taken out this morning
+   *  on a film the site has never carded is a real and common state. The "Last activity" sort
+   *  puts those rows last rather than treating them as missing data. */
+  last_activity_at: string | null;
 }
 
 export interface FollowListResponse {

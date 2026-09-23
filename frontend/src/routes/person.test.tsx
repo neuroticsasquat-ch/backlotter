@@ -216,46 +216,40 @@ describe("person page", () => {
     expect(screen.getByText("No recent releases")).toBeInTheDocument();
   });
 
-  it("offers all three tiers, defaulting to lead, before there is a follow", async () => {
+  it("draws no tier control beside the follow button — a follow is binary now", async () => {
+    // The three-tier `CoverageControl` went with the `coverage` field it wrote (EF-1): there is
+    // nothing left to narrow, and a control over a field the backend ignores would be a lie.
+    // The tier *badges* on the film rows above are NEU-1444's to remove.
     renderPage();
-    expect(await screen.findByRole("radio", { name: "Lead roles" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Major credits" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Every credit" })).toBeInTheDocument();
+    await screen.findByRole("button", { name: "Follow Christopher Nolan" });
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   });
 
-  it("creates the follow at the tier chosen before it existed", async () => {
+  it("creates the follow from its type and id alone", async () => {
     const graph = renderPage();
 
-    await userEvent.click(await screen.findByRole("radio", { name: "Every credit" }));
-    await userEvent.click(screen.getByRole("button", { name: "Follow Christopher Nolan" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Follow Christopher Nolan" }));
 
     await waitFor(() => expect(graph.follows).toHaveLength(1));
-    expect(graph.follows[0]).toMatchObject({
-      entity_type: "person",
-      entity_id: "525",
-      coverage: "any",
-    });
+    expect(graph.follows[0]).toMatchObject({ entity_type: "person", entity_id: "525" });
+    expect(graph.follows[0]).not.toHaveProperty("coverage");
   });
 
-  it("PATCHes the tier once the follow exists, rather than creating a second one", async () => {
+  it("reads an existing follow back as Following rather than offering to follow again", async () => {
     const existing = makeFollow({ entity_id: "525", name: "Christopher Nolan" });
     const graph = renderPage(person, { follows: [existing] });
 
-    // The control reads the follow back rather than its own local default.
-    expect(await screen.findByRole("radio", { name: "Lead roles" })).toBeChecked();
-    await userEvent.click(screen.getByRole("radio", { name: "Major credits" }));
-
-    await waitFor(() => expect(graph.follows[0].coverage).toBe("major"));
+    expect(
+      await screen.findByRole("button", { name: "Unfollow Christopher Nolan" }),
+    ).toHaveAttribute("aria-pressed", "true");
     expect(graph.follows).toHaveLength(1);
   });
 
-  it("disables the tiers for a visitor who cannot follow anything yet", async () => {
+  it("disables the follow button for a visitor who cannot follow anything yet", async () => {
+    // The locked button renders in place of the live one (D-41): someone deciding whether they
+    // want a subscription should see the control they would get, disabled, rather than nothing.
     renderPage(person, { entitled: false });
-    // The locked button renders in place of the live one (D-41), and the radios beside it are
-    // shown-but-disabled for the same reason: someone deciding whether they want a
-    // subscription should see what it would let them pick.
     expect(await screen.findByRole("button", { name: "Follow Christopher Nolan" })).toBeDisabled();
-    expect(screen.getByRole("radio", { name: "Every credit" })).toBeDisabled();
   });
 });
 

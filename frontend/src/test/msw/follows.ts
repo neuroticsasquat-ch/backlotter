@@ -1,6 +1,6 @@
 import { HttpResponse, http } from "msw";
 import { env } from "@/env";
-import type { Follow, FollowCoverage, WatchlistFilm, WatchlistItem } from "@/api/types";
+import type { Follow, WatchlistFilm, WatchlistItem } from "@/api/types";
 
 const base = env.apiBaseUrl;
 
@@ -41,7 +41,6 @@ export function followGraphHandlers(
       const body = (await request.json()) as {
         entity_type: Follow["entity_type"];
         entity_id: string;
-        coverage?: FollowCoverage;
       };
       const existing = follows.find(
         (f) => f.entity_type === body.entity_type && f.entity_id === body.entity_id,
@@ -59,28 +58,15 @@ export function followGraphHandlers(
         entity_id: body.entity_id,
         name: known?.name ?? `${body.entity_type} ${body.entity_id}`,
         image_path: known?.image_path ?? null,
+        headline_release: null,
         source: "manual",
-        coverage: body.coverage ?? "lead",
         created_at: new Date().toISOString(),
+        // Nothing has been published through a follow created a moment ago, which is the null
+        // the backend answers with too — not a missing value (EF-15).
+        last_activity_at: null,
       };
       follows.push(created);
       return HttpResponse.json(created, { status: 201 });
-    }),
-
-    // Coverage is a person-follow control (D-43); the backend refuses it outright for the other
-    // three types rather than ignoring it, and a test that draws the control on the wrong row
-    // should see that refusal.
-    http.patch(`${base}/me/follows/:entityType/:entityId`, async ({ params, request }) => {
-      const body = (await request.json()) as { coverage: FollowCoverage };
-      if (params.entityType !== "person") {
-        return HttpResponse.json({ detail: "coverage_not_applicable" }, { status: 422 });
-      }
-      const follow = follows.find(
-        (f) => f.entity_type === params.entityType && f.entity_id === params.entityId,
-      );
-      if (!follow) return HttpResponse.json({ detail: "follow_not_found" }, { status: 404 });
-      follow.coverage = body.coverage;
-      return HttpResponse.json(follow, { status: 200 });
     }),
 
     http.delete(`${base}/me/follows/:entityType/:entityId`, ({ params }) => {
@@ -144,7 +130,6 @@ export function entitlementRequiredHandlers() {
   return [
     http.get(`${base}/me/follows`, deny),
     http.post(`${base}/me/follows`, deny),
-    http.patch(`${base}/me/follows/:entityType/:entityId`, deny),
     http.delete(`${base}/me/follows/:entityType/:entityId`, deny),
     http.get(`${base}/me/watchlist`, deny),
     http.post(`${base}/me/watchlist`, deny),
@@ -153,16 +138,21 @@ export function entitlementRequiredHandlers() {
 }
 
 /** One follow row as `GET /me/follows` answers it. `name`/`image_path` default to null — the
- *  unresolvable case D-40 keeps — so a test that cares about a label says so. */
+ *  unresolvable case D-40 keeps — so a test that cares about a label says so.
+ *
+ *  `last_activity_at` and `headline_release` default to null as well, which is a real state
+ *  rather than a stand-in: a follow that has delivered nothing yet, on an entity with no date
+ *  of its own. A test about the activity sort or a film's date passes its own. */
 export function makeFollow(overrides: Partial<Follow> = {}): Follow {
   return {
     entity_type: "person",
     entity_id: "525",
     name: null,
     image_path: null,
+    headline_release: null,
     source: "manual",
-    coverage: "lead",
     created_at: "2026-09-12T00:00:00Z",
+    last_activity_at: null,
     ...overrides,
   };
 }

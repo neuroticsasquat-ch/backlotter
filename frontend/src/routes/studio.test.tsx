@@ -187,7 +187,8 @@ describe("studio page", () => {
     );
 
     // The tier badges are being retired (EF-18): a studio credit has no tier to narrow, so no
-    // row carries one and the coverage radios the person page draws are absent too.
+    // row carries one — and there are no tier radios anywhere any more, on this page or the
+    // person page, since a follow became binary (EF-1).
     for (const label of ["Lead", "Major", "Any"]) {
       expect(screen.queryByText(label)).not.toBeInTheDocument();
     }

@@ -7,6 +7,7 @@ import {
   formatEventDate,
   formatHeadlineRelease,
   formatLanguage,
+  formatRelativeDate,
   formatRuntime,
   formatUsd,
   pickRating,
@@ -32,6 +33,40 @@ describe("formatEventDate", () => {
 
   it("uses UTC so a late-UTC time does not roll the day", () => {
     expect(formatEventDate("2025-03-14T23:30:00Z")).toBe("Mar 14, 2025");
+  });
+});
+
+describe("formatRelativeDate", () => {
+  // A fixed `now`, so the distances are the test's rather than the clock's.
+  const now = new Date("2026-09-23T12:00:00Z");
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
+
+  const MINUTE = 60_000;
+  const HOUR = 60 * MINUTE;
+  const DAY = 24 * HOUR;
+
+  it("counts minutes and hours inside the first day", () => {
+    expect(formatRelativeDate(ago(5 * MINUTE), now)).toBe("5 minutes ago");
+    expect(formatRelativeDate(ago(3 * HOUR), now)).toBe("3 hours ago");
+  });
+
+  it("says the near days as words rather than as a count of one", () => {
+    // `numeric: "auto"` — "yesterday" is how a person says it, and "1 day ago" is not.
+    expect(formatRelativeDate(ago(DAY), now)).toBe("yesterday");
+    expect(formatRelativeDate(ago(3 * DAY), now)).toBe("3 days ago");
+  });
+
+  it("steps up to months and then years as the distance grows", () => {
+    expect(formatRelativeDate(ago(45 * DAY), now)).toBe("2 months ago");
+    expect(formatRelativeDate(ago(400 * DAY), now)).toBe("last year");
+    expect(formatRelativeDate(ago(800 * DAY), now)).toBe("2 years ago");
+  });
+
+  it("is the coarsest unit that still says something, not the most precise", () => {
+    // 30 days is a month rather than "30 days ago": this is a "when did something last
+    // happen here" line, not a date, and the row shows a date where one is wanted.
+    expect(formatRelativeDate(ago(30 * DAY), now)).toBe("last month");
+    expect(formatRelativeDate(ago(29 * DAY), now)).toBe("29 days ago");
   });
 });
 

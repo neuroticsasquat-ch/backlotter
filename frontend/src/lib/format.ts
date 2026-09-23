@@ -13,6 +13,36 @@ export function formatEventDate(iso: string): string {
   return DATE_FMT.format(new Date(iso));
 }
 
+const RELATIVE_FMT = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" });
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/** How long ago an instant was, in the coarsest unit that still says something — "3 days ago",
+ *  "last month", "2 years ago".
+ *
+ *  `numeric: "auto"` so the near cases read as words ("yesterday", "last week") rather than as
+ *  "1 day ago", which is how a person says it. Months and years are the usual approximations
+ *  (30 and 365 days): this is a "when did something last happen here" line on a follows row,
+ *  not a date, and a row whose exact anniversary matters would show the date instead.
+ *
+ *  `now` is injectable so a test can assert on a fixed distance without freezing the clock.
+ *  Future instants are not special-cased — `Intl` renders them forwards ("in 2 days") — but
+ *  nothing calls this with one: every caller passes a `created_at` the server has already
+ *  published. */
+export function formatRelativeDate(iso: string, now: Date = new Date()): string {
+  const elapsed = now.getTime() - new Date(iso).getTime();
+  const past = Math.abs(elapsed);
+  const sign = elapsed >= 0 ? -1 : 1;
+
+  if (past < HOUR) return RELATIVE_FMT.format(sign * Math.round(past / MINUTE), "minute");
+  if (past < DAY) return RELATIVE_FMT.format(sign * Math.round(past / HOUR), "hour");
+  if (past < 30 * DAY) return RELATIVE_FMT.format(sign * Math.round(past / DAY), "day");
+  if (past < 365 * DAY) return RELATIVE_FMT.format(sign * Math.round(past / (30 * DAY)), "month");
+  return RELATIVE_FMT.format(sign * Math.round(past / (365 * DAY)), "year");
+}
+
 const DAY_HEADING_FMT = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
   year: "numeric",

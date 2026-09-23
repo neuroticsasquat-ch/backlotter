@@ -17,7 +17,6 @@ import type {
   DigestCadence,
   FeedDayResponse,
   Follow,
-  FollowCoverage,
   FollowListResponse,
   UserSettings,
   WatchlistFilm,
@@ -29,30 +28,13 @@ export const fetchFollows = () => apiFetch<FollowListResponse>("/me/follows");
 
 export const fetchWatchlist = () => apiFetch<WatchlistListResponse>("/me/watchlist");
 
-/** `coverage` is sent only when the caller chose one (the person page's control, which is
- *  visible before the follow exists — D-1416.8). Omitted, the backend applies `lead`, which is
- *  what every other follow button in the app wants; sending it explicitly on all of them would
- *  mean a 422 on the three entity types that refuse a coverage outright. */
-export const createFollow = (target: FollowTarget, coverage?: FollowCoverage) =>
+/** The whole body: a follow is binary now (EF-1), so what to follow is all there is to say.
+ *  The `coverage` tier this used to carry is gone, and with it the PATCH that changed one — a
+ *  follow has no mutable field left, so there is nothing to update, only to create or delete. */
+export const createFollow = (target: FollowTarget) =>
   apiFetch<Follow>("/me/follows", {
     method: "POST",
-    body: JSON.stringify({
-      entity_type: target.entityType,
-      entity_id: target.entityId,
-      ...(coverage ? { coverage } : {}),
-    }),
-  });
-
-/** Narrow or widen what a person follow alerts on (D-43). The backend answers `422
- *  coverage_not_applicable` for any other entity type, which is why only person rows draw the
- *  control — the other three cover one thing each and have nothing to narrow. */
-export const updateFollowCoverage = (
-  target: { entityType: string; entityId: string },
-  coverage: FollowCoverage,
-) =>
-  apiFetch<Follow>(`/me/follows/${target.entityType}/${encodeURIComponent(target.entityId)}`, {
-    method: "PATCH",
-    body: JSON.stringify({ coverage }),
+    body: JSON.stringify({ entity_type: target.entityType, entity_id: target.entityId }),
   });
 
 export const deleteFollow = (target: FollowTarget) =>
@@ -176,13 +158,10 @@ export function useWatchlistCalendar({ limit, offset }: { limit: number; offset:
 const sameEntity = (follow: Follow, target: FollowTarget) =>
   follow.entity_type === target.entityType && follow.entity_id === target.entityId;
 
-const sameFollow = (a: Follow, b: Follow) =>
-  a.entity_type === b.entity_type && a.entity_id === b.entity_id;
-
 /** The user's follow of this target, or null. Read from the one cached list rather than a
- *  request per button — a film page carries a dozen of these. A caller that only wants the
- *  boolean should use {@link useIsFollowing}; this one is for the person page, which has to
- *  read the follow's `coverage` back into its control. */
+ *  request per button — a film page carries a dozen of these. Most callers only want the
+ *  boolean and should use {@link useIsFollowing}; this one is for a caller that needs the row
+ *  itself. */
 export function useFollow(target: FollowTarget | null): Follow | null {
   const { data } = useFollows();
   if (!target) return null;
@@ -200,21 +179,11 @@ export function useIsFollowing(target: FollowTarget | null): boolean {
 export function useToggleFollow() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      target,
-      following,
-      coverage,
-    }: {
-      target: FollowTarget;
-      following: boolean;
-      /** The tier to create the follow at, for a caller that offered the choice before the
-       *  follow existed. Unfollowing ignores it. */
-      coverage?: FollowCoverage;
-    }) => {
+    mutationFn: async ({ target, following }: { target: FollowTarget; following: boolean }) => {
       if (following) await deleteFollow(target);
-      else await createFollow(target, coverage);
+      else await createFollow(target);
     },
-    onMutate: async ({ target, following, coverage }) => {
+    onMutate: async ({ target, following }) => {
       await qc.cancelQueries({ queryKey: followsKey });
       // The row as it stands, not the whole list: a page carries a dozen of these buttons, and
       // restoring a list snapshot on one failure would throw away every other button's
@@ -234,10 +203,12 @@ export function useToggleFollow() {
           name: target.label,
           image_path: target.imagePath ?? null,
           source: "manual",
-          // What the POST asked for, or the default the backend applies to a follow created
-          // without one (D-43).
-          coverage: coverage ?? "lead",
+          // Nothing has happened through a follow made a moment ago, and a brand new follow
+          // has no date of its own to lead with. Both are the honest nulls, and both are
+          // replaced by the server's own answer on the refetch.
+          headline_release: null,
           created_at: new Date().toISOString(),
+          last_activity_at: null,
         };
         return { items: [...items, optimistic] };
       });
@@ -359,56 +330,6 @@ export function useToggleWatchlist() {
       toast.error(error instanceof Error ? error.message : "Failed to update your watchlist");
     },
     onSettled: () => qc.invalidateQueries({ queryKey: watchlistKey }),
-  });
-}
-
-/** Change one person follow's coverage (D-43). Optimistic like the toggles beside it: a radio
- *  that stays on the old tier until the round trip returns reads as a click that did not take.
- *  The watchlist is computed from coverage, so a change that lands re-reads it. */
-export function useUpdateFollowCoverage() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ follow, coverage }: { follow: Follow; coverage: FollowCoverage }) =>
-      updateFollowCoverage(
-        { entityType: follow.entity_type, entityId: follow.entity_id },
-        coverage,
-      ),
-    onMutate: async ({ follow, coverage }) => {
-      await qc.cancelQueries({ queryKey: followsKey });
-      const previous = qc
-        .getQueryData<FollowListResponse>(followsKey)
-        ?.items.find((f) => sameFollow(f, follow))?.coverage;
-      qc.setQueryData<FollowListResponse>(followsKey, (old) => ({
-        items: (old?.items ?? []).map((f) => (sameFollow(f, follow) ? { ...f, coverage } : f)),
-      }));
-      return { previous };
-    },
-    onError: (error, { follow }, context) => {
-      if (context?.previous) {
-        qc.setQueryData<FollowListResponse>(followsKey, (old) => ({
-          items: (old?.items ?? []).map((f) =>
-            sameFollow(f, follow) ? { ...f, coverage: context.previous! } : f,
-          ),
-        }));
-      }
-      if (isEntitlementError(error)) {
-        void refreshAccount(qc);
-        return;
-      }
-      toast.error("We could not change what that follow alerts you about. Please try again.");
-    },
-    // Coverage narrows alerts, and the watchlist *is* the set of films covered for alerts —
-    // so widening or narrowing one follow changes which films are on it. The timeline moves
-    // too, but only across the `any` boundary (D-47): `lead` and `major` are both subsets of
-    // the seed grade the timeline has always shown, and `any` widens it to every credit.
-    // Invalidated unconditionally rather than on that boundary, because "which of the two
-    // tiers we just left" is a rule the server owns and a client copy of it would rot.
-    onSuccess: () =>
-      Promise.all([
-        qc.invalidateQueries({ queryKey: watchlistKey }),
-        qc.invalidateQueries({ queryKey: timelineKey }),
-      ]),
-    onSettled: () => qc.invalidateQueries({ queryKey: followsKey }),
   });
 }
 
