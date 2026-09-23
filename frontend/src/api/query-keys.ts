@@ -28,6 +28,14 @@ export const timelinePageKey = (limit: number, offset: number) =>
  *  watching it. */
 export const importJobKey = (jobId: string) => ["import-job", jobId] as const;
 
+/** The caller's one **open import**, whatever its id (NEU-1452, `GET /me/import/active`). Under
+ *  `["me"]`, unlike `importJobKey`: which import is open is a property of the account rather
+ *  than of one job, so an entitlement flip — `AuthContext.refresh()` — should re-read it. Login
+ *  and logout write `["me"]` directly rather than refreshing it, so logout removes this key
+ *  itself, as it does the timeline's. The job's own poll stays outside the prefix for the reason
+ *  above. */
+export const activeImportKey = ["me", "import", "active"] as const;
+
 /** The reader's **My films** calendar (NEU-1412, EF-14). Under `followsKey`, not beside
  *  `timelineKey`: with the watchlist retired the calendar is a *view of the title follows*, so
  *  following or unfollowing a film — which already invalidates the `["me","follows"]` prefix

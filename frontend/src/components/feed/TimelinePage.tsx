@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { groupByDay } from "@/lib/feed-groups";
 import { DAYS_PER_PAGE } from "@/lib/global-feed";
 import { FeedDayGroups, ViewMoreButton } from "@/components/feed/FeedDayGroups";
+import { PendingImportNotice } from "@/components/onboarding/PendingImportNotice";
 
 /**
  * The signed-in home page: the grouped feed restricted to the films the reader's follows reach
@@ -64,6 +65,7 @@ export function TimelinePage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <TimelineHeading />
+      <PendingImportNotice />
       {total === 0 ? (
         <EmptyTimeline />
       ) : (

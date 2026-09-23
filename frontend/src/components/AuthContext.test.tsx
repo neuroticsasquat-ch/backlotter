@@ -6,6 +6,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "@/test/msw/server";
 import { meHandler } from "@/test/msw/me";
 import { env } from "@/env";
+import { activeImportKey } from "@/api/query-keys";
 import { AuthProvider, useAuth } from "./AuthContext";
 
 const AUTHED_USER = {
@@ -46,8 +47,15 @@ function LoginButton() {
   return <button onClick={() => login("alice@example.com", "password123")}>login</button>;
 }
 
-function renderWithProviders(node: React.ReactNode) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function LogoutButton() {
+  const { logout } = useAuth();
+  return <button onClick={() => logout()}>logout</button>;
+}
+
+function renderWithProviders(
+  node: React.ReactNode,
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   return render(
     <QueryClientProvider client={qc}>
       <AuthProvider>{node}</AuthProvider>
@@ -60,6 +68,22 @@ describe("AuthContext", () => {
     // Default handler in handlers.ts returns 401; no override needed.
     renderWithProviders(<ProbeUser />);
     await waitFor(() => expect(screen.getByText("anon")).toBeInTheDocument());
+  });
+
+  // Otherwise the next reader on this tab has the last one's review list restored on `/welcome`
+  // and announced on the timeline (NEU-1452).
+  it("drops the open import on logout", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      http.post(`${env.apiBaseUrl}/auth/logout`, () => new HttpResponse(null, { status: 204 })),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(activeImportKey, { id: "job" });
+    renderWithProviders(<LogoutButton />, qc);
+
+    await userEvent.click(await screen.findByRole("button", { name: "logout" }));
+
+    await waitFor(() => expect(qc.getQueryState(activeImportKey)).toBeUndefined());
   });
 
   it("populates user after successful login", async () => {

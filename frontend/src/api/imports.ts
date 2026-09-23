@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { env } from "@/env";
 import { ApiError, apiFetch } from "./client";
-import { followsKey, importJobKey, timelineKey } from "./query-keys";
+import { activeImportKey, followsKey, importJobKey, timelineKey } from "./query-keys";
 import type { ImportJob, ImportJobStarted } from "./types";
 
 /** How often the UI asks a live job how far it has got (NEU-1356 §1). Two seconds is the
@@ -45,8 +45,16 @@ export const startLetterboxdImport = (file: File) => {
 export const fetchImportJob = (jobId: string) =>
   apiFetch<ImportJob>(`/me/import/${encodeURIComponent(jobId)}`);
 
+/** A new job is open, and any older one was superseded by it (EF-22), so the cached answer to
+ *  "which import is open" is stale either way. Shared by both ways an import starts. */
+function useInvalidateActiveImport() {
+  const qc = useQueryClient();
+  return () => void qc.invalidateQueries({ queryKey: activeImportKey });
+}
+
 export function useStartLetterboxdImport() {
-  return useMutation({ mutationFn: startLetterboxdImport });
+  const onSuccess = useInvalidateActiveImport();
+  return useMutation({ mutationFn: startLetterboxdImport, onSuccess });
 }
 
 /** Follow the films the user kept from a job's review list (EF-22). Answers 200 with the job,
@@ -74,12 +82,18 @@ export function useConfirmImport() {
     mutationFn: confirmImport,
     onSuccess: (job) => {
       qc.setQueryData(importJobKey(job.id), job);
+      // Written rather than invalidated: the confirm closed the only open job, and the
+      // timeline's notice must not outlive it on a navigation to `/` served from a cache that
+      // still says `awaiting_review` (NEU-1452).
+      qc.setQueryData(activeImportKey, null);
       void qc.invalidateQueries({ queryKey: followsKey });
       void qc.invalidateQueries({ queryKey: timelineKey });
     },
     onError: (error, { jobId }) => {
-      if (error instanceof ApiError && error.status === 409)
+      if (error instanceof ApiError && error.status === 409) {
         void qc.invalidateQueries({ queryKey: importJobKey(jobId) });
+        void qc.invalidateQueries({ queryKey: activeImportKey });
+      }
     },
   });
 }
@@ -114,6 +128,30 @@ export function useImportJob(jobId: string | null) {
       // No data yet is "keep asking" rather than "stop": the first poll has not answered.
       return status && isSettled(status) ? false : POLL_INTERVAL_MS;
     },
+  });
+}
+
+/** `GET /me/import/active` — the caller's open import (`queued`, `running` or `awaiting_review`),
+ *  or `null` when there is none (NEU-1453). The route answers the absent case with a 204, which
+ *  `apiFetch` hands back as `undefined`; mapped to `null` here because TanStack Query rejects a
+ *  query function that resolves to `undefined`. */
+export const fetchActiveImport = async (): Promise<ImportJob | null> =>
+  (await apiFetch<ImportJob | undefined>("/me/import/active")) ?? null;
+
+/**
+ * The caller's open import, found without a job id (NEU-1452), so a review list outlives the
+ * page that started it: a reload, another device, or leaving `/welcome` before confirming.
+ *
+ * Read once per mount and never polled. On `/welcome` the restored job's own
+ * {@link useImportJob} poll takes over; the timeline only needs to know whether a list waits.
+ * `retry: false` for the reason the poll has it: the lapsed-grant 403 is permanent.
+ */
+export function useActiveImport(enabled: boolean) {
+  return useQuery({
+    queryKey: activeImportKey,
+    queryFn: fetchActiveImport,
+    enabled,
+    retry: false,
   });
 }
 
@@ -152,5 +190,6 @@ export const submitTmdbApproval = ({ requestToken, approved }: TmdbApproval) =>
   });
 
 export function useSubmitTmdbApproval() {
-  return useMutation({ mutationFn: submitTmdbApproval });
+  const onSuccess = useInvalidateActiveImport();
+  return useMutation({ mutationFn: submitTmdbApproval, onSuccess });
 }

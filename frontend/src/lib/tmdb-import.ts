@@ -7,11 +7,14 @@
  * unlink route, no list endpoint. So the id is kept on the device that started the import and
  * the row is fetched by it.
  *
- * Consequence, accepted: the line it feeds is per-browser. An import run on a phone is not
- * reported on a laptop, and clearing site data forgets it. What a forgotten id costs is a
- * sentence of provenance — the panel falls back to the same plain "Connect TMDB" button a user
- * who has never imported sees, so no action is ever out of reach because of it. A cross-device
- * answer needs a backend route that does not exist yet.
+ * Consequence, accepted: the "Last imported from @user" line it feeds is per-browser. An import
+ * run on a phone is not reported on a laptop, and clearing site data forgets it. What a forgotten
+ * id costs is a sentence of provenance — the panel falls back to the same plain "Connect TMDB"
+ * button a user who has never imported sees, so no action is ever out of reach because of it.
+ *
+ * That caveat covers the provenance line only. An *open* import — one still running or waiting
+ * on its review list — is found cross-device through `GET /me/import/active` (NEU-1452), not
+ * through this id; the line needs a *succeeded* job, which that route never answers with.
  */
 const STORAGE_KEY = "backlotter.last-tmdb-import";
 

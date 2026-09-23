@@ -25,6 +25,10 @@ export const handlers = [
   // franchise page fetches its cards in the loader now, so a default keeps the tests that are
   // about the rest of those pages from having to stub a stream they never assert on.
   ...entityEventsDefaults,
+
+  // No open import (NEU-1452). `/welcome` and the timeline both ask on every entitled mount, so
+  // the 204 is the default and the open cases are per-test overrides (`activeImportHandler`).
+  http.get(`${base}/me/import/active`, () => new HttpResponse(null, { status: 204 })),
 ];
 
 /** The 400 both consume routes answer with for a token that is unknown, spent, or expired. */

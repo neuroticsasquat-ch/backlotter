@@ -9,6 +9,7 @@ import { env } from "@/env";
 import { meHandler, unauthMeHandler } from "@/test/msw/me";
 import { emptyTimelineHandler, lockedTimelineHandler, timelineHandler } from "@/test/msw/timeline";
 import { dayItem, feed } from "@/test/feed-fixtures";
+import { activeImportHandler, makeImportJob } from "@/test/msw/imports";
 import { cloudflareContext, type AppEnv } from "@/lib/load-context";
 import { AuthProvider, useAuth } from "@/components/AuthContext";
 import { useToggleFollow } from "@/api/me";
@@ -384,6 +385,60 @@ function renderHomeWith(extra: React.ReactNode) {
     </QueryClientProvider>,
   );
 }
+
+describe("home route — an import waiting on its review list (NEU-1452)", () => {
+  it("says so above the timeline, with the way back to the list", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      timelineHandler([
+        dayItem("followed-film", { film_title: "Followed Film", news_backed: true }),
+      ]),
+      activeImportHandler(makeImportJob({ status: "awaiting_review" })).handler,
+    );
+    renderHome();
+
+    const notice = await screen.findByRole("status");
+    expect(notice).toHaveTextContent(/waiting for you to review its list/i);
+    expect(notice).toHaveTextContent(/nothing is followed until you confirm it/i);
+    expect(screen.getByRole("link", { name: /review the list/i })).toHaveAttribute(
+      "href",
+      "/welcome",
+    );
+    expect(screen.getByText("Followed Film")).toBeInTheDocument();
+  });
+
+  it("says so on an empty timeline too, where the import looks like it did nothing", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      emptyTimelineHandler(),
+      activeImportHandler(makeImportJob({ status: "awaiting_review" })).handler,
+    );
+    renderHome();
+
+    expect(await screen.findByRole("link", { name: /review the list/i })).toBeInTheDocument();
+    expect(screen.getByText(/your timeline is empty/i)).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a running import", makeImportJob({ status: "running" })],
+    ["no open import", null],
+  ] as const)("shows nothing for %s, and the feed as before", async (_, answer) => {
+    const active = activeImportHandler(answer);
+    server.use(
+      meHandler({ entitled: true }),
+      timelineHandler([
+        dayItem("followed-film", { film_title: "Followed Film", news_backed: true }),
+      ]),
+      active.handler,
+    );
+    renderHome();
+
+    expect(await screen.findByText("Followed Film")).toBeInTheDocument();
+    await waitFor(() => expect(active.calls).toBeGreaterThan(0));
+    expect(screen.queryByRole("link", { name: /review the list/i })).toBeNull();
+    expect(screen.queryByText(/waiting for you to review/i)).toBeNull();
+  });
+});
 
 describe("home route — the timeline could not be read", () => {
   it("says so rather than showing the onboarding card", async () => {

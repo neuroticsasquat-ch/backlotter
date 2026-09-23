@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRoutesStub, useLocation } from "react-router";
@@ -10,7 +10,9 @@ import { env } from "@/env";
 import { server } from "@/test/msw/server";
 import { meHandler } from "@/test/msw/me";
 import { entitySearchHandlers, followGraphHandlers } from "@/test/msw/follows";
+import { activeImportKey, followsKey, importJobKey } from "@/api/query-keys";
 import {
+  activeImportHandler,
   importJobHandlers,
   makeCandidate,
   makeImportJob,
@@ -45,6 +47,7 @@ function renderWelcome(
     follows?: Follow[];
     extraHandlers?: Parameters<typeof server.use>;
     entry?: string;
+    client?: QueryClient;
   } = {},
 ) {
   const graph = followGraphHandlers({ follows: opts.follows ?? [] });
@@ -55,7 +58,7 @@ function renderWelcome(
     ...entitySearchHandlers({ people: [{ id: 138, name: "Quentin Tarantino" }] }),
     ...(opts.extraHandlers ?? []),
   );
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const qc = opts.client ?? testClient();
   const Stub = createRoutesStub([
     { path: "/welcome", Component: WelcomeProbe },
     { path: "/", Component: () => <p>Timeline</p> },
@@ -70,6 +73,8 @@ function renderWelcome(
   );
   return graph;
 }
+
+const testClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 const zip = () => new File(["x"], "letterboxd-export.zip", { type: "application/zip" });
 
@@ -396,6 +401,129 @@ describe("Welcome", () => {
         await screen.findByRole("heading", { name: /bring your films with you/i }),
       ).toBeInTheDocument();
       expect(callback.posted).toHaveLength(0);
+    });
+  });
+
+  describe("an open import is restored on arrival (NEU-1452)", () => {
+    const REVIEW = makeImportJob({
+      status: "awaiting_review",
+      rows_total: 2,
+      rows_done: 2,
+      candidates: [
+        makeCandidate({ film_id: "a", title: "Arrival Two" }),
+        makeCandidate({ film_id: "b", title: "Before Dawn" }),
+      ],
+    });
+
+    it("renders a waiting review list on a fresh mount, and confirming it closes it", async () => {
+      const client = testClient();
+      const invalidate = vi.spyOn(client, "invalidateQueries");
+      const jobs = importJobHandlers([REVIEW]);
+      renderWelcome({
+        client,
+        extraHandlers: [activeImportHandler(REVIEW).handler, ...jobs.handlers] as never,
+      });
+
+      // No upload: the list is the one the user walked away from.
+      expect(await screen.findByRole("checkbox", { name: /arrival two/i })).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: /before dawn/i })).toBeInTheDocument();
+      expect(jobs.uploaded).toHaveLength(0);
+
+      await userEvent.click(screen.getByRole("button", { name: /^confirm$/i }));
+
+      expect(await screen.findByText(/import finished/i)).toBeInTheDocument();
+      expect(jobs.confirmed).toEqual([["a", "b"]]);
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: followsKey });
+      // Written, not left to a refetch, so the timeline's notice cannot outlive the list.
+      expect(client.getQueryData(activeImportKey)).toBeNull();
+    });
+
+    it("renders a running job's progress and keeps polling it", async () => {
+      const jobs = importJobHandlers([
+        makeImportJob({ status: "running", rows_total: 50, rows_done: 30 }),
+      ]);
+      renderWelcome({
+        extraHandlers: [
+          activeImportHandler(makeImportJob({ status: "running", rows_total: 50, rows_done: 5 }))
+            .handler,
+          ...jobs.handlers,
+        ] as never,
+      });
+
+      expect(
+        await screen.findByRole("progressbar", { name: /import progress/i }),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText(/30 of 50 films checked/i)).toBeInTheDocument(), {
+        timeout: 4000,
+      });
+      expect(jobs.polls.length).toBeGreaterThan(0);
+    });
+
+    it.each([
+      ["nothing is open (204)", null],
+      ["the read fails (500)", 500],
+    ] as const)("restores nothing and says nothing when %s", async (_, answer) => {
+      const active = activeImportHandler(answer);
+      renderWelcome({ extraHandlers: [active.handler] as never });
+
+      expect(await screen.findByLabelText(/letterboxd export file/i)).toBeInTheDocument();
+      await waitFor(() => expect(active.calls).toBeGreaterThan(0));
+      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    // A cached answer from before this mount — a job since closed, or another reader's on this
+    // tab — is not restored; only what the route says now is.
+    it("ignores a cached answer until the route has answered on this mount", async () => {
+      const client = testClient();
+      client.setQueryData(activeImportKey, REVIEW);
+      const active = activeImportHandler(null);
+      renderWelcome({ client, extraHandlers: [active.handler] as never });
+
+      expect(await screen.findByLabelText(/letterboxd export file/i)).toBeInTheDocument();
+      await waitFor(() => expect(client.getQueryData(activeImportKey)).toBeNull());
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+      expect(client.getQueryData(importJobKey(REVIEW.id))).toBeUndefined();
+    });
+
+    it("never asks for a locked account (D-41)", async () => {
+      const active = activeImportHandler(REVIEW);
+      renderWelcome({ entitled: false, extraHandlers: [active.handler] as never });
+
+      expect(
+        await screen.findByRole("heading", { name: /not open to everyone yet/i }),
+      ).toBeInTheDocument();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(active.calls).toBe(0);
+    });
+
+    // The callback's 202 is the newer job: whichever answer lands first, it is the one shown,
+    // and the older open job the read answers with (superseded server-side) is not.
+    it("shows the TMDB return's new job rather than an older open one", async () => {
+      const older = makeImportJob({
+        status: "awaiting_review",
+        candidates: [makeCandidate({ film_id: "old", title: "Old Film" })],
+      });
+      const newer = makeTmdbJob({
+        status: "awaiting_review",
+        candidates: [makeCandidate({ film_id: "new", title: "New Film" })],
+      });
+      const active = activeImportHandler(older);
+      renderWelcome({
+        entry: "/welcome?tmdb=callback&request_token=rt-123&approved=true",
+        extraHandlers: [
+          active.handler,
+          tmdbCallbackHandler({ jobId: newer.id }).handler,
+          http.get(`${env.apiBaseUrl}/me/import/:jobId`, ({ params }) =>
+            HttpResponse.json(params.jobId === newer.id ? newer : older),
+          ),
+        ] as never,
+      });
+
+      expect(await screen.findByRole("checkbox", { name: /new film/i })).toBeInTheDocument();
+      await waitFor(() => expect(active.calls).toBeGreaterThan(0));
+      expect(screen.queryByRole("checkbox", { name: /old film/i })).not.toBeInTheDocument();
     });
   });
 });

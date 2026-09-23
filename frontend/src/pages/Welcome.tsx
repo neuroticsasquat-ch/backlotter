@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/api/client";
-import { useImportJob, useSubmitTmdbApproval } from "@/api/imports";
+import { useActiveImport, useImportJob, useSubmitTmdbApproval } from "@/api/imports";
 import { useFollows } from "@/api/me";
+import { importJobKey } from "@/api/query-keys";
 import { LockedPanel, useFollowAccess } from "@/components/follow/access";
 import { ImportProgress } from "@/components/onboarding/ImportProgress";
 import { ImportStep } from "@/components/onboarding/ImportStep";
@@ -92,6 +94,40 @@ function useTmdbReturn(onStarted: (jobId: string) => void) {
   return { error, pending: submit.isPending };
 }
 
+/**
+ * Pick up the caller's open import on arrival (NEU-1452), so a review list the user walked away
+ * from — a reload, another device, Done and then off to the timeline — renders again exactly as
+ * if the job had just been started here. Until they confirm it the import follows nothing (EF-22).
+ *
+ * Restores only into an empty slot. That guard settles the race with the TMDB return leg: if its
+ * 202 lands first the new job stands, and an older job this read may still answer with is
+ * ignored — superseded server-side anyway. If this read lands first, the callback's later
+ * `setJobId` replaces it, correctly, for the same reason.
+ *
+ * Only an answer read on *this* mount is acted on. The key may still hold an older one — a job
+ * since confirmed or failed, or the reader of an earlier session on this tab — and restoring that
+ * would seed a stale row over the poll and fill the slot the real open import needed.
+ *
+ * The answer is written into the poll's cache before the id is set, so the review list is on the
+ * first render that has an id rather than after the poll's first answer. A failed read restores
+ * nothing and says nothing (TanStack keeps the previous data on an error, hence `isError`): the
+ * upload box still works, and a new upload supersedes whatever was open.
+ *
+ * Only for an entitled account: a locked one would be refused (D-41), and before `/me` resolves
+ * there is no account to ask about.
+ */
+function useOpenImport(enabled: boolean, jobId: string | null, setJobId: (id: string) => void) {
+  const qc = useQueryClient();
+  const { data: open, isFetchedAfterMount, isError } = useActiveImport(enabled);
+  const fresh = isFetchedAfterMount && !isError ? open : undefined;
+
+  useEffect(() => {
+    if (!fresh || jobId !== null) return;
+    qc.setQueryData(importJobKey(fresh.id), fresh);
+    setJobId(fresh.id);
+  }, [fresh, jobId, qc, setJobId]);
+}
+
 const STEPS = ["Import", "People", "Done"] as const;
 
 type Step = 0 | 1 | 2;
@@ -118,6 +154,7 @@ export function Welcome() {
   // to step 2 while it runs. The job's progress follows them there.
   const [jobId, setJobId] = useState<string | null>(null);
   const { data: job, error: jobError } = useImportJob(jobId);
+  useOpenImport(access === "ready", jobId, setJobId);
   // Deliberately run even for a locked account. A user whose grant lapsed between approving at
   // TMDB and landing back here is holding a live TMDB session, and posting the callback is what
   // makes the backend delete it — refusing to call it from a locked screen would leave the one

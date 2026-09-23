@@ -53,6 +53,11 @@ export function importJobHandlers(sequence: ImportJob[] = [makeImportJob()]) {
   let index = 0;
 
   const handlers = [
+    // Ahead of the poll, whose `:jobId` would otherwise take `active` for an id and answer it
+    // with the scripted job — restoring an open import in every test that only uploads one.
+    // A test that wants one open passes `activeImportHandler(job)` ahead of these handlers.
+    activeImportHandler(null).handler,
+
     http.post(`${base}/me/import/letterboxd`, async ({ request }) => {
       // Parsed so the request is consumed as the real route consumes it, and so a test can
       // assert the file actually rode along in the multipart body. Duck-typed on `name`
@@ -91,6 +96,30 @@ export function importJobHandlers(sequence: ImportJob[] = [makeImportJob()]) {
   ];
 
   return { handlers, polls, uploaded, confirmed };
+}
+
+/**
+ * `GET /me/import/active` — the caller's open import (NEU-1453). A job answers 200 with it;
+ * `null` answers the 204 the route gives an account with nothing open; a number answers that
+ * status instead, for the reads that fail. Counts its calls so a test can assert the route was
+ * never asked.
+ */
+export function activeImportHandler(answer: ImportJob | null | number) {
+  let calls = 0;
+  const handler = http.get(`${base}/me/import/active`, () => {
+    calls += 1;
+    if (answer === null) return new HttpResponse(null, { status: 204 });
+    if (typeof answer === "number")
+      return HttpResponse.json({ detail: "server_error" }, { status: answer });
+    return HttpResponse.json(answer);
+  });
+
+  return {
+    handler,
+    get calls() {
+      return calls;
+    },
+  };
 }
 
 /** The 202-then-error cases the upload answers: a file the parser cannot read, a second upload
