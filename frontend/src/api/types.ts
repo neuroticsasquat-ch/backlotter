@@ -685,11 +685,23 @@ export interface ResolutionFilm {
   title: string;
 }
 
-/** One person the scorer considered, with the feature breakdown behind their score. Every
+/** The three things the resolver decides on (EF-12), in the catalogue's own words — the
+ *  reader sees "Person", "Studio" and "Franchise" instead (EF-19). One kind per request: the
+ *  endpoint reads `news.story_person` or `news.story_entity`, never both, so there is no
+ *  cross-kind listing to ask for. */
+export type ResolutionKind = "person" | "company" | "collection";
+
+/** One candidate the scorer considered, with the feature breakdown behind their score. Every
  *  field is nullable because the backend reads these straight out of the `candidates` JSONB
- *  and degrades an entry it cannot validate to an empty row rather than failing the page. */
+ *  and degrades an entry it cannot validate to an empty row rather than failing the page.
+ *
+ *  The id arrives under whichever name its resolver logs — `person_id` from the person
+ *  resolver, `entity_id` from the organisation one (EF-12) — so a reader wanting "the TMDB id
+ *  of this candidate" has to take the first one present. */
 export interface ResolutionCandidate {
   person_id: number | null;
+  entity_id?: number | null;
+  kind?: ResolutionKind | null;
   name: string | null;
   score: number | null;
   features: Record<string, unknown>;
@@ -699,14 +711,21 @@ export interface ResolutionCandidate {
  *  are deliberately absent, because the next run re-derives every path from the scorer. */
 export interface ResolutionDecision {
   id: string;
+  kind: ResolutionKind;
   story: ResolutionStory;
   film: ResolutionFilm | null;
   name_as_written: string;
+  /** Always null for an organisation: they are person facts, and `news.story_entity` has no
+   *  column for them. */
   role: string | null;
   department: string | null;
   evidence_span: string | null;
   path: ResolutionPath;
-  person_id: number | null;
+  /** The TMDB id the mention resolved to, in its own `kind`'s numbering — a person, a
+   *  production company or a collection. Null on the paths that name nobody. The wire also
+   *  carries `person_id`, which is this field again when `kind` is `person` and null
+   *  otherwise; the page reads one id for all three kinds instead. */
+  entity_id: number | null;
   confidence: number | null;
   features: Record<string, unknown>;
   candidates: ResolutionCandidate[];
