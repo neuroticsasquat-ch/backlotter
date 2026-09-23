@@ -116,6 +116,18 @@ describe("ImportStep", () => {
     expect(alert).not.toHaveTextContent("rate_limited");
   });
 
+  // EF-20: an import reads the watchlist and nothing else, and a bare ratings.csv is a 422.
+  it("describes a watchlist import, never ratings or favourites", () => {
+    server.use(meHandler({ entitled: true }));
+    renderStep();
+
+    const step = screen.getByRole("region", { name: /bring your films with you/i });
+    expect(step).toHaveTextContent(/read your watchlist/i);
+    expect(step).toHaveTextContent(/nothing is followed until you confirm/i);
+    expect(step).toHaveTextContent(/the watchlist\.csv inside it/i);
+    expect(step).not.toHaveTextContent(/rating|rated|favourit|director|cast/i);
+  });
+
   it("offers the TMDB approve flow as a live link (NEU-1359)", () => {
     server.use(meHandler({ entitled: true }));
     renderStep();

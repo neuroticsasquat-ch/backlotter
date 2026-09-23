@@ -625,8 +625,10 @@ export interface PopularPeopleResponse {
 }
 
 /** Where a terminal import job ended up, or how far along a live one is. The UI polls while
- *  the status is `queued` or `running` and stops on either terminal value (D-15). */
-export type ImportJobStatus = "queued" | "running" | "succeeded" | "failed";
+ *  the status is `queued` or `running` (D-15). `awaiting_review` stops the poll as well, though
+ *  the job is not finished: it has found its films and follows none of them until the user
+ *  confirms the list (EF-22), which is a request the user makes, not one the poll waits on. */
+export type ImportJobStatus = "queued" | "running" | "awaiting_review" | "succeeded" | "failed";
 
 /** A title the import could not place, verbatim from the user's own export so they can find
  *  it there. `rating` and `watchlist` say which file the row came from; `tmdb_missing` is the
@@ -635,6 +637,21 @@ export interface ImportUnmatched {
   name: string;
   year: number | null;
   kind: "watchlist" | "rating" | "tmdb_missing";
+}
+
+/** One film on an import's review list (EF-22), as the backend's `ImportCandidateOut` sends it.
+ *
+ *  `selected` is the tick the list opens with. A row with a `skip_reason` is unticked and not
+ *  selectable — the confirm ignores its id — and is listed so the user sees what the import
+ *  declined: a film outside the alert window (EF-21). `title` is the catalog's rather than the
+ *  export's, so a wrong match is visible before it becomes a follow. */
+export interface ImportCandidate {
+  film_id: string;
+  tmdb_id: number;
+  title: string;
+  headline_release: HeadlineRelease | null;
+  selected: boolean;
+  skip_reason: "outside_window" | null;
 }
 
 /** One row of `app.import_job`, as `GET /me/import/{id}` answers it. Mirrors the backend
@@ -646,13 +663,16 @@ export interface ImportJob {
   status: ImportJobStatus;
   rows_total: number;
   rows_done: number;
-  // The backend's name, kept because it is the field it sends: the count of *title* follows
-  // made from the source account's watchlist. The watchlist itself is gone (EF-14) — one of
-  // these rows is a followed film — so the screen says "films", not "watchlist films".
+  // The backend's name, kept because it is the field it sends: the films the job offered, i.e.
+  // the ticked rows of its review list (EF-22). Not what was followed — see `follows_created`.
   watchlist_created: number;
-  // Person follows, inferred from what the source account rated highly or favourited.
+  // Title follows the confirm wrote: zero until the list is confirmed, and not every film
+  // offered, because the user can untick some (EF-22). Imports follow no people (EF-20).
   follows_created: number;
   unmatched: ImportUnmatched[];
+  // The review list — only while `status` is `awaiting_review`, and empty otherwise: the
+  // backend deletes the rows once the list is confirmed or superseded.
+  candidates: ImportCandidate[];
   tmdb_username: string | null;
   error: string | null;
   created_at: string;

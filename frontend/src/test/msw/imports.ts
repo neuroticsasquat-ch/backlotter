@@ -1,6 +1,6 @@
 import { HttpResponse, http } from "msw";
 import { env } from "@/env";
-import type { ImportJob } from "@/api/types";
+import type { ImportCandidate, ImportJob } from "@/api/types";
 
 const base = env.apiBaseUrl;
 
@@ -16,11 +16,25 @@ export function makeImportJob(overrides: Partial<ImportJob> = {}): ImportJob {
     watchlist_created: 0,
     follows_created: 0,
     unmatched: [],
+    candidates: [],
     tmdb_username: null,
     error: null,
     created_at: "2026-09-17T00:00:00Z",
     started_at: null,
     finished_at: null,
+    ...overrides,
+  };
+}
+
+/** One row of a review list: an in-window film, ticked, unless the overrides say otherwise. */
+export function makeCandidate(overrides: Partial<ImportCandidate> = {}): ImportCandidate {
+  return {
+    film_id: "55555555-5555-4555-8555-555555555555",
+    tmdb_id: 1,
+    title: "A Film",
+    headline_release: { date: "2026-10-03", kind: "upcoming", country: "US", bucket: "wide" },
+    selected: true,
+    skip_reason: null,
     ...overrides,
   };
 }
@@ -35,6 +49,7 @@ export function makeImportJob(overrides: Partial<ImportJob> = {}): ImportJob {
 export function importJobHandlers(sequence: ImportJob[] = [makeImportJob()]) {
   const polls: string[] = [];
   const uploaded: string[] = [];
+  const confirmed: string[][] = [];
   let index = 0;
 
   const handlers = [
@@ -58,9 +73,24 @@ export function importJobHandlers(sequence: ImportJob[] = [makeImportJob()]) {
       index += 1;
       return HttpResponse.json(job);
     }),
+
+    // The confirm answers with the finished job, as the route does (EF-22): `succeeded`, one
+    // follow per id posted, and the review list gone. Built off the last scripted row, which is
+    // the `awaiting_review` one the list was rendered from.
+    http.post(`${base}/me/import/:jobId/confirm`, async ({ request }) => {
+      const { film_ids } = (await request.json()) as { film_ids: string[] };
+      confirmed.push(film_ids);
+      const job = sequence[sequence.length - 1] ?? makeImportJob();
+      return HttpResponse.json({
+        ...job,
+        status: "succeeded",
+        follows_created: film_ids.length,
+        candidates: [],
+      } satisfies ImportJob);
+    }),
   ];
 
-  return { handlers, polls, uploaded };
+  return { handlers, polls, uploaded, confirmed };
 }
 
 /** The 202-then-error cases the upload answers: a file the parser cannot read, a second upload

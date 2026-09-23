@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { env } from "@/env";
-import { apiFetch } from "./client";
+import { ApiError, apiFetch } from "./client";
 import { followsKey, importJobKey, timelineKey } from "./query-keys";
 import type { ImportJob, ImportJobStarted } from "./types";
 
@@ -19,16 +19,23 @@ export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
  *  so this is what tells them apart where the copy has to differ. */
 export const TMDB_SOURCE = "tmdb";
 
+/** `import_job.error` on a job discarded while it awaited review, because another import was
+ *  started before its list was confirmed (EF-22). The one `error` value that is ours rather than
+ *  an exception's text, so the one the UI may branch on (backend `IMPORT_SUPERSEDED`). */
+export const IMPORT_SUPERSEDED = "superseded";
+
 /** The field name the multipart handler reads. */
 const UPLOAD_FIELD = "file";
 
-/** A job that has stopped moving. Both terminal values end the poll; which of the two it is
- *  decides whether the step shows counts or an error. */
-export const isTerminal = (status: ImportJob["status"]) =>
-  status === "succeeded" || status === "failed";
+/** A job that has stopped moving on its own, which is what ends the poll. The two terminal
+ *  values, and `awaiting_review`: the job has found its films and now waits on the user's
+ *  confirm (EF-22), which answers with the finished job itself — there is nothing left for a
+ *  poll to see change until the user acts. */
+export const isSettled = (status: ImportJob["status"]) =>
+  status === "awaiting_review" || status === "succeeded" || status === "failed";
 
-/** Upload a Letterboxd export (the zip, or `watchlist.csv` / `ratings.csv` on its own) and get
- *  back the id to poll. The response is a 202 — the work has not started, let alone finished. */
+/** Upload a Letterboxd export (the zip, or the `watchlist.csv` inside it) and get back the id to
+ *  poll. The response is a 202 — the work has not started, let alone finished. */
 export const startLetterboxdImport = (file: File) => {
   const body = new FormData();
   body.append(UPLOAD_FIELD, file);
@@ -42,11 +49,46 @@ export function useStartLetterboxdImport() {
   return useMutation({ mutationFn: startLetterboxdImport });
 }
 
+/** Follow the films the user kept from a job's review list (EF-22). Answers 200 with the job,
+ *  now `succeeded`; 409 once the list is no longer open — already confirmed, or superseded by a
+ *  newer import. Ids that are not selectable candidates are ignored server-side. */
+export const confirmImport = ({ jobId, filmIds }: { jobId: string; filmIds: string[] }) =>
+  apiFetch<ImportJob>(`/me/import/${encodeURIComponent(jobId)}/confirm`, {
+    method: "POST",
+    body: JSON.stringify({ film_ids: filmIds }),
+  });
+
+/**
+ * The confirm is the one request that writes follows (EF-22), so it is what makes the cached
+ * follows stale, and the timeline with them — the feed filtered by exactly those follows (D-11).
+ * `followsKey` covers the My films calendar too, whose key sits under it (EF-14). The finished
+ * job it answers with is written into the poll's cache rather than refetched: the poll stopped
+ * at `awaiting_review` and would otherwise never see the job reach `succeeded`.
+ *
+ * A 409 is the opposite case — the list closed under the user, confirmed elsewhere or superseded
+ * — so the job is refetched instead, and the panel leaves a list it can no longer confirm.
+ */
+export function useConfirmImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: confirmImport,
+    onSuccess: (job) => {
+      qc.setQueryData(importJobKey(job.id), job);
+      void qc.invalidateQueries({ queryKey: followsKey });
+      void qc.invalidateQueries({ queryKey: timelineKey });
+    },
+    onError: (error, { jobId }) => {
+      if (error instanceof ApiError && error.status === 409)
+        void qc.invalidateQueries({ queryKey: importJobKey(jobId) });
+    },
+  });
+}
+
 /**
  * Watch one import job until it stops.
  *
- * Polling ends the moment the job reaches a terminal status, so a succeeded job is not asked
- * about again for as long as the page stays open; `refetchIntervalInBackground` is left off,
+ * Polling ends the moment the job settles ({@link isSettled}), so a job waiting on review or
+ * finished is not asked about again for as long as the page stays open; `refetchIntervalInBackground` is left off,
  * which means a user who tabs away stops spending requests and catches up on their return.
  *
  * `retry: false` because the two failures this can see are both permanent: a 404 for a job id
@@ -54,24 +96,11 @@ export function useStartLetterboxdImport() {
  * improves by being asked again every two seconds.
  */
 export function useImportJob(jobId: string | null) {
-  const qc = useQueryClient();
   return useQuery({
     queryKey: importJobKey(jobId ?? ""),
-    queryFn: async () => {
-      const job = await fetchImportJob(jobId!);
-      // The import writes follows — title ones for the films, person ones for the taste it
-      // infers — straight into the account, so the cached copy is stale the moment it
-      // succeeds, and so is the timeline, which is the feed filtered by exactly those follows
-      // (D-11). `followsKey` covers the My films calendar too, whose key sits under it
-      // (EF-14). Invalidated here, on the poll that first sees the terminal status, because
-      // nothing else in the app is watching this job: step 2's grid is rendering follow
-      // buttons against the very list the import just added rows to.
-      if (job.status === "succeeded") {
-        void qc.invalidateQueries({ queryKey: followsKey });
-        void qc.invalidateQueries({ queryKey: timelineKey });
-      }
-      return job;
-    },
+    // No follow invalidation here: the job writes none until the user confirms its list
+    // (EF-22), so {@link useConfirmImport} owns that.
+    queryFn: () => fetchImportJob(jobId!),
     enabled: jobId !== null,
     retry: false,
     refetchInterval: (query) => {
@@ -83,7 +112,7 @@ export function useImportJob(jobId: string | null) {
       if (query.state.status === "error") return false;
       const status = query.state.data?.status;
       // No data yet is "keep asking" rather than "stop": the first poll has not answered.
-      return status && isTerminal(status) ? false : POLL_INTERVAL_MS;
+      return status && isSettled(status) ? false : POLL_INTERVAL_MS;
     },
   });
 }

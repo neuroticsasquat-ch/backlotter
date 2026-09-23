@@ -12,6 +12,7 @@ import { meHandler } from "@/test/msw/me";
 import { entitySearchHandlers, followGraphHandlers } from "@/test/msw/follows";
 import {
   importJobHandlers,
+  makeCandidate,
   makeImportJob,
   makeTmdbJob,
   popularPeopleHandler,
@@ -114,8 +115,8 @@ describe("Welcome", () => {
           status: "succeeded",
           rows_total: 4,
           rows_done: 4,
-          follows_created: 5,
-          watchlist_created: 2,
+          follows_created: 2,
+          watchlist_created: 3,
           unmatched: [{ name: "A Film Nobody Has", year: 1994, kind: "watchlist" }],
         }),
       ]).handlers as never,
@@ -124,8 +125,66 @@ describe("Welcome", () => {
     await userEvent.upload(await screen.findByLabelText(/letterboxd export file/i), zip());
 
     expect(await screen.findByText(/import finished/i)).toBeInTheDocument();
-    expect(screen.getByText(/2 films and 5 people followed/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 films followed/i)).toBeInTheDocument();
     expect(screen.getByText(/1 title we could not match/i)).toBeInTheDocument();
+  });
+
+  it("stops polling at the review list, and confirms it into the report (EF-22)", async () => {
+    const review = makeImportJob({
+      status: "awaiting_review",
+      rows_total: 2,
+      rows_done: 2,
+      watchlist_created: 2,
+      candidates: [
+        makeCandidate({ film_id: "a", title: "Arrival Two" }),
+        makeCandidate({ film_id: "b", title: "Before Dawn" }),
+      ],
+    });
+    const jobs = importJobHandlers([makeImportJob({ status: "running" }), review]);
+    renderWelcome({ extraHandlers: jobs.handlers as never });
+
+    await userEvent.upload(await screen.findByLabelText(/letterboxd export file/i), zip());
+
+    const arrival = await screen.findByRole(
+      "checkbox",
+      { name: /arrival two/i },
+      { timeout: 4000 },
+    );
+    // Settled: a job waiting on the user has nothing left for a poll to see change.
+    const polled = jobs.polls.length;
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    expect(jobs.polls).toHaveLength(polled);
+
+    await userEvent.click(arrival);
+    await userEvent.click(screen.getByRole("button", { name: /^confirm$/i }));
+
+    expect(await screen.findByText(/import finished/i)).toBeInTheDocument();
+    expect(screen.getByText(/^1 film followed\.$/i)).toBeInTheDocument();
+    expect(jobs.confirmed).toEqual([["b"]]);
+  }, 10_000);
+
+  // Confirmed in another tab, or superseded by an import started there: the job is asked
+  // again, and the panel leaves a list whose Confirm can no longer succeed.
+  it("moves off a list that closed under the user", async () => {
+    const jobs = importJobHandlers([
+      makeImportJob({ status: "awaiting_review", candidates: [makeCandidate()] }),
+      makeImportJob({ status: "failed", error: "superseded" }),
+    ]);
+    renderWelcome({
+      // Ahead of `jobs.handlers`, whose own confirm would otherwise answer first.
+      extraHandlers: [
+        http.post(`${env.apiBaseUrl}/me/import/:jobId/confirm`, () =>
+          HttpResponse.json({ detail: "import_not_awaiting_review" }, { status: 409 }),
+        ),
+        ...jobs.handlers,
+      ] as never,
+    });
+
+    await userEvent.upload(await screen.findByLabelText(/letterboxd export file/i), zip());
+    await userEvent.click(await screen.findByRole("button", { name: /^confirm$/i }));
+
+    expect(await screen.findByText(/replaced by a newer import/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^confirm$/i })).not.toBeInTheDocument();
   });
 
   it("keeps polling a running job after the user has moved on to step 2", async () => {
@@ -227,14 +286,14 @@ describe("Welcome", () => {
 
     it("spends the approved token and polls the job it starts", async () => {
       const callback = tmdbCallbackHandler();
-      const job = makeTmdbJob({ status: "succeeded", follows_created: 4, watchlist_created: 3 });
+      const job = makeTmdbJob({ status: "succeeded", follows_created: 3, watchlist_created: 4 });
       renderWelcome({
         entry: RETURN(),
         extraHandlers: [callback.handler, ...importJobHandlers([job]).handlers] as never,
       });
 
       expect(await screen.findByText(/import finished, from @cinephile/i)).toBeInTheDocument();
-      expect(screen.getByText(/3 films and 4 people followed/i)).toBeInTheDocument();
+      expect(screen.getByText(/3 films followed/i)).toBeInTheDocument();
       expect(callback.posted).toEqual([{ request_token: "rt-123", approved: true }]);
     });
 

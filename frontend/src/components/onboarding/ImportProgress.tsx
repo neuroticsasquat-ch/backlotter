@@ -1,11 +1,13 @@
-import { TMDB_SOURCE } from "@/api/imports";
+import { IMPORT_SUPERSEDED, TMDB_SOURCE } from "@/api/imports";
 import type { ImportJob } from "@/api/types";
+import { ImportReview } from "./ImportReview";
 
 /** Report on one import job, whatever state it is in (NEU-1356 §1).
  *
- *  The same panel covers all four statuses rather than one component per outcome, because the
- *  user watches it move through them: the bar that was counting rows becomes the summary of
- *  what those rows produced, in place, and a job that fails does so where its progress was.
+ *  The same panel covers all five statuses rather than one component per outcome, because the
+ *  user watches it move through them: the bar that was counting rows becomes the list of films
+ *  those rows found (EF-22), then the summary of what the user followed from it, in place, and a
+ *  job that fails does so where its progress was.
  *
  *  Live region, because reaching `succeeded` is the one thing on this page that happens
  *  without the user doing anything — a screen reader that is not told has no way to find out. */
@@ -19,16 +21,24 @@ export function ImportProgress({ job }: { job: ImportJob }) {
       aria-busy={running}
     >
       {running && <RunningProgress job={job} />}
+      {job.status === "awaiting_review" && <ImportReview key={job.id} job={job} />}
       {job.status === "succeeded" && <SucceededReport job={job} />}
-      {job.status === "failed" && (
+      {job.status === "failed" && job.error === IMPORT_SUPERSEDED && (
+        <p className="text-sm text-muted-foreground">
+          This list was replaced by a newer import before it was confirmed. Nothing from it was
+          followed.
+        </p>
+      )}
+      {job.status === "failed" && job.error !== IMPORT_SUPERSEDED && (
         <>
           <p className="text-sm font-medium text-red-600">We could not finish that import.</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {job.error ?? "The import stopped before it finished."} Anything imported before it
-            stopped is kept —{" "}
+            {/* Nothing to keep: a job follows nothing until its list is confirmed (EF-22),
+                and it can only fail before it has one. */}
+            {job.error ?? "The import stopped before it finished."} Nothing was followed —{" "}
             {job.source === TMDB_SOURCE
-              ? "connect TMDB again to pick up the rest."
-              : "you can upload the file again to pick up the rest."}
+              ? "connect TMDB again to try once more."
+              : "you can upload the file again to try once more."}
           </p>
         </>
       )}
@@ -64,10 +74,9 @@ function RunningProgress({ job }: { job: ImportJob }) {
         {job.rows_done} of {job.rows_total} films {job.source === TMDB_SOURCE ? "read" : "checked"}.{" "}
         {job.source === TMDB_SOURCE
           ? // A TMDB import needs no title resolution — the ids are already TMDB's (NEU-1357 §3)
-            // — so the minutes go on reading paged lists and crediting the favourites, not on
-            // matching. Saying "looked up against TMDB" here would describe work that is not
-            // happening.
-            "We are reading your TMDB watchlist and favourites a page at a time — you can carry on and it will keep going."
+            // — so the minutes go on reading the paged watchlist, not on matching. Saying
+            // "looked up against TMDB" here would describe work that is not happening.
+            "We are reading your TMDB watchlist a page at a time — you can carry on and it will keep going."
           : "Every title is looked up against TMDB, so a large library takes a few minutes — you can carry on and it will keep going."}
       </p>
     </>
@@ -82,9 +91,10 @@ function SucceededReport({ job }: { job: ImportJob }) {
           ? `Import finished, from @${job.tmdb_username}.`
           : "Import finished."}
       </p>
+      {/* `follows_created`, not `watchlist_created`: the latter counts the films the list
+          offered, and the user may have unticked some of them (EF-22). */}
       <p className="mt-1 text-sm text-muted-foreground">
-        {job.watchlist_created} {job.watchlist_created === 1 ? "film" : "films"} and{" "}
-        {job.follows_created} {job.follows_created === 1 ? "person" : "people"} followed.
+        {job.follows_created} {job.follows_created === 1 ? "film" : "films"} followed.
       </p>
       {job.unmatched.length > 0 && <UnmatchedList unmatched={job.unmatched} source={job.source} />}
     </>

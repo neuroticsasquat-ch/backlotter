@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { ImportProgress } from "./ImportProgress";
 import { TmdbConnect } from "./TmdbConnect";
 
-/** What the upload route accepts (NEU-1356 §1): the whole export zip, or either CSV out of it.
- *  Filtered here as well as on the picker's `accept`, because a drop bypasses `accept`
- *  entirely — a dragged folder or a PDF would otherwise be uploaded to be told it is a 422. */
+/** What the upload route accepts (NEU-1356 §1): the whole export zip, or the `watchlist.csv`
+ *  out of it (EF-20 — a bare `ratings.csv` is refused). By extension only: `accept` cannot name
+ *  a file, and the route tells the two CSVs apart by their headers, not by what a download
+ *  folder renamed them to. Filtered here as well as on the picker's `accept`, because a drop
+ *  bypasses `accept` entirely — a dragged folder or a PDF would otherwise be uploaded to be
+ *  told it is a 422. */
 const ACCEPTED_EXTENSIONS = [".zip", ".csv"];
 
 const ACCEPT_ATTR = ACCEPTED_EXTENSIONS.join(",");
@@ -25,7 +28,7 @@ function uploadMessage(error: unknown): string {
       return "One of your imports is still running. Wait for it to finish before starting another.";
     if (error.status === 413) return "That file is larger than 5 MB.";
     if (error.status === 422)
-      return "We could not read that file. Upload the export zip Letterboxd sent you, or the watchlist.csv or ratings.csv inside it.";
+      return "We could not read that file. Upload the export zip Letterboxd sent you, or the watchlist.csv inside it.";
     if (error.status === 403)
       return "Importing is part of the subscription, and your access has not been granted yet.";
     // The `import` bucket is six an hour per IP (NEU-1356 §4). Without this branch the fall
@@ -65,7 +68,7 @@ export function ImportStep({
   const upload = (file: File | undefined) => {
     if (!file) return;
     if (!accepted(file)) {
-      setError("Upload the export zip Letterboxd sent you, or a .csv from inside it.");
+      setError("Upload the export zip Letterboxd sent you, or the watchlist.csv inside it.");
       return;
     }
     // Checked before the request rather than after: the route caps the body at 5 MB, and
@@ -87,9 +90,9 @@ export function ImportStep({
         Bring your films with you
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Upload your Letterboxd export and we will follow the directors and cast of everything you
-        rated four stars or higher, and follow every film on your Letterboxd watchlist. Nothing is
-        guessed at — anything we cannot place we will show you.
+        Upload your Letterboxd export and we will read your watchlist, then show you the films on it
+        that are still to come or came out in the last year. Nothing is followed until you confirm
+        the list, and nothing is guessed at — anything we cannot place we will show you.
       </p>
 
       <div
@@ -112,8 +115,8 @@ export function ImportStep({
       >
         <p className="text-sm text-foreground">Drop your Letterboxd export here</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          The .zip from Letterboxd&apos;s “Export your data”, or watchlist.csv / ratings.csv on its
-          own. Up to 5 MB.
+          The .zip from Letterboxd&apos;s “Export your data”, or the watchlist.csv inside it. Up to
+          5 MB.
         </p>
         <label htmlFor={inputId} className="sr-only">
           Letterboxd export file
