@@ -6,6 +6,7 @@ import { env } from "@/env";
 import { groupByDay } from "@/lib/feed-groups";
 import { DAYS_PER_PAGE } from "@/lib/global-feed";
 import { FeedDayGroups, ViewMoreButton } from "@/components/feed/FeedDayGroups";
+import { SECTION_SPLIT_EXPLAINER } from "@/components/film/labels";
 
 /** The page's name, matching the nav item that leads to it (NEU-1410). */
 export const GLOBAL_FEED_HEADING = "All updates";
@@ -57,7 +58,9 @@ export function GlobalFeed({ feed }: { feed: FeedDayResponse }) {
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-2xl font-semibold">{GLOBAL_FEED_HEADING}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{GLOBAL_FEED_STANDFIRST}</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {GLOBAL_FEED_STANDFIRST} {SECTION_SPLIT_EXPLAINER}
+      </p>
       {groups.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">No updates yet — check back soon.</p>
       ) : (

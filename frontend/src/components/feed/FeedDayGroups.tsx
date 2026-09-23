@@ -3,7 +3,7 @@ import type { FeedDayItem } from "@/api/types";
 import { groupByDay, splitByNewsBacked } from "@/lib/feed-groups";
 import { FeedDayCard } from "@/components/feed/FeedDayCard";
 import { FeedDayPosters } from "@/components/feed/FeedDayPosters";
-import { UNCONFIRMED_UPDATES_LABEL } from "@/components/film/labels";
+import { NOT_YET_REPORTED_LABEL } from "@/components/film/labels";
 
 // Every section opens with a rule and real space: the sub-heading otherwise lands between two
 // striped rows and reads as one of them, and the first one needs the break just as much — to
@@ -14,7 +14,7 @@ const SECTION_BREAK = "border-t border-border pt-4 [&:not(:first-child)]:mt-5";
 
 /**
  * The day-by-day body of a grouped feed: one section per day, each split into its news-backed
- * and unconfirmed halves above a strip of that day's posters.
+ * and not-yet-reported halves above a strip of that day's posters.
  *
  * Shared by the global feed and the signed-in timeline, which render the same DTO — `/me/timeline`
  * answers with `/feed/grouped`'s exact shape (NEU-1351), so the two differ in what they fetch and
@@ -30,7 +30,7 @@ export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
         // "None today" line so the absence of catalog or news activity is legible.
         const sections = [
           { key: "news", label: "In the news", items: newsBacked },
-          { key: "tmdb", label: UNCONFIRMED_UPDATES_LABEL, items: tmdbOnly },
+          { key: "tmdb", label: NOT_YET_REPORTED_LABEL, items: tmdbOnly },
         ];
         return (
           <section key={group.dayKey}>
@@ -60,7 +60,7 @@ export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
   );
 }
 
-/** Wraps a day section: "In the news" is always expanded; "unconfirmed updates" is
+/** Wraps a day section: "In the news" is always expanded; "Not yet reported" is
  *  collapsible and collapsed by default when non-empty, with a count of movies listed.
  *  An empty section renders a static "None today" line without a toggle. */
 function SectionWrapper({

@@ -52,8 +52,17 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   other: "Update",
 };
 
-/** Shared heading for the catalog-sourced section on both the grouped feed and the film page. */
-export const UNCONFIRMED_UPDATES_LABEL = "unconfirmed updates";
+/** Shared heading for the catalog-sourced section on both the grouped feed and the film page.
+ *  It names provenance — no trade outlet has covered the beat yet — never truth: "unconfirmed"
+ *  belongs to the card's confidence badge alone (NEU-1406). */
+export const NOT_YET_REPORTED_LABEL = "Not yet reported";
+
+/** The one line that says what the "In the news" / NOT_YET_REPORTED_LABEL split means, once per
+ *  page: the global feed, the signed-in timeline and the film page. Built from the heading
+ *  constant so the two cannot drift. */
+export const SECTION_SPLIT_EXPLAINER =
+  "Each day leads with what the trades have covered. Changes TMDB has recorded that no outlet " +
+  `has reported yet sit under “${NOT_YET_REPORTED_LABEL}”.`;
 
 /** Display label for an event's beat (event_type). Unknown types fall back to title case. */
 export function eventTypeLabel(eventType: string): string {
@@ -67,9 +76,11 @@ export function eventTypeLabel(eventType: string): string {
 }
 
 /** Display label for an event's confidence (D-9). The backend's vocabulary is `confirmed` |
- *  `rumored`; the card reads `confirmed` / `unconfirmed`, matching UNCONFIRMED_UPDATES_LABEL.
- *  Anything that is not `confirmed` reads as unconfirmed — a value the frontend doesn't know
- *  must never be promoted to confirmed. */
+ *  `rumored`; the card reads `confirmed` / `unconfirmed`. This badge is the card's veracity
+ *  signal; the section heading above it is a provenance signal, and the two are independent — a
+ *  `confirmed` badge under NOT_YET_REPORTED_LABEL is normal (NEU-1406). Anything that is not
+ *  `confirmed` reads as unconfirmed — a value the frontend doesn't know must never be promoted to
+ *  confirmed. */
 export function confidenceLabel(confidence: string): "confirmed" | "unconfirmed" {
   return confidence === "confirmed" ? "confirmed" : "unconfirmed";
 }

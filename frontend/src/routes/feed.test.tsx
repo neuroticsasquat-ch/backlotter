@@ -15,6 +15,7 @@ import { AuthProvider, useAuth } from "@/components/AuthContext";
 import { useToggleFollow } from "@/api/me";
 import FeedPage, { loader, meta } from "@/routes/feed";
 import { TimelineOrFeed } from "@/components/feed/TimelineOrFeed";
+import { SECTION_SPLIT_EXPLAINER } from "@/components/film/labels";
 
 const BACKEND = "https://api.upmovies.localhost";
 
@@ -283,11 +284,26 @@ describe("home route — signed in and entitled", () => {
     );
     // An empty timeline is never an empty page, and never the locked panel.
     expect(screen.queryByRole("heading", { name: /not open yet/i })).toBeNull();
+    // No sections to explain: the onboarding card carries its own copy.
+    expect(screen.queryByText(SECTION_SPLIT_EXPLAINER)).toBeNull();
+  });
+
+  it("explains the section split once, under the heading", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      timelineHandler([
+        dayItem("followed-film", { film_title: "Followed Film", news_backed: true }),
+      ]),
+    );
+    renderHome();
+
+    expect(await screen.findByText("Followed Film")).toBeInTheDocument();
+    expect(screen.getAllByText(SECTION_SPLIT_EXPLAINER)).toHaveLength(1);
   });
 
   it("fetches the next page of days when there are more than fit on one", async () => {
     const days = Array.from({ length: 12 }, (_, n) =>
-      // News-backed so the day's expanded section carries them: the unconfirmed half is
+      // News-backed so the day's expanded section carries them: the "Not yet reported" half is
       // collapsed by default, and a test asserting on paging should not also be asserting on
       // which disclosure the item landed in.
       dayItem(`film-${n}`, {
@@ -323,6 +339,8 @@ describe("home route — signed in and entitled", () => {
     // The heading is already up while the days load, so the page does not jump when they land.
     expect(await screen.findByLabelText(/loading your timeline/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "My feed" })).toBeInTheDocument();
+    // So is the explainer under it, for the same reason.
+    expect(screen.getByText(SECTION_SPLIT_EXPLAINER)).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByLabelText(/loading your timeline/i)).toBeNull());
   });
 });

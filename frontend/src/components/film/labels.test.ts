@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { ArcStage } from "@/api/types";
-import { arcStageLabel, confidenceLabel, eventTypeLabel } from "./labels";
+import {
+  NOT_YET_REPORTED_LABEL,
+  SECTION_SPLIT_EXPLAINER,
+  arcStageLabel,
+  confidenceLabel,
+  eventTypeLabel,
+} from "./labels";
 
 describe("eventTypeLabel", () => {
   it("maps first_look to a friendly label", () => {
@@ -56,12 +62,23 @@ describe("confidenceLabel", () => {
     expect(confidenceLabel("confirmed")).toBe("confirmed");
   });
 
-  it("reads the backend's rumored as unconfirmed, matching the section heading", () => {
+  it("reads the backend's rumored as unconfirmed", () => {
     expect(confidenceLabel("rumored")).toBe("unconfirmed");
   });
 
   it("never promotes an unknown value to confirmed", () => {
     expect(confidenceLabel("")).toBe("unconfirmed");
     expect(confidenceLabel("verified")).toBe("unconfirmed");
+  });
+});
+
+describe("the catalog section heading", () => {
+  // Provenance, not truth: "unconfirmed" belongs to the confidence badge alone (NEU-1406).
+  it("reads Not yet reported", () => {
+    expect(NOT_YET_REPORTED_LABEL).toBe("Not yet reported");
+  });
+
+  it("is named by the explainer, so the two cannot drift", () => {
+    expect(SECTION_SPLIT_EXPLAINER).toContain(`“${NOT_YET_REPORTED_LABEL}”`);
   });
 });

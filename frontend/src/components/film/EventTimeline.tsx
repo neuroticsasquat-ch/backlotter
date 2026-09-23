@@ -1,5 +1,5 @@
 import type { FilmDayGroup, FilmEvent } from "@/api/types";
-import { UNCONFIRMED_UPDATES_LABEL } from "./labels";
+import { NOT_YET_REPORTED_LABEL, SECTION_SPLIT_EXPLAINER } from "./labels";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { EventCard } from "./EventCard";
 
@@ -9,7 +9,7 @@ function TmdbSubSection({ events, day }: { events: FilmEvent[]; day: string }) {
   return (
     <div className={SECTION_BREAK}>
       <h4 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
-        {UNCONFIRMED_UPDATES_LABEL}
+        {NOT_YET_REPORTED_LABEL}
       </h4>
       <EventList events={events} day={day} />
     </div>
@@ -43,6 +43,7 @@ export function EventTimeline({ dayGroups }: { dayGroups: FilmDayGroup[] }) {
         <p className="text-sm text-muted-foreground">No updates yet — check back soon.</p>
       ) : (
         <div className="space-y-6">
+          <p className="text-sm text-muted-foreground">{SECTION_SPLIT_EXPLAINER}</p>
           {dayGroups.map((group) => {
             const hasNews = group.news_events.length > 0;
             const hasTmdb = group.tmdb_events.length > 0;

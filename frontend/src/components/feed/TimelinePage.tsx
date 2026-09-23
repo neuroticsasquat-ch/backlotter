@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { groupByDay } from "@/lib/feed-groups";
 import { DAYS_PER_PAGE } from "@/lib/global-feed";
 import { FeedDayGroups, ViewMoreButton } from "@/components/feed/FeedDayGroups";
+import { SECTION_SPLIT_EXPLAINER } from "@/components/film/labels";
 import { PendingImportNotice } from "@/components/onboarding/PendingImportNotice";
 
 /**
@@ -65,6 +66,7 @@ export function TimelinePage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <TimelineHeading />
+      {total > 0 && <SectionSplitExplainer />}
       <PendingImportNotice />
       {total === 0 ? (
         <EmptyTimeline />
@@ -93,6 +95,13 @@ function TimelineHeading() {
   );
 }
 
+/** What the two sections under each day mean, once per page. Rendered in the skeleton too, so the
+ *  swap to the loaded timeline does not reflow around it; not on the empty timeline, which has no
+ *  sections to explain and its own copy. */
+function SectionSplitExplainer() {
+  return <p className="mt-1 text-sm text-muted-foreground">{SECTION_SPLIT_EXPLAINER}</p>;
+}
+
 /** Shown while the first page is in flight. Occupies the content area only — the header, search
  *  bar and footer are outside this component and never move, so the swap from the server-rendered
  *  feed to the timeline does not reflow the page around it. */
@@ -100,6 +109,7 @@ function TimelineSkeleton() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <TimelineHeading />
+      <SectionSplitExplainer />
       <div aria-busy="true" aria-label="Loading your timeline" className="mt-6 space-y-8">
         {[0, 1, 2].map((n) => (
           <div key={n} className="animate-pulse space-y-2">

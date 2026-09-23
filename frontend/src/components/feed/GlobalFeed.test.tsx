@@ -7,7 +7,8 @@ import { server } from "@/test/msw/server";
 import { dayItem, feed, oneDay } from "@/test/feed-fixtures";
 import { env } from "@/env";
 import type { FeedDayResponse } from "@/api/types";
-import { GlobalFeed } from "@/components/feed/GlobalFeed";
+import { GLOBAL_FEED_STANDFIRST, GlobalFeed } from "@/components/feed/GlobalFeed";
+import { SECTION_SPLIT_EXPLAINER } from "@/components/film/labels";
 
 const HEADING = "All updates";
 
@@ -34,8 +35,8 @@ describe("global feed render", () => {
       "/film/the-odyssey-2026",
     );
 
-    // The TMDB-only film is inside the collapsed unconfirmed updates section.
-    await userEvent.click(screen.getByText("unconfirmed updates (1 movie)"));
+    // The TMDB-only film is inside the collapsed "Not yet reported" section.
+    await userEvent.click(screen.getByText("Not yet reported (1 movie)"));
     expect(screen.getByText("Dune Part Three").closest("a")).toHaveAttribute(
       "href",
       "/film/dune-3-2026",
@@ -111,7 +112,7 @@ describe("global feed render", () => {
 });
 
 describe("feed day sections", () => {
-  it("leads with the news-backed section, then the unconfirmed updates one", async () => {
+  it("leads with the news-backed section, then the Not yet reported one", async () => {
     renderFeed(
       oneDay(
         dayItem("tmdb-first"),
@@ -122,9 +123,9 @@ describe("feed day sections", () => {
     await screen.findByText(/June 23, 2026/);
 
     expect(screen.getByText("In the news (1 movie)")).toBeInTheDocument();
-    expect(screen.getByText("unconfirmed updates (2 movies)")).toBeInTheDocument();
+    expect(screen.getByText("Not yet reported (2 movies)")).toBeInTheDocument();
 
-    // The news-backed film renders above both unconfirmed ones despite the original order.
+    // The news-backed film renders above both not-yet-reported ones despite the original order.
     const links = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
     expect(links).toContain("/film/reported");
   });
@@ -134,7 +135,7 @@ describe("feed day sections", () => {
     await screen.findByText(/June 23, 2026/);
 
     expect(screen.getByText("In the news (2 movies)")).toBeInTheDocument();
-    expect(screen.getByText("unconfirmed updates")).toBeInTheDocument();
+    expect(screen.getByText("Not yet reported")).toBeInTheDocument();
     expect(screen.getByText("None today")).toBeInTheDocument();
     expect(screen.getAllByRole("link")).toHaveLength(2);
   });
@@ -145,9 +146,9 @@ describe("feed day sections", () => {
 
     expect(screen.getByText("In the news")).toBeInTheDocument();
     expect(screen.getByText("None today")).toBeInTheDocument();
-    expect(screen.getByText("unconfirmed updates (2 movies)")).toBeInTheDocument();
+    expect(screen.getByText("Not yet reported (2 movies)")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByText("unconfirmed updates (2 movies)"));
+    await userEvent.click(screen.getByText("Not yet reported (2 movies)"));
     expect(screen.getAllByRole("link")).toHaveLength(2);
   });
 
@@ -168,9 +169,9 @@ describe("feed day sections", () => {
     );
     expect(newsLinks).toEqual(["/film/a-movie", "/film/z-movie"]);
 
-    // Expand the unconfirmed updates section to inspect its order too.
-    await userEvent.click(screen.getByText("unconfirmed updates (2 movies)"));
-    const tmdbSection = screen.getByText("unconfirmed updates (2 movies)").closest("div")!;
+    // Expand the "Not yet reported" section to inspect its order too.
+    await userEvent.click(screen.getByText("Not yet reported (2 movies)"));
+    const tmdbSection = screen.getByText("Not yet reported (2 movies)").closest("div")!;
     const tmdbLinks = [...tmdbSection.querySelectorAll("a[href^='/film/']")].map((a) =>
       a.getAttribute("href"),
     );
@@ -244,24 +245,24 @@ describe("feed day sections", () => {
     expect([...monday.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
       "In the news (1 movie)",
     ]);
-    // Expand Monday's unconfirmed updates section to see all items.
-    await userEvent.click(within(monday).getByText("unconfirmed updates (1 movie)"));
+    // Expand Monday's "Not yet reported" section to see all items.
+    await userEvent.click(within(monday).getByText("Not yet reported (1 movie)"));
     // Within each section, items are alphabetically sorted. News section renders first (reported-monday),
-    // then unconfirmed updates section (monday-tmdb).
+    // then "Not yet reported" section (monday-tmdb).
     const mondayLinks = [...monday.querySelectorAll("a[href^='/film/']")].map((a) =>
       a.getAttribute("href"),
     );
     expect(mondayLinks).toEqual(["/film/reported-monday", "/film/monday-tmdb"]);
     expect(mondayLinks.length).toBe(2);
-    // Tuesday is TMDB-only: empty "In the news" heading plus collapsed "unconfirmed updates".
+    // Tuesday is TMDB-only: empty "In the news" heading plus collapsed "Not yet reported".
     expect([...tuesday.querySelectorAll("h3")].map((h) => h.textContent)).toEqual(["In the news"]);
-    expect(within(tuesday).getByText("unconfirmed updates (1 movie)")).toBeInTheDocument();
+    expect(within(tuesday).getByText("Not yet reported (1 movie)")).toBeInTheDocument();
   });
 
   it("opens every section with a rule and space, not just a heading", async () => {
     renderFeed(oneDay(dayItem("reported", { news_backed: true }), dayItem("tmdb")));
     const newsContainer = (await screen.findByText("In the news (1 movie)")).closest(".border-t")!;
-    const tmdbContainer = screen.getByText("unconfirmed updates (1 movie)").closest(".border-t")!;
+    const tmdbContainer = screen.getByText("Not yet reported (1 movie)").closest(".border-t")!;
     expect(newsContainer).not.toBeNull();
     expect(tmdbContainer).not.toBeNull();
   });
@@ -284,14 +285,23 @@ describe("feed day sections", () => {
   });
 });
 
-describe("unconfirmed updates section", () => {
-  it("renders unconfirmed updates section collapsed by default with movie count", async () => {
+describe("Not yet reported section", () => {
+  it("is explained once, in the standfirst, not under every day", async () => {
+    renderFeed(feed);
+    await screen.findByRole("heading", { name: HEADING });
+
+    const standfirst = screen.getByText(GLOBAL_FEED_STANDFIRST, { exact: false });
+    expect(standfirst).toHaveTextContent(`${GLOBAL_FEED_STANDFIRST} ${SECTION_SPLIT_EXPLAINER}`);
+    expect(screen.getAllByText(SECTION_SPLIT_EXPLAINER, { exact: false })).toHaveLength(1);
+  });
+
+  it("renders the Not yet reported section collapsed by default with movie count", async () => {
     renderFeed(
       oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-a"), dayItem("tmdb-b")),
     );
     await screen.findByText(/June 23, 2026/);
 
-    expect(screen.getByText("unconfirmed updates (2 movies)")).toBeInTheDocument();
+    expect(screen.getByText("Not yet reported (2 movies)")).toBeInTheDocument();
   });
 
   it("renders In the news section always expanded with count", async () => {
@@ -302,14 +312,14 @@ describe("unconfirmed updates section", () => {
     expect(screen.getByText("In the news (1 movie)").tagName).toBe("H3");
   });
 
-  it("toggles unconfirmed updates section open on click", async () => {
+  it("toggles the Not yet reported section open on click", async () => {
     renderFeed(oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-a")));
     await screen.findByText(/June 23, 2026/);
 
-    // Initially unconfirmed section items are not visible.
+    // Initially the Not yet reported section's items are not visible.
     expect(screen.queryByText("TMDB-A")).toBeNull();
 
-    await userEvent.click(screen.getByText("unconfirmed updates (1 movie)"));
+    await userEvent.click(screen.getByText("Not yet reported (1 movie)"));
     expect(screen.getByText("TMDB-A")).toBeInTheDocument();
   });
 
@@ -317,7 +327,7 @@ describe("unconfirmed updates section", () => {
     renderFeed(oneDay(dayItem("news-film", { news_backed: true })));
     await screen.findByText(/June 23, 2026/);
 
-    const emptyHeading = screen.getByText("unconfirmed updates");
+    const emptyHeading = screen.getByText("Not yet reported");
     expect(emptyHeading).toBeInTheDocument();
     expect(emptyHeading.textContent).not.toContain("movie");
     expect(screen.getByText("None today")).toBeInTheDocument();
@@ -338,7 +348,7 @@ describe("unconfirmed updates section", () => {
     );
     await screen.findByText(/June 23, 2026/);
 
-    await userEvent.click(screen.getByText("unconfirmed updates (1 movie)"));
+    await userEvent.click(screen.getByText("Not yet reported (1 movie)"));
     expect(screen.getByText("TMDB Film")).toBeInTheDocument();
     expect(screen.getByText("Casting")).toBeInTheDocument();
     expect(screen.queryByText("The official trailer was released.")).toBeNull();
@@ -360,8 +370,8 @@ describe("within-day cap removal", () => {
     renderFeed(tallDay);
     await screen.findByText(/June 23, 2026/);
 
-    // Expand the unconfirmed updates section to count all items
-    const tmdbBtn = screen.getByText(/unconfirmed updates/);
+    // Expand the "Not yet reported" section to count all items
+    const tmdbBtn = screen.getByText(/^Not yet reported \(/);
     await userEvent.click(tmdbBtn);
     expect(screen.getAllByRole("link").length).toBeGreaterThanOrEqual(74);
     expect(screen.queryByText(/Show all/i)).toBeNull();
