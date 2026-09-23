@@ -21,8 +21,7 @@ describe("buildMeta", () => {
     expect(tags).toContainEqual({ name: "twitter:card", content: "summary" });
 
     const canonical = tags.find((t) => "tagName" in t && t.tagName === "link") as
-      | { tagName: "link"; rel: string; href: string }
-      | undefined;
+      { tagName: "link"; rel: string; href: string } | undefined;
     expect(canonical?.rel).toBe("canonical");
     expect(canonical?.href).toMatch(/\/film\/the-odyssey-2026$/);
   });
@@ -30,13 +29,11 @@ describe("buildMeta", () => {
   it("folds the search query into the canonical and og:url so paginated pages self-canonicalize", () => {
     const tags = buildMeta({ title: "Search", pathname: "/search", search: "?page=2" });
     const canonical = tags.find((t) => "tagName" in t && t.tagName === "link") as
-      | { tagName: "link"; rel: string; href: string }
-      | undefined;
+      { tagName: "link"; rel: string; href: string } | undefined;
     expect(canonical?.rel).toBe("canonical");
     expect(canonical?.href).toMatch(/\/search\?page=2$/);
     const ogUrl = tags.find((t) => "property" in t && t.property === "og:url") as
-      | { content: string }
-      | undefined;
+      { content: string } | undefined;
     expect(ogUrl?.content).toMatch(/\/search\?page=2$/);
   });
 

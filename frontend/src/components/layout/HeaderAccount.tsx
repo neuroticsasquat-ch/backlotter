@@ -1,6 +1,7 @@
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/components/AuthContext";
+import { AccountMenu } from "@/components/layout/AccountMenu";
 
 // Module-level QueryClient for the public account island; persists across navigations
 // within the public layout.
@@ -39,41 +40,64 @@ export const accountQueryClient = new QueryClient({
  */
 export function AccountArea({ variant = "menu" }: { variant?: "menu" | "inline" }) {
   const { user, logout } = useAuth();
-  // "menu" = stacked rows for the mobile hamburger; "inline" = compact text links for
-  // the wide-viewport header row.
   const itemClass =
-    variant === "inline"
-      ? "text-sm text-muted-foreground transition-colors hover:text-foreground"
-      : "block rounded px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground";
+    "block rounded px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground";
 
-  // No public "Log in" link until there's a paid tier — the admin reaches /login directly
-  // (and is bounced there by RequireAuth). Anonymous visitors see no account UI at all.
-  if (!user) return null;
+  // The wide-viewport header folds all of this behind one avatar (see `AccountMenu` for
+  // why), anonymous visitors included — for them the panel holds the one thing they can do.
+  // The stacked rows below are the hamburger's, where a dropdown inside a dropdown would be
+  // absurd and the panel has the vertical room to list everything outright.
+  if (variant === "inline") return <AccountMenu user={user} onLogout={logout} />;
+
+  // The hamburger's version of the same offer. Previously this rendered nothing at all when
+  // logged out, which left the site with no way into it (NEU-1407).
+  if (!user) return <AnonymousMenuRows itemClass={itemClass} />;
 
   return (
-    <div
-      className={
-        variant === "inline"
-          ? "flex items-center gap-4 text-sm"
-          : "mt-1 flex flex-col border-t border-border pt-1"
-      }
-    >
-      <span
-        className={variant === "inline" ? "text-foreground" : "px-3 py-2 text-sm text-foreground"}
-      >
-        {user.display_name}
-      </span>
+    <div className="mt-1 flex flex-col border-t border-border pt-1">
+      <span className="px-3 py-2 text-sm text-foreground">{user.display_name}</span>
+      {/* Hidden rather than rendered dead for an account without access (D-41): the follow
+          buttons on a film page are the surface that argues for the subscription, and they do
+          it in context. A nav entry that only ever leads to a locked panel would not. */}
+      {user.entitled && (
+        <>
+          <Link to="/me/follows" className={itemClass}>
+            Follows
+          </Link>
+          {/* The way back into onboarding (D-17). Beside the list it fills rather than
+              buried somewhere else, and gated on `entitled` with it: for an account without a
+              grant it would only ever reach the locked panel. */}
+          <Link to="/welcome" className={itemClass}>
+            Redo onboarding
+          </Link>
+        </>
+      )}
+      {/* Not gated: the address and password on that page belong to every signed-in
+          account, and it is the one place an account without a grant can change them. */}
+      <Link to="/me/settings" className={itemClass}>
+        Settings
+      </Link>
       {user.is_admin && (
         <Link to="/admin/ingest" className={itemClass}>
           Admin
         </Link>
       )}
-      <button
-        onClick={() => logout()}
-        className={variant === "inline" ? itemClass : `${itemClass} w-full text-left`}
-      >
+      <button onClick={() => logout()} className={`${itemClass} w-full text-left`}>
         Log out
       </button>
+    </div>
+  );
+}
+
+/** The hamburger's logged-out rows: `next` so signing in returns the reader to the page
+ *  they were on, matching `SignInToggle` on the follow buttons. */
+function AnonymousMenuRows({ itemClass }: { itemClass: string }) {
+  const { pathname, search } = useLocation();
+  return (
+    <div className="mt-1 flex flex-col border-t border-border pt-1">
+      <Link to={`/login?next=${encodeURIComponent(pathname + search)}`} className={itemClass}>
+        Log in
+      </Link>
     </div>
   );
 }

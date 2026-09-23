@@ -2,18 +2,30 @@ import { createContext, useCallback, useContext, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as authApi from "@/api/auth";
 import { ApiError, setCsrfToken } from "@/api/client";
+import { activeImportKey, timelineKey } from "@/api/query-keys";
 import type { AuthedUser } from "@/api/types";
+
+/**
+ * Named rather than positional because since NEU-1345 two of the five are opaque strings --
+ * a Turnstile token and an optional invite code -- and `signup(a, b, c, d, e)` gives a reader
+ * no way to tell which is which, or to leave the optional one out without a placeholder.
+ */
+export type SignupArgs = {
+  email: string;
+  password: string;
+  displayName: string;
+  turnstileToken: string;
+  /** The admin comp path (D-18); omitted when the user didn't enter one. */
+  inviteCode?: string;
+};
 
 type AuthContextValue = {
   user: AuthedUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (
-    email: string,
-    password: string,
-    displayName: string,
-    inviteCode: string,
-  ) => Promise<void>;
+  /** Answers with the account it just signed in, which the `user` field does not yet hold
+   *  when the caller's handler resumes — `/login` branches its landing on `entitled`. */
+  login: (email: string, password: string) => Promise<AuthedUser>;
+  signup: (args: SignupArgs) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -57,7 +69,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: string;
       password: string;
       display_name: string;
-      invite_code: string;
+      turnstile_token: string;
+      invite_code?: string;
     }) => authApi.signup(vars),
     onSuccess: (user) => {
       setCsrfToken(user.csrf_token);
@@ -69,6 +82,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     onSuccess: () => {
       setCsrfToken(null);
       qc.setQueryData(["me"], null);
+      // Dropped rather than invalidated: the next render of `/` is the global feed, which the
+      // loader already put in `loaderData`, so there is nothing to refetch — and leaving one
+      // reader's timeline in the cache would hand it to whoever signs in next on this tab.
+      qc.removeQueries({ queryKey: timelineKey });
+      // Same reason: `/welcome` would otherwise restore this reader's open import for the next
+      // one, and the timeline would announce its list to them (NEU-1452).
+      qc.removeQueries({ queryKey: activeImportKey });
     },
   });
 
@@ -76,15 +96,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user: meQuery.data ?? null,
       loading: meQuery.isLoading,
-      login: async (email, password) => {
-        await loginMut.mutateAsync({ email, password });
-      },
-      signup: async (email, password, displayName, inviteCode) => {
+      login: (email, password) => loginMut.mutateAsync({ email, password }),
+      signup: async ({ email, password, displayName, turnstileToken, inviteCode }) => {
         await signupMut.mutateAsync({
           email,
           password,
           display_name: displayName,
-          invite_code: inviteCode,
+          turnstile_token: turnstileToken,
+          // Omitted, not sent empty: the backend validates any code it is given, so a
+          // blank string would fail a signup the user never meant to gate on an invite.
+          ...(inviteCode ? { invite_code: inviteCode } : {}),
         });
       },
       logout: async () => {

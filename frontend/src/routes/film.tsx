@@ -3,8 +3,10 @@ import { isRouteErrorResponse, Link, redirect } from "react-router";
 import type { Route } from "./+types/film";
 import { getFilm } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
+import { ssrOriginHeaders } from "@/lib/ssr-origin";
 import { buildMeta } from "@/lib/seo";
 import { posterUrl } from "@/lib/poster";
+import { filmCompanies } from "@/lib/film-entities";
 import { truncate } from "@/lib/format";
 import { FilmHeader } from "@/components/film/FilmHeader";
 import { FilmCredits } from "@/components/film/FilmCredits";
@@ -12,12 +14,15 @@ import { FilmCrew } from "@/components/film/FilmCrew";
 import { FilmPlot } from "@/components/film/FilmPlot";
 import { ProductionCompanies } from "@/components/film/ProductionCompanies";
 import { ReleaseDates } from "@/components/film/ReleaseDates";
+import { WhereToWatch } from "@/components/film/WhereToWatch";
 import { EventTimeline } from "@/components/film/EventTimeline";
 import type { FilmEvent } from "@/api/types";
 
 export async function loader({ params, request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
-  const film = await getFilm(env.API_BASE_URL, params.ref);
+  const film = await getFilm(env.API_BASE_URL, params.ref, {
+    headers: ssrOriginHeaders(env, request),
+  });
   if (!film) {
     throw new Response(null, { status: 404, statusText: "Film not found" });
   }
@@ -46,11 +51,11 @@ export function meta({ loaderData, location }: Route.MetaArgs): Route.MetaDescri
   const { film } = loaderData;
   const title = film.release_year ? `${film.title} (${film.release_year})` : film.title;
   // Flatten day_groups to find the newest event by created_at for SEO description.
-  const allEvents: FilmEvent[] = film.day_groups.flatMap(
-    (g) => [...g.news_events, ...g.tmdb_events],
-  );
-  const latest = allEvents.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0]
-    ?.summary;
+  const allEvents: FilmEvent[] = film.day_groups.flatMap((g) => [
+    ...g.news_events,
+    ...g.tmdb_events,
+  ]);
+  const latest = allEvents.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0]?.summary;
   const description = latest
     ? truncate(latest)
     : `Release dates, casting, trailers, and the full update timeline for ${title}.`;
@@ -70,10 +75,11 @@ export default function FilmPage({ loaderData }: Route.ComponentProps) {
       <FilmHeader film={film} />
       <div className="mt-6">
         <ReleaseDates dates={film.release_dates} />
+        <WhereToWatch box={film.where_to_watch} />
         <FilmPlot overview={film.overview} />
         <FilmCredits cast={film.cast} />
         <FilmCrew crew={film.crew} />
-        <ProductionCompanies companies={film.production_companies} />
+        <ProductionCompanies companies={filmCompanies(film)} />
         <EventTimeline dayGroups={film.day_groups} />
       </div>
     </main>

@@ -30,12 +30,15 @@ describe("HeaderAccount", () => {
   // tests below are order-independent.
   afterEach(() => accountQueryClient.clear());
 
-  it("renders no account UI when unauthenticated (no public Log in until a paid tier)", async () => {
+  /** Reversed by NEU-1407. This used to render nothing at all when logged out, which left
+   *  the site with no way into itself — the admin had to type `/login`. Sign up stays absent
+   *  until there is a subscription to sell (NEU-1409). */
+  it("offers Log in when unauthenticated", async () => {
     server.use(unauthMeHandler());
-    const { container } = renderAccountArea();
-    // Cold cache → user is null → renders nothing, synchronously (no hydration mismatch).
-    expect(container).toBeEmptyDOMElement();
-    expect(screen.queryByRole("link", { name: /log in/i })).not.toBeInTheDocument();
+    renderAccountArea();
+
+    const login = await screen.findByRole("link", { name: /log in/i });
+    expect(login.getAttribute("href")).toContain("/login?next=");
     expect(screen.queryByRole("link", { name: /sign up/i })).not.toBeInTheDocument();
   });
 
@@ -54,6 +57,37 @@ describe("HeaderAccount", () => {
     expect(adminLink).toHaveAttribute("href", "/admin/ingest");
   });
 
+  it("shows the Follows link to an entitled account, and no Watchlist beside it (EF-14)", async () => {
+    server.use(meHandler({ entitled: true }));
+    renderAccountArea();
+
+    expect(await screen.findByRole("link", { name: "Follows" })).toHaveAttribute(
+      "href",
+      "/me/follows",
+    );
+    expect(screen.queryByRole("link", { name: "Watchlist" })).not.toBeInTheDocument();
+  });
+
+  it("hides them from an account without a grant rather than rendering them dead (D-41)", async () => {
+    server.use(meHandler({ entitled: false }));
+    renderAccountArea();
+
+    // Keyed off a post-auth control, so this is not passing merely because auth has not
+    // resolved: the account is signed in and the links are still absent.
+    await screen.findByRole("button", { name: /log out/i });
+    expect(screen.queryByRole("link", { name: "Follows" })).not.toBeInTheDocument();
+  });
+
+  it("shows the Settings link to every signed-in account, grant or not", async () => {
+    server.use(meHandler({ entitled: false }));
+    renderAccountArea();
+
+    expect(await screen.findByRole("link", { name: "Settings" })).toHaveAttribute(
+      "href",
+      "/me/settings",
+    );
+  });
+
   it("clears the account UI after logout", async () => {
     server.use(
       meHandler({ is_admin: false }),
@@ -67,15 +101,14 @@ describe("HeaderAccount", () => {
     );
   });
 
-  it("island smoke test: default export renders nothing when logged out, without explicit providers", () => {
+  it("island smoke test: default export renders the logged-out offer without explicit providers", async () => {
     server.use(unauthMeHandler());
-    const { container } = render(
+    render(
       <MemoryRouter>
         <HeaderAccount />
       </MemoryRouter>,
     );
-    // Cold cache → user null → renders nothing (no public Log in link).
-    expect(container).toBeEmptyDOMElement();
+    expect(await screen.findByRole("link", { name: /log in/i })).toBeInTheDocument();
   });
 
   it("refetches /me on mount, overriding a stale cached logout state", async () => {

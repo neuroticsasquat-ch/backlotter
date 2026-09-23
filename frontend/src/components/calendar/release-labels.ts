@@ -1,9 +1,13 @@
-// Only the theatrical arc is surfaced — wide + limited. Premiere/festival (TMDB type 1) is
-// excluded backend-side, so it never reaches the calendar. Short "Wide" / "Limited" group
-// labels (the date heading above already provides the "release" context).
+// The theatrical arc — wide + limited — plus the US home release, digital + physical (D-26).
+// Premiere/festival (TMDB type 1) is excluded backend-side, so it never reaches the calendar.
+// Short group labels (the date heading above already provides the "release" context); these
+// mirror the backend's own bucket labels, which the film page's release rows carry as
+// `type_label`, so a film's date reads the same on both surfaces.
 export const RELEASE_BUCKET_LABELS: Record<string, string> = {
   limited: "Limited",
   wide: "Wide",
+  digital: "Digital",
+  physical: "Physical",
 };
 
 /**

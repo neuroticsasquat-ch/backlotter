@@ -1,4 +1,5 @@
-import type { ArcStage, ReleaseDate } from "@/api/types";
+import type { ArcStage, HeadlineRelease, ReleaseDate } from "@/api/types";
+import { releaseBucketLabel } from "@/components/calendar/release-labels";
 import { arcStageLabel } from "@/components/film/labels";
 
 const DATE_FMT = new Intl.DateTimeFormat("en-US", {
@@ -10,6 +11,36 @@ const DATE_FMT = new Intl.DateTimeFormat("en-US", {
 
 export function formatEventDate(iso: string): string {
   return DATE_FMT.format(new Date(iso));
+}
+
+const RELATIVE_FMT = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" });
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/** How long ago an instant was, in the coarsest unit that still says something — "3 days ago",
+ *  "last month", "2 years ago".
+ *
+ *  `numeric: "auto"` so the near cases read as words ("yesterday", "last week") rather than as
+ *  "1 day ago", which is how a person says it. Months and years are the usual approximations
+ *  (30 and 365 days): this is a "when did something last happen here" line on a follows row,
+ *  not a date, and a row whose exact anniversary matters would show the date instead.
+ *
+ *  `now` is injectable so a test can assert on a fixed distance without freezing the clock.
+ *  Future instants are not special-cased — `Intl` renders them forwards ("in 2 days") — but
+ *  nothing calls this with one: every caller passes a `created_at` the server has already
+ *  published. */
+export function formatRelativeDate(iso: string, now: Date = new Date()): string {
+  const elapsed = now.getTime() - new Date(iso).getTime();
+  const past = Math.abs(elapsed);
+  const sign = elapsed >= 0 ? -1 : 1;
+
+  if (past < HOUR) return RELATIVE_FMT.format(sign * Math.round(past / MINUTE), "minute");
+  if (past < DAY) return RELATIVE_FMT.format(sign * Math.round(past / HOUR), "hour");
+  if (past < 30 * DAY) return RELATIVE_FMT.format(sign * Math.round(past / DAY), "day");
+  if (past < 365 * DAY) return RELATIVE_FMT.format(sign * Math.round(past / (30 * DAY)), "month");
+  return RELATIVE_FMT.format(sign * Math.round(past / (365 * DAY)), "year");
 }
 
 const DAY_HEADING_FMT = new Intl.DateTimeFormat("en-US", {
@@ -152,4 +183,29 @@ export function filmParenthetical(input: FilmParentheticalInput): string {
 
   if (parts.length === 0) return arcStageLabel(input.arc_stage);
   return parts.join(", ");
+}
+
+/**
+ * A film row's date line (NEU-1398) — one string per {@link HeadlineRelease} kind.
+ *
+ * The three kinds are not interchangeable and must not render alike. `upcoming` and `released`
+ * are theatrical dates the film page lists too, so they carry their bucket and country and can
+ * be stated plainly; only the tense separates them. `primary` is TMDB's earliest-anywhere date,
+ * surfaced only because the film has no displayable theatrical date at all — it is the date the
+ * film page itself falls back to, and it gets an explicit "(unconfirmed)" rather than a verb,
+ * because reading it as an opening is exactly the mistake NEU-1397 removed from this row.
+ *
+ * Bucket and country are null by contract when `kind` is `primary`; they are dropped rather
+ * than spaced over if they go missing on the other two, so the line never ends in a separator.
+ */
+export function formatHeadlineRelease(release: HeadlineRelease | null): string {
+  if (release === null) return "No date yet";
+
+  const date = formatEventDate(release.date);
+  if (release.kind === "primary") return `${date} (unconfirmed)`;
+
+  const parts = [`${release.kind === "upcoming" ? "Opens" : "Opened"} ${date}`];
+  if (release.bucket) parts.push(releaseBucketLabel(release.bucket));
+  if (release.country) parts.push(release.country);
+  return parts.join(" · ");
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router";
-import { NAV_ITEMS } from "@/components/layout/nav-items";
+import { useFollowAccess } from "@/components/follow/access";
+import { navItemsFor } from "@/components/layout/nav-items";
 import HeaderAccount from "@/components/layout/HeaderAccount";
 
 /**
@@ -12,6 +13,7 @@ import HeaderAccount from "@/components/layout/HeaderAccount";
 export function NavMenu() {
   const ref = useRef<HTMLDetailsElement>(null);
   const location = useLocation();
+  const access = useFollowAccess();
 
   // Close when the route changes — e.g. picking a menu link loads a new page.
   useEffect(() => {
@@ -56,25 +58,13 @@ export function NavMenu() {
       <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-md border border-border bg-background p-1 shadow-lg">
         <nav aria-label="Mobile navigation">
           <ul className="flex flex-col">
-            {NAV_ITEMS.map((item) =>
-              item.enabled ? (
-                <li key={item.href}>
-                  <NavLink to={item.href} end={item.href === "/"} className={linkClass}>
-                    {item.label}
-                  </NavLink>
-                </li>
-              ) : (
-                <li key={item.href}>
-                  <span
-                    aria-disabled="true"
-                    tabIndex={-1}
-                    className="block cursor-not-allowed select-none px-3 py-2 text-sm text-muted-foreground/50"
-                  >
-                    {item.label}
-                  </span>
-                </li>
-              ),
-            )}
+            {navItemsFor(access).map((item) => (
+              <li key={item.href}>
+                <NavLink to={item.href} end={item.href === "/"} className={linkClass}>
+                  {item.label}
+                </NavLink>
+              </li>
+            ))}
           </ul>
         </nav>
         {/* Account island self-renders its own separator, and only when signed in. */}

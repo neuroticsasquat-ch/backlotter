@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "@/components/AuthContext";
+import { fetchFollows } from "@/api/me";
+import type { AuthedUser } from "@/api/types";
 import { Input } from "@/components/ui/input";
 import { ApiError } from "@/api/client";
 import { SITE_NAME } from "@/lib/seo";
@@ -19,9 +21,10 @@ export function Login() {
     setError(null);
     setSubmitting(true);
     try {
-      await login(email, password);
-      const next = params.get("next") || "/";
-      navigate(next);
+      const user = await login(email, password);
+      // An explicit `next` is where the visitor was headed before the guard stopped them, and
+      // always wins — including over the onboarding landing below.
+      navigate(params.get("next") || (await landingFor(user)));
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError("Email or password is incorrect.");
@@ -73,6 +76,11 @@ export function Login() {
         </button>
       </form>
       <p className="mt-4 text-sm">
+        <Link to="/forgot" className="underline">
+          Forgot your password?
+        </Link>
+      </p>
+      <p className="mt-2 text-sm">
         New here?{" "}
         <Link to="/signup" className="underline">
           Sign up
@@ -83,3 +91,26 @@ export function Login() {
 }
 
 export default Login;
+
+/**
+ * Where a sign-in with no `next` lands.
+ *
+ * Onboarding, when the account can use it and has never used it: a grant made after signup
+ * arrives silently — the user is simply told nothing — so their next sign-in is the only
+ * moment the app gets to say "you can set this up now" (NEU-1358). Once the follow graph has
+ * anything in it that prompt would be wrong, so this is a one-time landing in practice, not a
+ * permanent redirect away from the timeline.
+ *
+ * Home for everyone else, and for any failure: an unentitled account would only reach
+ * `/welcome`'s locked panel, and a follows read that 403s or times out is not a reason to send
+ * a reader somewhere they did not ask to go.
+ */
+async function landingFor(user: AuthedUser): Promise<string> {
+  if (!user.entitled) return "/";
+  try {
+    const { items } = await fetchFollows();
+    return items.length === 0 ? "/welcome" : "/";
+  } catch {
+    return "/";
+  }
+}
