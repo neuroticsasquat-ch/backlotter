@@ -85,8 +85,15 @@ order matters — backend first, then this secret + the frontend, then flip
 
 `publicQueryClient` (`routes/public-layout.tsx`) is a module-level `QueryClient` shared across the
 public subtree. It's safe under SSR only because the `["me"]` account query never resolves during
-the server render pass — the first client paint is always the logged-out default, avoiding a
+the server render pass — the first client paint is always a logged-out render, avoiding a
 hydration mismatch. `refetchOnMount: "always"` then refreshes auth state on the client.
+
+Which logged-out render is chosen by the **timeline hint** (NEU-1468,
+`docs/adr/0001-timeline-hint-cookie.md`): a `timeline_hint` cookie the browser writes itself on an
+entitled resolve. The public layout's loader reads it from the request and hands it down
+(`useTimelineHint`), so the server and the first client paint agree; after hydration the live cookie
+is read instead. `useFollowAccess()` answers `hinted` while it is set and `/me` is in flight, and
+only the home page and the nav act on that. It is a prediction, never auth.
 
 ### Sentry: three surfaces, one tunnel
 

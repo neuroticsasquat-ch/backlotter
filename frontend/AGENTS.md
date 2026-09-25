@@ -4,7 +4,12 @@ React + TypeScript SPA for the Upcoming Movies Tracker. Vite, react-router, TanS
 
 ## Branching
 
-- `loop_base`: release/v1.0.0 — cut from `main` on 2026-09-15 for the consumer pivot (Linear project "bl: Consumer Pivot"); every ticket in that project branches from and PRs to it. **Repoint this when the next release branch is cut**, and back to `main` when it merges; a stale value here silently forks new work off a dead branch.
+Work happens on a release branch, `release/vX.Y.Z`, cut from `main` per release and merged back
+when it ships. Branch each ticket from, and PR it to, the **current** release branch; `main` only
+when none is open. The name is deliberately not written here: it changes every release, and the
+`/implementit` / `/shipit` / `/doit` skills resolve it themselves (`--base`, else the checked-out
+integration branch, else the one unmerged `origin/release/*`). Only pin a `loop_base:` line in
+`CLAUDE.md` if that resolution picks wrong, and remove it as soon as the branch merges.
 
 ## Golden rule: everything runs in the container via `task`
 

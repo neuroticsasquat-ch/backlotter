@@ -12,8 +12,12 @@ import { PendingImportNotice } from "@/components/onboarding/PendingImportNotice
 
 /**
  * The signed-in home page: the grouped feed restricted to the films the reader's follows reach
- * (`GET /me/timeline`, NEU-1351). Mounted by `TimelineOrFeed` only once the account has resolved
- * *and* proved entitled, so it never renders during SSR and never has to handle the 403.
+ * (`GET /me/timeline`, NEU-1351). Mounted by `TimelineOrFeed` once the account has resolved *and*
+ * proved entitled — or, earlier, when the timeline hint predicts that it will (NEU-1468). In that
+ * `hinted` window there is no account yet, so `useTimeline`'s entitled gate holds the query
+ * pending and this renders nothing but its skeleton, on the server as on the client; nothing is
+ * requested on the strength of a hint (D-1468.7). One component for both states is what keeps the
+ * skeleton the same element when the account lands, rather than a remount of identical markup.
  *
  * Days render through the same `FeedDayGroups` the global feed uses — the endpoint answers with
  * `/feed/grouped`'s exact shape, so there is nothing here to translate.
@@ -102,7 +106,7 @@ function SectionSplitExplainer() {
   return <p className="mt-1 text-sm text-muted-foreground">{SECTION_SPLIT_EXPLAINER}</p>;
 }
 
-/** Shown while the first page is in flight. Occupies the content area only — the header, search
+/** Shown while the first page is in flight, and while a hinted account is. Occupies the content area only — the header, search
  *  bar and footer are outside this component and never move, so the swap from the server-rendered
  *  feed to the timeline does not reflow the page around it. */
 function TimelineSkeleton() {

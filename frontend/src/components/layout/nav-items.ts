@@ -32,9 +32,13 @@ const CALENDAR: NavItem = { label: "Calendar", href: "/calendar" };
  * updates" is what `/feed` already calls itself in its heading and its `<title>`; "My feed"
  * is what `/` is renamed to. A nav that says one thing and lands on a page headed another
  * makes the reader check whether they arrived.
+ *
+ * `hinted` gets the two-item form too: the timeline hint predicts `ready`, and the home page is
+ * already showing the "My feed" skeleton for it (NEU-1468, D-1468.5). A hint that turns out wrong
+ * collapses the nav with the page when `/me` answers.
  */
 export function navItemsFor(access: FollowAccess): NavItem[] {
-  if (access === "ready") {
+  if (access === "ready" || access === "hinted") {
     return [{ label: "My feed", href: "/" }, { label: "All updates", href: "/feed" }, CALENDAR];
   }
   // `/feed` keeps working and stays in the sitemap; it is just not worth a nav entry when it

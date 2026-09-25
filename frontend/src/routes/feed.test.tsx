@@ -16,6 +16,8 @@ import { useToggleFollow } from "@/api/me";
 import FeedPage, { loader, meta } from "@/routes/feed";
 import { TimelineOrFeed } from "@/components/feed/TimelineOrFeed";
 import { SECTION_SPLIT_EXPLAINER } from "@/components/film/labels";
+import type { AuthedUser } from "@/api/types";
+import { readTimelineHint, writeTimelineHint } from "@/lib/timeline-hint";
 
 const BACKEND = "https://api.upmovies.localhost";
 
@@ -75,8 +77,9 @@ describe("feed route loader", () => {
 
   it("SSRs the global feed whatever the session is, so / stays anonymous-safe", async () => {
     // The loader never reads a cookie and never calls /me: the swap to a timeline is a client
-    // decision (D-12), which is what keeps this document cacheable and free of a hydration
-    // mismatch. A request carrying a session must produce the same fetch as one without.
+    // decision (D-12), which is what keeps this document anonymous-safe and free of a hydration
+    // mismatch. A request carrying a session must produce the same fetch as one without — and
+    // so must one carrying the timeline hint, which only the layout reads (NEU-1468, D-1468.6).
     const paths: string[] = [];
     server.use(
       http.get(`${BACKEND}/feed/grouped`, ({ request }) => {
@@ -88,7 +91,8 @@ describe("feed route loader", () => {
       }),
     );
     await callLoader({ headers: { Cookie: "session=abc" } });
-    expect(paths).toEqual(["/feed/grouped"]);
+    await callLoader({ headers: { Cookie: "session=abc; timeline_hint=1" } });
+    expect(paths).toEqual(["/feed/grouped", "/feed/grouped"]);
   });
 });
 
@@ -107,8 +111,10 @@ describe("feed route meta", () => {
 
 /** The home route with the providers the public layout gives it, so the island can resolve
  *  `me` the way it does in the app. */
-function renderHome(loaderFeed = feed) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderHome(
+  loaderFeed = feed,
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   const Stub = createRoutesStub([
     { path: "/", Component: FeedPage, loader: () => ({ feed: loaderFeed }) },
     { path: "/feed", Component: () => <h1>All updates</h1> },
@@ -341,6 +347,152 @@ describe("home route — signed in and entitled", () => {
     // So is the explainer under it, for the same reason.
     expect(screen.getByText(SECTION_SPLIT_EXPLAINER)).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByLabelText(/loading your timeline/i)).toBeNull());
+  });
+});
+
+/**
+ * The timeline hint (NEU-1468): a reader whose account last resolved entitled gets the "My feed"
+ * skeleton from the first paint instead of "All updates". These stubs mount no public layout, so
+ * the hint is read from the browser's cookie jar — the same answer the layout's loader gives.
+ */
+describe("home route — with the timeline hint", () => {
+  /** `/me` held open for a real window, so "before it answers" is assertable, not a race. */
+  function slowMe(answer: "entitled" | "unentitled" | "anonymous") {
+    return http.get(`${env.apiBaseUrl}/me`, async () => {
+      await delay(100);
+      if (answer === "anonymous") {
+        return HttpResponse.json({ detail: "auth_required" }, { status: 401 });
+      }
+      return HttpResponse.json({
+        id: "u1",
+        email: "a@b.com",
+        display_name: "Test User",
+        is_admin: false,
+        email_verified: true,
+        entitled: answer === "entitled",
+        created_at: new Date().toISOString(),
+        csrf_token: "test-csrf",
+      });
+    });
+  }
+
+  const hint = () => writeTimelineHint({ entitled: true } as AuthedUser);
+
+  /** Records whether the global feed's heading is *ever* put in the document, not just whether
+   *  it is there at the moments the test happens to look. */
+  function watchForGlobalHeading() {
+    let seen = false;
+    const check = () => {
+      seen ||= [...document.querySelectorAll("h1")].some((h) => h.textContent === GLOBAL_HEADING);
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    return {
+      seen: () => {
+        check();
+        return seen;
+      },
+      stop: () => observer.disconnect(),
+    };
+  }
+
+  it("shows the timeline skeleton before /me answers, then the timeline, never the global feed", async () => {
+    hint();
+    server.use(
+      slowMe("entitled"),
+      timelineHandler([
+        dayItem("followed-film", { film_title: "Followed Film", news_backed: true }),
+      ]),
+    );
+    const watch = watchForGlobalHeading();
+    renderHome();
+
+    // Inside `/me`'s hold: the stub's loader settles in microtasks, the account in 100ms.
+    expect(await screen.findByLabelText(/loading your timeline/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "My feed" })).toBeInTheDocument();
+
+    expect(await screen.findByText("Followed Film")).toBeInTheDocument();
+    expect(watch.seen()).toBe(false);
+    watch.stop();
+  });
+
+  it("keeps the same skeleton when the account lands, rather than remounting it", async () => {
+    // The hinted skeleton and the timeline's own pending skeleton are one element, so the
+    // hand-over from prediction to answer is invisible — not even a restarted pulse.
+    let timelineAsked = false;
+    hint();
+    server.use(
+      http.get(`${env.apiBaseUrl}/me`, async () => {
+        await delay(50);
+        return HttpResponse.json({
+          id: "u1",
+          email: "a@b.com",
+          display_name: "Test User",
+          is_admin: false,
+          email_verified: true,
+          entitled: true,
+          created_at: new Date().toISOString(),
+          csrf_token: "test-csrf",
+        });
+      }),
+      http.get(`${env.apiBaseUrl}/me/timeline`, async () => {
+        timelineAsked = true;
+        await delay(200);
+        return HttpResponse.json({ items: [], total: 0, limit: 10, offset: 0 });
+      }),
+    );
+    renderHome();
+
+    const skeleton = await screen.findByLabelText(/loading your timeline/i);
+    // Only a `ready` page asks for the timeline, so this is past the account's answer.
+    await waitFor(() => expect(timelineAsked).toBe(true));
+    expect(skeleton.isConnected).toBe(true);
+  });
+
+  it("falls back from the skeleton to the SSR'd feed when /me answers 401, quietly", async () => {
+    let asked = false;
+    hint();
+    server.use(
+      slowMe("anonymous"),
+      http.get(`${env.apiBaseUrl}/me/timeline`, () => {
+        asked = true;
+        return HttpResponse.json({ items: [], total: 0, limit: 10, offset: 0 });
+      }),
+    );
+    renderHome();
+
+    expect(await screen.findByLabelText(/loading your timeline/i)).toBeInTheDocument();
+
+    expect(await screen.findByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
+    expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/loading your timeline/i)).toBeNull();
+    expect(screen.queryByText(/couldn.t load your timeline/i)).toBeNull();
+    expect(asked).toBe(false);
+  });
+
+  it("renders the global feed for an unentitled answer, and drops the hint", async () => {
+    hint();
+    server.use(slowMe("unentitled"), lockedTimelineHandler());
+    renderHome();
+
+    expect(await screen.findByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
+    expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
+    expect(readTimelineHint(document.cookie)).toBe(false);
+  });
+
+  it("shows the skeleton over a stale cached null while the refetch is in flight", async () => {
+    // The landing after `/login`: the public layout's client last saw this tab signed out, and
+    // `refetchOnMount: "always"` is re-reading it. The cached `null` used to paint first.
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, refetchOnMount: "always" } },
+    });
+    qc.setQueryData(["me"], null);
+    hint();
+    server.use(slowMe("entitled"), emptyTimelineHandler());
+    renderHome(feed, qc);
+
+    expect(await screen.findByLabelText(/loading your timeline/i)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: GLOBAL_HEADING })).toBeNull();
   });
 });
 

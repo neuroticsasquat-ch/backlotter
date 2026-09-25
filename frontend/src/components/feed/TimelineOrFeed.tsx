@@ -7,11 +7,16 @@ import { TimelinePage } from "@/components/feed/TimelinePage";
  * What `/` renders, decided on the client (NEU-1354, D-12).
  *
  * The server render never resolves auth — the `["me"]` query is client-only, which is what keeps
- * `/` a single cacheable, anonymous-safe document (`routes/public-layout.tsx`). So the loader
- * always SSRs the global feed and this island decides what to do with it once the account lands:
+ * `/` an anonymous-safe document (`routes/public-layout.tsx`). So the loader always loads the
+ * global feed and this island decides what to do with it once the account lands:
  *
  * - **ready** — signed in and entitled. Swap to their own feed.
- * - **anything else** — anonymous, or signed in without a grant. The SSR'd global feed, rendered
+ * - **hinted** — no account yet, but the timeline hint predicts a `ready` one (NEU-1468,
+ *   ADR-0001). The same page, which can only show its skeleton until the account lands, and is
+ *   server-rendered that way, so a subscriber's first paint is already "My feed". A hint that
+ *   turns out wrong falls through to the global feed below with no extra request: it was loaded
+ *   all along.
+ * - **anything else** — anonymous, or signed in without a grant. The global feed, rendered
  *   exactly as `/feed` renders it.
  *
  * That second branch used to carry an extra panel: a "Sign in to see a timeline" line for
@@ -27,6 +32,6 @@ import { TimelinePage } from "@/components/feed/TimelinePage";
 export function TimelineOrFeed({ feed }: { feed: FeedDayResponse }) {
   const access = useFollowAccess();
 
-  if (access === "ready") return <TimelinePage />;
+  if (access === "ready" || access === "hinted") return <TimelinePage />;
   return <GlobalFeed feed={feed} />;
 }

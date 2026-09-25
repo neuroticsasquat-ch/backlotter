@@ -29,7 +29,8 @@ export function PersonFollowControl({ target }: { target: FollowTarget }) {
 
   return (
     <div className="flex flex-col items-start gap-1.5">
-      {access === "anonymous" && (
+      {/* `hinted` is still no account: the hint only shapes the home page and the nav. */}
+      {(access === "anonymous" || access === "hinted") && (
         <SignInToggle label={label} name={`Sign in to follow ${target.label}`} />
       )}
       {access === "locked" && <LockedToggle label={label} name={name} />}

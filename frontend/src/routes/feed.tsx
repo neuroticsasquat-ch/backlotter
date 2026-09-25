@@ -6,9 +6,11 @@ import { FeedErrorBoundary } from "@/components/feed/GlobalFeed";
 import { TimelineOrFeed } from "@/components/feed/TimelineOrFeed";
 
 export async function loader({ request, context }: Route.LoaderArgs) {
-  // Unchanged by the timeline swap, and deliberately so: `/` SSRs the global feed for every
-  // visitor, signed in or not, which is what keeps the document anonymous-safe and cacheable.
-  // Who is looking is decided afterwards, on the client, by `TimelineOrFeed`.
+  // Unchanged by the timeline swap, and deliberately so: `/` loads the global feed for every
+  // visitor, signed in or not, which is what keeps the document anonymous-safe. Who is looking
+  // is decided afterwards, on the client, by `TimelineOrFeed`; the timeline hint only picks
+  // whether the server renders this feed or the timeline skeleton over it (NEU-1468, D-1468.6),
+  // and a wrong hint falls back to this data with no second request.
   return loadGlobalFeed({ request, context });
 }
 

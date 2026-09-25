@@ -65,3 +65,25 @@ badge says `unconfirmed`, and anything the frontend does not recognise also read
 `unconfirmed`. It is the card's only truth signal and the only place "unconfirmed" means
 "we are not sure this is true", together with the "(unconfirmed)" release-date parenthetical.
 _Avoid_: veracity heading, section badge, rumored (on screen).
+
+### The home page and access
+
+**Timeline hint**:
+A first-party cookie (`timeline_hint=1`) on the site origin that the browser writes for itself
+when the account last resolved entitled, and clears when it resolves anonymous or unentitled,
+or on logout (NEU-1468, ADR-0001). It predicts that `/` will be the reader's timeline so the
+server can render the timeline skeleton, and the nav its two-item form, before `/me` has
+answered. It proves nothing and grants nothing: the API never sees it, and a stale one only
+costs a skeleton-to-feed swap. The session cookie is a different thing on a different origin.
+_Avoid_: session hint, auth cookie, logged-in flag (it is set only for entitled readers and is
+not evidence of anything), login cookie.
+
+**Access state**:
+What `useFollowAccess()` answers about the viewer: **anonymous** (no account, which is also what
+the server render sees), **locked** (signed in, no grant), **ready** (signed in and entitled),
+and **hinted** (no account yet, the timeline hint is present, and an account read is in
+flight). Hinted is a waiting state, never a resolved one: only the home page and the nav act on
+it; every other surface treats it as anonymous until `/me` answers.
+_Avoid_: auth state (that is signed in or not; access is the three-way split plus the wait),
+pending/loading (hinted is not "still loading" in general, it is loading _with_ a prediction),
+entitlement (one of its inputs, not the state).

@@ -31,7 +31,8 @@ export function FollowButton({
   const label = following ? "Following" : "Follow";
   const name = following ? `Unfollow ${target.label}` : `Follow ${target.label}`;
 
-  if (access === "anonymous") {
+  // `hinted` is still no account: the hint only shapes the home page and the nav (D-1468.5).
+  if (access === "anonymous" || access === "hinted") {
     return <SignInToggle label={label} name={`Sign in to follow ${target.label}`} />;
   }
   if (access === "locked") return <LockedToggle label={label} name={name} />;

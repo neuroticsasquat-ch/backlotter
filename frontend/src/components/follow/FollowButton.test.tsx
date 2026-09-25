@@ -10,6 +10,8 @@ import { meHandler } from "@/test/msw/me";
 import { entitlementRequiredHandlers, followGraphHandlers, makeFollow } from "@/test/msw/follows";
 import { AuthProvider } from "@/components/AuthContext";
 import type { FollowTarget } from "@/lib/film-entities";
+import type { AuthedUser } from "@/api/types";
+import { writeTimelineHint } from "@/lib/timeline-hint";
 import { FollowButton } from "./FollowButton";
 
 const TARGET: FollowTarget = {
@@ -45,6 +47,27 @@ describe("FollowButton", () => {
       });
       expect(link).toHaveTextContent("Follow");
       expect(link).toHaveAttribute("href", "/login?next=%2Ffilm%2F603-the-odyssey");
+    });
+  });
+
+  describe("with the timeline hint while /me is in flight", () => {
+    it("keeps its signed-out form: the hint predicts, it does not sign anyone in", async () => {
+      // `hinted` is a home-page and nav state only (NEU-1468, D-1468.5); a live follow control
+      // on a prediction would be a button that 401s.
+      writeTimelineHint({ entitled: true } as AuthedUser);
+      server.use(
+        http.get(`${env.apiBaseUrl}/me`, async () => {
+          await delay(100);
+          return HttpResponse.json({ detail: "auth_required" }, { status: 401 });
+        }),
+      );
+      renderButton();
+
+      // Synchronous on purpose: the window under test closes when `/me` answers.
+      expect(
+        screen.getByRole("link", { name: /sign in to follow christopher nolan/i }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /follow christopher nolan/i })).toBeNull();
     });
   });
 

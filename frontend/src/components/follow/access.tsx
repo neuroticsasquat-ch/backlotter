@@ -2,10 +2,15 @@ import { useId, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { useAuth } from "@/components/AuthContext";
 import { Button } from "@/components/ui/button";
+import { useTimelineHint } from "@/lib/timeline-hint";
 
-/** What the viewer may do with a follow button (D-41). Three states, not two: an account
- *  that has not been granted access is signed in and can see exactly what it is missing. */
-export type FollowAccess = "anonymous" | "locked" | "ready";
+/** What the viewer may do with a follow button (D-41). Three resolved states, not two: an
+ *  account that has not been granted access is signed in and can see exactly what it is missing.
+ *
+ *  The fourth, `hinted`, is a wait rather than an answer: no account yet, but the timeline hint
+ *  predicts a `ready` one and `/me` is in flight (NEU-1468, D-1468.4). Only the home page and the
+ *  nav act on it; every other surface treats it as `anonymous` until the account resolves. */
+export type FollowAccess = "anonymous" | "hinted" | "locked" | "ready";
 
 /** Says what access is missing without pretending there is a way to buy it — there is not,
  *  until *bl: Subscription & Billing* ships (D-41). */
@@ -34,12 +39,15 @@ export const FOLLOW_CUE =
 // AuthContext.
 // eslint-disable-next-line react-refresh/only-export-components -- hook beside its components
 export function useFollowAccess(): FollowAccess {
-  const { user } = useAuth();
-  // Anonymous is also what the server render and the first client paint see, because the
+  const { user, resolving } = useAuth();
+  const hint = useTimelineHint();
+  // A cached account wins over the hint, whatever it says.
+  if (user) return user.entitled ? "ready" : "locked";
+  // No account is also what the server render and the first client paint see, because the
   // account query never resolves during SSR — the buttons swap to their signed-in state with
-  // the rest of the account UI, not before it.
-  if (!user) return "anonymous";
-  return user.entitled ? "ready" : "locked";
+  // the rest of the account UI, not before it. The hint only says what to show meanwhile, and
+  // only while a read is actually in flight: one that failed or answered 401 is anonymous.
+  return hint && resolving ? "hinted" : "anonymous";
 }
 
 /** The anonymous state: the same button, pointing at the sign-in it needs first. `next` is the
