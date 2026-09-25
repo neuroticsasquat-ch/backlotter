@@ -1,5 +1,15 @@
 # Release notes
 
+## 1.1.0 — 2026-09-25
+
+### Admin
+
+- /admin/digest page to preview any user's digest and send it to me ([NEU-1465](https://linear.app/neuroticsasquatch/issue/NEU-1465)) ([#177](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/177))
+
+### Settings
+
+- Say what each digest cadence sends, and confirm an unsubscribe ([NEU-1466](https://linear.app/neuroticsasquatch/issue/NEU-1466)) ([#178](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/178))
+
 ## 1.0.0 — 2026-09-23
 
 ### Admin
