@@ -22,7 +22,9 @@ export function getCsrfToken(): string | null {
   return _csrfToken;
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+/** The request half both readers share: credentials, CSRF, the JSON content type, and an
+ *  `ApiError` for any non-2xx. Answers the raw response, for the caller to read as it needs. */
+async function send(path: string, init?: RequestInit): Promise<Response> {
   const method = (init?.method ?? "GET").toUpperCase();
   const headers = new Headers({ Accept: "application/json", ...(init?.headers ?? {}) });
 
@@ -58,11 +60,22 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     }
     throw new ApiError(res.status, message, body);
   }
+  return res;
+}
 
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await send(path, init);
   // 204 and 205 are explicitly no-content; many of our 202 endpoints return
   // no body either. Avoid `res.json()` on those — empty-body parses throw.
   if (res.status === 204 || res.status === 205) return undefined as T;
   const text = await res.text();
   if (text.length === 0) return undefined as T;
   return JSON.parse(text) as T;
+}
+
+/** `apiFetch` for a route that answers a document rather than JSON — the admin digest preview's
+ *  `text/html` or `text/plain` part. Errors still arrive as JSON and still throw `ApiError`. */
+export async function apiFetchText(path: string, init?: RequestInit): Promise<string> {
+  const res = await send(path, init);
+  return res.text();
 }
