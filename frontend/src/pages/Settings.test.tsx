@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { createRoutesStub } from "react-router";
+import { createRoutesStub, useLocation, useNavigationType } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/components/AuthContext";
 import { env } from "@/env";
@@ -12,21 +12,38 @@ import { meHandler } from "@/test/msw/me";
 import { settingsHandlers } from "@/test/msw/settings";
 import { Settings } from "./Settings";
 
+/** Where the router thinks it is, and how it got there — so a test can tell a `replace` from a
+ *  `push`, which the memory router otherwise gives no way to see. */
+function LocationProbe() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  return <output data-testid="location">{`${location.search}|${navigationType}`}</output>;
+}
+
 function renderPage(
   me: Parameters<typeof meHandler>[0] = { entitled: true },
   settings = settingsHandlers(),
+  path = "/me/settings",
 ) {
   server.use(meHandler(me), ...settings.handlers);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const Stub = createRoutesStub([
-    { path: "/me/settings", Component: Settings },
+    {
+      path: "/me/settings",
+      Component: () => (
+        <>
+          <Settings />
+          <LocationProbe />
+        </>
+      ),
+    },
     { path: "/me/follows", Component: () => <p>Follows page</p> },
     { path: "/feed", Component: () => <p>Global feed</p> },
   ]);
   render(
     <QueryClientProvider client={qc}>
       <AuthProvider>
-        <Stub initialEntries={["/me/settings"]} />
+        <Stub initialEntries={[path]} />
       </AuthProvider>
     </QueryClientProvider>,
   );
@@ -114,6 +131,30 @@ describe("Settings", () => {
   });
 
   describe("digest cadence", () => {
+    it("says what each cadence sends, the slate day included (DC-15)", async () => {
+      renderPage();
+
+      expect(await screen.findByRole("radio", { name: /daily/i })).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "What happened to the films, people, studios and franchises you follow, one entry per film — and on Thursdays, the dates coming up for the films among them.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Every morning there is news on your follows, plus your slate on Thursdays.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Your slate and the week's news, in one mail every Thursday. The default.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("No digest. Alerts for the films you follow still arrive."),
+      ).toBeInTheDocument();
+    });
+
     it("shows the saved cadence as the checked option", async () => {
       renderPage({ entitled: true }, settingsHandlers({ digest_cadence: "daily" }));
 
@@ -159,6 +200,60 @@ describe("Settings", () => {
       // has failed rather than keep showing a choice that did not land.
       await waitFor(() => expect(screen.getByRole("radio", { name: /weekly/i })).toBeChecked());
       expect(screen.queryByText(/saved/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("unsubscribe landing (DC-10)", () => {
+    it("says the digest is off above the cadence control, and drops the parameter by replace", async () => {
+      renderPage(
+        { entitled: true },
+        settingsHandlers({ digest_cadence: "off" }),
+        "/me/settings?digest=off",
+      );
+
+      const notice = await screen.findByText("Your digest is off.");
+      const off = screen.getByRole("radio", { name: /off/i });
+      expect(off).toBeChecked();
+      expect(notice.compareDocumentPosition(off) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      // Gone from the URL, so a reload does not show the notice again — and replaced rather
+      // than pushed, so Back does not walk into it either.
+      await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\|REPLACE$/));
+      expect(screen.getByText("Your digest is off.")).toBeInTheDocument();
+    });
+
+    it("shows nothing on an ordinary visit, whatever the cadence", async () => {
+      renderPage({ entitled: true }, settingsHandlers({ digest_cadence: "off" }));
+
+      expect(await screen.findByRole("radio", { name: /off/i })).toBeChecked();
+      expect(screen.queryByText("Your digest is off.")).not.toBeInTheDocument();
+    });
+
+    it("takes the notice down for good once another cadence is chosen", async () => {
+      renderPage(
+        { entitled: true },
+        settingsHandlers({ digest_cadence: "off" }),
+        "/me/settings?digest=off",
+      );
+
+      expect(await screen.findByText("Your digest is off.")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("radio", { name: /weekly/i }));
+
+      await waitFor(() =>
+        expect(screen.queryByText("Your digest is off.")).not.toBeInTheDocument(),
+      );
+
+      // Back to Off is a choice made on this page, not the unsubscribe it confirmed: the saved
+      // cadence is true, the notice is not shown twice.
+      await userEvent.click(screen.getByRole("radio", { name: /off/i }));
+      await waitFor(() => expect(screen.getByRole("radio", { name: /off/i })).toBeChecked());
+      expect(screen.queryByText("Your digest is off.")).not.toBeInTheDocument();
+    });
+
+    it("drops the parameter for an account without a grant too", async () => {
+      renderPage({ entitled: false }, settingsHandlers(), "/me/settings?digest=off");
+
+      expect(await screen.findByRole("heading", { name: /not open yet/i })).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\|REPLACE$/));
     });
   });
 

@@ -1,5 +1,5 @@
-import { useId, useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useId, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import * as authApi from "@/api/auth";
@@ -25,9 +25,22 @@ import { calendarFeedUrls } from "@/lib/ical-url";
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 128;
 
+/** The day both cadences carry the slate (DC-2). Mirrors the backend `SLATE_WEEKDAY` default,
+ *  by hand: the setting is product-wide rather than per-user and no route exposes it, so an
+ *  override in Coolify leaves this copy naming the wrong day until it is changed here too. */
+const SLATE_WEEKDAY = "Thursday";
+
 const CADENCES: { value: DigestCadence; label: string; help: string }[] = [
-  { value: "daily", label: "Daily", help: "Every morning, when there is something to say." },
-  { value: "weekly", label: "Weekly", help: "Your slate for the week, in one mail. The default." },
+  {
+    value: "daily",
+    label: "Daily",
+    help: `Every morning there is news on your follows, plus your slate on ${SLATE_WEEKDAY}s.`,
+  },
+  {
+    value: "weekly",
+    label: "Weekly",
+    help: `Your slate and the week's news, in one mail every ${SLATE_WEEKDAY}. The default.`,
+  },
   { value: "off", label: "Off", help: "No digest. Alerts for the films you follow still arrive." },
 ];
 
@@ -54,6 +67,7 @@ const linkClass = "underline underline-offset-4 hover:text-foreground";
  */
 export function Settings() {
   const { user } = useAuth();
+  const unsubscribed = useUnsubscribeLanding();
   // `RequireAuth` has already sent an anonymous visitor away; this is the render before `/me`
   // resolves, and there is nothing to show about an account that has not arrived yet.
   if (!user) return null;
@@ -72,7 +86,7 @@ export function Settings() {
       {user.entitled ? (
         <>
           <AlertsSection />
-          <DigestSection />
+          <DigestSection unsubscribed={unsubscribed} />
           <CalendarSection />
           <PushSection className={sectionClass} />
           <LibrarySection />
@@ -82,6 +96,34 @@ export function Settings() {
       )}
     </div>
   );
+}
+
+/**
+ * Whether this visit is the landing from the digest's unsubscribe link, which the backend
+ * answers with a redirect to `/me/settings?digest=off` (DC-10).
+ *
+ * Read once, then the parameter is dropped from the URL by `replace` — so a reload has nothing
+ * left to read and Back does not return to it, which is what makes the notice show once. It is
+ * dropped for every account, not only the ones that render the digest section: a lapsed grant
+ * can still click the link in an old mail.
+ */
+function useUnsubscribeLanding(): boolean {
+  const [params, setParams] = useSearchParams();
+  const [landed] = useState(() => params.get("digest") === "off");
+
+  useEffect(() => {
+    if (!params.has("digest")) return;
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("digest");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [params, setParams]);
+
+  return landed;
 }
 
 function AccountSection({ user }: { user: AuthedUser }) {
@@ -368,12 +410,19 @@ function AlertsSection() {
   );
 }
 
-/** The digest cadence (D-33), saved on change rather than behind a button: three radios and
- *  one field is not a form worth submitting. */
-function DigestSection() {
+/**
+ * The digest cadence (D-33), saved on change rather than behind a button: three radios and one
+ * field is not a form worth submitting.
+ *
+ * `unsubscribed` is the landing from the mail's unsubscribe link. Its notice is shown only while
+ * the saved cadence agrees with it, so it never claims an unsubscribe the server did not take,
+ * and it goes for good at the first cadence the user picks — once, not again on a return to Off.
+ */
+function DigestSection({ unsubscribed }: { unsubscribed: boolean }) {
   const headingId = useId();
   const { data, isLoading, isError } = useSettings();
   const update = useUpdateDigestCadence();
+  const [notice, setNotice] = useState(unsubscribed);
 
   return (
     <section aria-labelledby={headingId} className={sectionClass}>
@@ -381,12 +430,18 @@ function DigestSection() {
         Digest email
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        A round-up of what happened to the films, people, studios and franchises you follow, and the
-        dates coming up for the films among them.
+        What happened to the films, people, studios and franchises you follow, one entry per film —
+        and on {SLATE_WEEKDAY}s, the dates coming up for the films among them.
       </p>
 
       {isLoading && <p className="mt-3 text-sm text-muted-foreground">Loading…</p>}
       {isError && <p className="mt-3 text-sm text-red-600">We could not load your settings.</p>}
+
+      {data && notice && data.digest_cadence === "off" && (
+        <p role="status" className="mt-3 text-sm text-foreground">
+          Your digest is off.
+        </p>
+      )}
 
       {data && (
         <fieldset className="mt-4" disabled={update.isPending}>
@@ -397,7 +452,10 @@ function DigestSection() {
                 key={option.value}
                 option={option}
                 checked={data.digest_cadence === option.value}
-                onSelect={() => update.mutate(option.value)}
+                onSelect={() => {
+                  setNotice(false);
+                  update.mutate(option.value);
+                }}
               />
             ))}
           </div>
