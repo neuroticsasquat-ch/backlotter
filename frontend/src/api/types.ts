@@ -313,9 +313,9 @@ export interface FeedDayItem {
   top_event_type: string; // raw event_type, rendered via eventTypeLabel
   // Every distinct beat the film-day carries, most-significant first (so `event_types[0]`
   // is `top_event_type`). Raw event_types — render each via eventTypeLabel. The feed labels
-  // the whole set inline after the title (NEU-1212), not beneath it, and only on a row that
-  // ships no events; the lead type alone can't express a day pairing a trailer with a casting
-  // beat.
+  // the whole set inline after the title (NEU-1212), not beneath it, as a fallback only on a
+  // row that ships no events (NEU-1467); the lead type alone can't express a day pairing a
+  // trailer with a casting beat.
   event_types: string[];
   event_count: number;
   // True when any of this film-day's events has a linked story. The backend derives it from

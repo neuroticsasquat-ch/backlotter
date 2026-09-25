@@ -303,9 +303,8 @@ describe("home route — signed in and entitled", () => {
 
   it("fetches the next page of days when there are more than fit on one", async () => {
     const days = Array.from({ length: 12 }, (_, n) =>
-      // News-backed so the day's expanded section carries them: the "Not yet reported" half is
-      // collapsed by default, and a test asserting on paging should not also be asserting on
-      // which disclosure the item landed in.
+      // News-backed so every day lands in the same section: a test asserting on paging should
+      // not also be asserting on which section the item landed in.
       dayItem(`film-${n}`, {
         day: `2026-06-${String(23 - n).padStart(2, "0")}`,
         film_title: `Film ${n}`,

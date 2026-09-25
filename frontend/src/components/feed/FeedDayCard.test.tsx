@@ -163,15 +163,15 @@ describe("FeedDayCard", () => {
     expect(screen.queryByText("Trailer")).toBeNull();
   });
 
-  it("renders beat labels when events are empty", () => {
-    // NEU-1208 stopped shipping events for catalog rows; NEU-1212 puts the day's beats back
-    // as badges, so the row is triageable without a page load. Still no count of any kind.
+  it("falls back to beat labels on a row that arrives with no events", () => {
+    // An older backend ships catalog rows with no events (NEU-1208); NEU-1212's badges keep
+    // such a row triageable without a page load, as a fallback since NEU-1467. No count.
     renderCard({ event_count: 3, events: [], event_types: ["release_date"] });
     expect(screen.getByRole("link")).toHaveAttribute("href", "/film/the-odyssey-2026");
     expect(screen.getByText("Release date")).toBeInTheDocument();
     expect(screen.queryByText(/^\+/)).toBeNull();
     expect(screen.queryByText("3")).toBeNull();
-    // The beats are labelled, but no event summary line renders for a catalog row — the
+    // The beats are labelled, but no event summary line renders on the fallback row — the
     // badge is the whole of the row's content beyond the title.
     expect(screen.queryByText("Date set.")).toBeNull();
     expect(screen.getByRole("link").parentElement!.querySelector("p")).toBeNull();
@@ -454,9 +454,10 @@ describe("FeedDayCard", () => {
 
   // The real mixed shape, per the backend's feed builder: a film-day is split into a news row
   // and a catalog row, and each derives `event_types` from its own events — so a now_available
-  // beat always rides the catalog row, which ships no events (NEU-1208) and renders its beats as
-  // badges. The credit belongs to the row, not to a summary line, and lands once either way.
-  it("credits it once on a catalog row carrying now_available alongside another beat", () => {
+  // beat always rides the catalog row. Pinned here on the no-events fallback shape, where the
+  // badges are all the row has. The credit belongs to the row, not to a summary line, and lands
+  // once either way.
+  it("credits it once on a fallback row carrying now_available alongside another beat", () => {
     renderCard({
       top_event_type: "trailer",
       event_types: ["trailer", "now_available"],

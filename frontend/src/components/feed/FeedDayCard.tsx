@@ -22,19 +22,20 @@ const CONFIDENCE_PILL = {
  *  director being what let a reader place an unfamiliar title without a page load, on a feed
  *  where 78% of films have no year at all. It is never empty: `filmParenthetical` falls back
  *  to the arc-stage label.
- *  Two row shapes, never both — a news-backed row lists each event as a summary line with
- *  real anchor source chips below it; a catalog row (which ships no events since NEU-1208)
- *  labels the day's beats as badges inline after the title, so it can be triaged without a
- *  page load (NEU-1212). Those badges need `indent-0`: the link's `-indent-3` hanging indent
- *  inherits into them, and an inline-block re-applies it to its own first line, which paints
- *  the label outside its own pill (NEU-1214).
+ *  Two row shapes, never both — a row with events lists each as a summary line, with source
+ *  chips below it when it has any (a catalog row has none); a row that arrives with no events
+ *  falls back to labelling the day's beats as badges inline after the title, so it can still
+ *  be triaged without a page load (NEU-1212, a fallback since NEU-1467 — an older backend
+ *  ships catalog rows empty). Those badges need `indent-0`: the link's `-indent-3` hanging
+ *  indent inherits into them, and an inline-block re-applies it to its own first line, which
+ *  paints the label outside its own pill (NEU-1214).
  *  Zebra-striped within its section — a day that carries both news-backed and TMDB-only
  *  updates renders them as two lists, and the stripe restarts under each. */
 export function FeedDayCard({ item }: { item: FeedDayItem }) {
   // A now_available beat's body names the providers a poll found the film on (D-28), so this row
   // is a surface where provider names render and TMDB's terms want JustWatch credited on it.
-  // Keyed off `event_types` rather than the row's events, because a catalog row ships none
-  // (NEU-1208) and the badge set is all it has; once per row, whichever shape it takes. The row
+  // Keyed off `event_types` rather than the row's events, because the no-events fallback row has
+  // only the badge set; once per row, whichever shape it takes. The row
   // has no per-film watch link to pass — that is the film page's `where_to_watch.link`.
   const showAttribution = item.event_types.includes("now_available");
   return (
@@ -72,7 +73,7 @@ export function FeedDayCard({ item }: { item: FeedDayItem }) {
   );
 }
 
-/** One event line on a news-backed feed row. Carries the D-9 confidence badge and, on a
+/** One event line on a feed row. Carries the D-9 confidence badge and, on a
  *  superseded event, the D-2 "later retracted" marker — linked to the film page, since the
  *  retraction is a different day's card and so never on this row. No first-seen line: the feed
  *  is a publication log (ADR-0016), so its heading already says when this was published. */

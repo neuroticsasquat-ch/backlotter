@@ -48,6 +48,17 @@ _Avoid_: unconfirmed updates (the old heading, retired by NEU-1406 because it bo
 badge's word for a different axis), via TMDB (older still), catalog section (the codebase's
 word, not the reader's), TMDB-only (fine in code, not on screen).
 
+**Demotion** (of Not yet reported):
+How a Not yet reported beat reads as lighter than an In the news beat without being hidden or
+cut down. It has exactly two parts: **order** (within a day, In the news leads) and the
+**heading** (the section is named). Nothing else differs: the same event line at the same size,
+weight and colour, the same beat and confidence badges, the same link.
+A section with nothing in it is not rendered at all, so an empty "Not yet reported" is silence,
+never a placeholder line. Collapsing, titles-only rows and "None today" were earlier forms of
+demotion and are retired (NEU-1467).
+_Avoid_: hidden, collapsed, muted (reads as colour, which is not one of the two parts), smaller
+(a type-size step was tried and dropped in NEU-1467), titles-only, None today.
+
 **Confidence badge**:
 The `confirmed` / `unconfirmed` pill on every event card. The backend says `rumored`; the
 badge says `unconfirmed`, and anything the frontend does not recognise also reads
