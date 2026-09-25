@@ -66,12 +66,13 @@ export function toExpiryInstant(date: string): string {
 /** One page of accounts for the grant page. `keepPreviousData` holds the current rows on
  *  screen while a new search or page loads, so typing in the search box doesn't flash the
  *  table through an empty loading state on every keystroke. */
-export function useAdminUsers(params: AdminUserQuery = {}) {
+export function useAdminUsers(params: AdminUserQuery = {}, { enabled = true } = {}) {
   const { q, limit = DEFAULT_PAGE_SIZE, offset = 0 } = params;
   return useQuery({
     queryKey: ["admin-users", { q: q ?? "", limit, offset }],
     queryFn: () => fetchAdminUsers({ q, limit, offset }),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 

@@ -50,6 +50,7 @@ export default [
           route("admin/users", "pages/AdminUsers.tsx"),
           route("admin/resolution", "pages/AdminResolution.tsx"),
           route("admin/invites", "pages/AdminInvites.tsx"),
+          route("admin/digest", "pages/AdminDigest.tsx"),
         ]),
       ]),
     ]),
