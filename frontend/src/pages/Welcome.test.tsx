@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRoutesStub, useLocation } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import { env } from "@/env";
 import { server } from "@/test/msw/server";
 import { meHandler } from "@/test/msw/me";
 import { entitySearchHandlers, followGraphHandlers } from "@/test/msw/follows";
+import { heldResponse } from "@/test/msw/search";
 import { activeImportKey, followsKey, importJobKey } from "@/api/query-keys";
 import {
   activeImportHandler,
@@ -234,6 +235,28 @@ describe("Welcome", () => {
     );
   });
 
+  it("pins each face to its grid track and marks a picked one with a badge (NEU-1471)", async () => {
+    renderWelcome();
+
+    await userEvent.click(await screen.findByRole("button", { name: /^continue$/i }));
+    const card = await screen.findByRole("button", { name: /follow christopher nolan/i });
+    // jsdom does not lay out, so these classes are the guard: a <button> shrink-fits to its
+    // content even as a flex box, and w-full/h-full are what pin it to the grid track.
+    expect(card).toHaveClass("w-full", "h-full");
+    // A nowrap name sets the button's min-content wider than the track; the name wraps instead.
+    const name = within(card).getByText("Christopher Nolan");
+    expect(name).toHaveClass("line-clamp-2");
+    expect(name).not.toHaveClass("truncate");
+    expect(card).not.toHaveTextContent(/follow/i);
+    expect(within(card).queryByTestId("picked")).not.toBeInTheDocument();
+
+    await userEvent.click(card);
+
+    const picked = await screen.findByRole("button", { name: /unfollow christopher nolan/i });
+    expect(within(picked).getByTestId("picked")).toBeInTheDocument();
+    expect(picked).not.toHaveTextContent(/follow/i);
+  });
+
   it("swaps the grid to search results and back when the box is cleared", async () => {
     renderWelcome();
 
@@ -248,6 +271,40 @@ describe("Welcome", () => {
 
     await userEvent.clear(screen.getByLabelText(/search for a person/i));
     expect(await screen.findByRole("button", { name: /follow matt damon/i })).toBeInTheDocument();
+  });
+
+  it("spins in the search box while a people search is in flight (NEU-1469)", async () => {
+    const later = heldResponse();
+    renderWelcome();
+    // Its own `server.use`, after the render's: handlers in one call are tried in order, so
+    // passed as `extraHandlers` this would sit behind the default people search.
+    server.use(
+      http.get(`${env.apiBaseUrl}/people/search`, async () => {
+        await later.held;
+        return HttpResponse.json({
+          items: [
+            { id: 138, name: "Quentin Tarantino", known_for_department: null, profile_path: null },
+          ],
+          total: 1,
+          limit: 10,
+          offset: 0,
+        });
+      }),
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: /^continue$/i }));
+    await screen.findByRole("button", { name: /follow matt damon/i });
+    expect(screen.queryByTestId("spinner")).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText(/search for a person/i), "tarantino");
+    expect(await screen.findByTestId("spinner")).toBeInTheDocument();
+    expect(screen.queryByText(/nobody matches/i)).not.toBeInTheDocument();
+
+    later.release();
+    expect(
+      await screen.findByRole("button", { name: /follow quentin tarantino/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("spinner")).not.toBeInTheDocument();
   });
 
   it("says so when the poll cannot reach the job it just started", async () => {

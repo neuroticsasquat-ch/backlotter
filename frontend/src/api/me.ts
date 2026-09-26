@@ -11,7 +11,6 @@ import {
   timelinePageKey,
 } from "./query-keys";
 import type {
-  AlertStore,
   CalendarResponse,
   DigestCadence,
   FeedDayResponse,
@@ -211,22 +210,12 @@ export function useToggleFollow() {
 
 export const fetchSettings = () => apiFetch<UserSettings>("/me/settings");
 
-/** PATCH takes the cadence alone — the backend's request model needs *one* of its fields, not
- *  all of them, so the screen writes the control the user touched rather than restating the
- *  row (NEU-1378). Answers with the whole row. */
+/** PATCH takes the cadence, the one preference there is (ADR-0021). Answers with the whole
+ *  row. */
 export const updateDigestCadence = (digestCadence: DigestCadence) =>
   apiFetch<UserSettings>("/me/settings", {
     method: "PATCH",
     body: JSON.stringify({ digest_cadence: digestCadence }),
-  });
-
-/** Replace the account's store set (D-44). The whole set, not a delta — `[]` is "no store
- *  alerts", a real choice and distinct from the `{stream}` default a row is created with. The
- *  backend canonicalises the order, so the list sent here need not be sorted. */
-export const updateAlertStores = (alertStores: AlertStore[]) =>
-  apiFetch<UserSettings>("/me/settings", {
-    method: "PATCH",
-    body: JSON.stringify({ alert_stores: alertStores }),
   });
 
 /** The settings row, which the first read creates with its defaults (D-33). Gated on
@@ -266,33 +255,6 @@ export function useRotateIcalToken() {
         return;
       }
       toast.error("We could not change your calendar link. Please try again.");
-    },
-  });
-}
-
-/** Change which stores an availability alert is worth (D-44). Optimistic on the cadence's
- *  terms below, and for the same reason: a chip that stays on the old setting until the round
- *  trip returns reads as a click that did not take. */
-export function useUpdateAlertStores() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: updateAlertStores,
-    onMutate: async (alertStores) => {
-      await qc.cancelQueries({ queryKey: settingsKey });
-      const previous = qc.getQueryData<UserSettings>(settingsKey);
-      if (previous) qc.setQueryData(settingsKey, { ...previous, alert_stores: alertStores });
-      return { previous };
-    },
-    onSuccess: (settings) => {
-      qc.setQueryData(settingsKey, settings);
-    },
-    onError: (error, _stores, context) => {
-      if (context?.previous) qc.setQueryData(settingsKey, context.previous);
-      if (isEntitlementError(error)) {
-        void refreshAccount(qc);
-        return;
-      }
-      toast.error("We could not save that. Please try again.");
     },
   });
 }

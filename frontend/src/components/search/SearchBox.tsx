@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { env } from "@/env";
 import { useDebouncedSearch, type SearchHit } from "./useDebouncedSearch";
 import { SearchResultItem } from "./SearchResultItem";
@@ -49,20 +50,26 @@ export function SearchBox() {
     return offset;
   });
 
-  const showDropdown =
-    mounted && (groups !== null || status === "loading") && !dismissed && status !== "error";
+  // Opens on an answer, never on `loading` alone: before the first answer there is nothing to
+  // show, and an open empty box reads as a broken one. A re-query keeps the held groups open
+  // under the input's spinner until the new answer replaces them (NEU-1469 D-1469.6).
+  const showDropdown = mounted && groups !== null && !dismissed && status !== "error";
 
   const activeDescendant = mounted && activeIndex >= 0 ? `search-opt-${activeIndex}` : undefined;
 
-  // Screen-reader announcement for the result count / no-results state. Driven off
-  // the live results so the persistent status region (below) mutates in place —
-  // a region that only mounts together with its text doesn't reliably announce.
+  // Screen-reader announcement for the searching / result count / no-results state. Driven
+  // off the live results so the persistent status region (below) mutates in place — a region
+  // that only mounts together with its text doesn't reliably announce. A re-query over held
+  // groups keeps the count it already announced: "Searching…" on every debounce over a list
+  // that is still on screen would be noise.
   const announcement =
-    showDropdown && groups !== null
-      ? options.length === 0
-        ? "No results found."
-        : `${options.length} result${options.length === 1 ? "" : "s"} found.`
-      : "";
+    status === "loading" && groups === null
+      ? "Searching…"
+      : showDropdown && groups !== null
+        ? options.length === 0
+          ? "No results found."
+          : `${options.length} result${options.length === 1 ? "" : "s"} found.`
+        : "";
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     setInputValue(e.target.value);
@@ -126,13 +133,18 @@ export function SearchBox() {
         placeholder="Search films, people, studios…"
         value={inputValue}
         onChange={handleInputChange}
-        className="w-full"
+        className="w-full pr-9"
         role={mounted ? "combobox" : undefined}
         aria-expanded={mounted ? showDropdown : undefined}
         aria-controls={mounted ? "search-listbox" : undefined}
         aria-activedescendant={activeDescendant}
         onKeyDown={mounted ? handleKeyDown : undefined}
       />
+      {status === "loading" && (
+        // Beside the input rather than in the dropdown, so it shows whether the dropdown is
+        // closed (a first query) or holding the previous query's hits (a re-query).
+        <Spinner className="absolute right-3 top-1/2 -translate-y-1/2" />
+      )}
       {/* Persistent (post-hydration) live region so result-count / no-results
           announcements fire when its text changes, not when it first mounts. */}
       {mounted && (

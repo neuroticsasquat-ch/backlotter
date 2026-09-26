@@ -6,6 +6,7 @@ import {
   type EntityResult,
   type SearchableEntityType,
 } from "@/api/entities";
+import { Spinner } from "@/components/ui/spinner";
 import { personPath, type FollowTarget } from "@/lib/film-entities";
 import { profileUrl } from "@/lib/poster";
 import { FollowButton } from "./FollowButton";
@@ -90,17 +91,20 @@ export function FollowEntitySearch() {
       <label htmlFor={inputId} className="sr-only">
         {active.placeholder}
       </label>
-      <input
-        id={inputId}
-        type="search"
-        value={input}
-        placeholder={active.placeholder}
-        // The backend caps `q` at 200; a longer one is a 422 rather than a search that finds
-        // nothing, so the input stops before the request does.
-        maxLength={200}
-        onChange={(event) => setInput(event.target.value)}
-        className="mt-3 w-full rounded border border-input bg-background px-3 py-2 text-sm"
-      />
+      <div className="relative mt-3">
+        <input
+          id={inputId}
+          type="search"
+          value={input}
+          placeholder={active.placeholder}
+          // The backend caps `q` at 200; a longer one is a 422 rather than a search that finds
+          // nothing, so the input stops before the request does.
+          maxLength={200}
+          onChange={(event) => setInput(event.target.value)}
+          className="w-full rounded border border-input bg-background py-2 pl-3 pr-9 text-sm"
+        />
+        {isFetching && <Spinner className="absolute right-3 top-1/2 -translate-y-1/2" />}
+      </div>
 
       <div id="entity-search-results" aria-busy={isFetching} className="mt-3">
         {!searched && (
@@ -115,7 +119,9 @@ export function FollowEntitySearch() {
           </p>
         )}
 
-        {searched && !isError && data && results.length === 0 && (
+        {/* Not while fetching: held placeholder data is the *previous* query's, so an empty
+            previous answer would otherwise name the new query as matching nothing. */}
+        {searched && !isError && !isFetching && data && results.length === 0 && (
           <p className="text-sm text-muted-foreground">
             No {active.label.toLowerCase()} match &quot;{query}&quot;.
           </p>

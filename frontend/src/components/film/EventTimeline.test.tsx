@@ -171,6 +171,31 @@ describe("EventTimeline", () => {
     expect(within(tmdbSection).queryByText("unconfirmed")).toBeNull();
     const newsSection = screen.getByText("In the news").parentElement!;
     expect(within(newsSection).getByText("unconfirmed")).toBeInTheDocument();
+    // Same type on both sides: the heading and the order are the whole demotion (NEU-1467).
+    expect(screen.getByText("Release date set.", { exact: false }).className).toBe(
+      screen.getByText("Rumored casting.", { exact: false }).className,
+    );
+  });
+
+  it("renders no In the news heading on a TMDB-only day and no Not yet reported heading on a news-only day", async () => {
+    renderTimeline([
+      {
+        day: "2026-06-02",
+        heading: "Tuesday, June 2, 2026",
+        news_events: [],
+        tmdb_events: [makeEvent({ summary: "Catalog only.", created_at: "2026-06-02T12:00:00Z" })],
+      },
+      {
+        day: "2026-06-01",
+        heading: "Monday, June 1, 2026",
+        news_events: [makeEvent({ summary: "News only.", created_at: "2026-06-01T08:00:00Z" })],
+        tmdb_events: [],
+      },
+    ]);
+    await screen.findByText(/Catalog only/);
+    expect(screen.getAllByText("In the news")).toHaveLength(1);
+    expect(screen.getAllByText("Not yet reported")).toHaveLength(1);
+    expect(screen.queryByText("None today")).toBeNull();
   });
 
   it("explains the section split once, above the day groups", async () => {

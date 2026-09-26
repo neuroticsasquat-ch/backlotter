@@ -465,10 +465,10 @@ describe("MyFollows", () => {
     expect(within(list).queryByText(/Person 525/)).toBeNull();
   });
 
-  it("says the alerts are built from these, not that films are added for you", async () => {
+  it("says the digest is built from these, not that films are added for you", async () => {
     renderPage([]);
     expect(
-      await screen.findByText("Your timeline and your alerts are built from these."),
+      await screen.findByText("Your timeline and your digest are built from these."),
     ).toBeInTheDocument();
   });
 

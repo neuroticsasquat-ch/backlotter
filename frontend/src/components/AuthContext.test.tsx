@@ -4,9 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/msw/server";
-import { meHandler } from "@/test/msw/me";
+import { meHandler, unauthMeHandler } from "@/test/msw/me";
 import { env } from "@/env";
 import { activeImportKey } from "@/api/query-keys";
+import { readTimelineHint, writeTimelineHint } from "@/lib/timeline-hint";
 import { AuthProvider, useAuth } from "./AuthContext";
 
 const AUTHED_USER = {
@@ -149,5 +150,115 @@ describe("AuthContext", () => {
     await userEvent.click(await screen.findByRole("button", { name: "login" }));
 
     expect(await screen.findByText("entitled: true")).toBeInTheDocument();
+  });
+});
+
+/** The timeline hint is written only where `["me"]` is written from a resolved account
+ *  (NEU-1468, D-1468.2), so it can never run ahead of what the API said. */
+describe("AuthContext — the timeline hint", () => {
+  const hinted = () => readTimelineHint(document.cookie);
+
+  it("writes the hint when /me answers entitled", async () => {
+    server.use(meHandler({ entitled: true }));
+    renderWithProviders(<ProbeEntitled />);
+    await screen.findByText("entitled: true");
+    expect(hinted()).toBe(true);
+  });
+
+  it("clears the hint when /me answers unentitled", async () => {
+    writeTimelineHint({ ...AUTHED_USER, entitled: true });
+    server.use(meHandler({ entitled: false }));
+    renderWithProviders(<ProbeEntitled />);
+    await screen.findByText("entitled: false");
+    expect(hinted()).toBe(false);
+  });
+
+  it("clears the hint when /me answers 401", async () => {
+    writeTimelineHint({ ...AUTHED_USER, entitled: true });
+    server.use(unauthMeHandler());
+    renderWithProviders(<ProbeUser />);
+    await screen.findByText("anon");
+    expect(hinted()).toBe(false);
+  });
+
+  it("leaves the hint alone when /me fails for any other reason", async () => {
+    // An errored read proves nothing either way; clearing on a 500 would flash the global feed
+    // at a subscriber on their next load for no reason of theirs.
+    writeTimelineHint({ ...AUTHED_USER, entitled: true });
+    server.use(
+      http.get(`${env.apiBaseUrl}/me`, () =>
+        HttpResponse.json({ detail: "boom" }, { status: 500 }),
+      ),
+    );
+    function ProbeError() {
+      const { loading, resolving } = useAuth();
+      return <div>{loading || resolving ? "pending" : "settled"}</div>;
+    }
+    renderWithProviders(<ProbeError />);
+    await screen.findByText("settled");
+    expect(hinted()).toBe(true);
+  });
+
+  it("clears the hint on logout", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      http.post(`${env.apiBaseUrl}/auth/logout`, () => new HttpResponse(null, { status: 204 })),
+    );
+    renderWithProviders(
+      <>
+        <ProbeEntitled />
+        <LogoutButton />
+      </>,
+    );
+    await screen.findByText("entitled: true");
+    expect(hinted()).toBe(true);
+
+    await userEvent.click(screen.getByRole("button", { name: "logout" }));
+
+    await waitFor(() => expect(hinted()).toBe(false));
+  });
+
+  it("writes the hint for an entitled login before login() resolves", async () => {
+    // `/login` navigates to `/` as soon as this resolves, and the public layout's loader for that
+    // navigation must already see the cookie, or the landing flashes the global feed.
+    server.use(http.post(`${env.apiBaseUrl}/auth/login`, () => HttpResponse.json(AUTHED_USER)));
+    let hintAtResolve: boolean | undefined;
+    function LoginAndRecord() {
+      const { login } = useAuth();
+      return (
+        <button
+          onClick={async () => {
+            await login("alice@example.com", "password123");
+            hintAtResolve = hinted();
+          }}
+        >
+          login
+        </button>
+      );
+    }
+    renderWithProviders(<LoginAndRecord />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "login" }));
+
+    await waitFor(() => expect(hintAtResolve).toBe(true));
+  });
+
+  it("clears the hint for a login that is not entitled", async () => {
+    writeTimelineHint({ ...AUTHED_USER, entitled: true });
+    server.use(
+      http.post(`${env.apiBaseUrl}/auth/login`, () =>
+        HttpResponse.json({ ...AUTHED_USER, entitled: false }),
+      ),
+    );
+    renderWithProviders(
+      <>
+        <ProbeEntitled />
+        <LoginButton />
+      </>,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "login" }));
+
+    await screen.findByText("entitled: false");
+    expect(hinted()).toBe(false);
   });
 });

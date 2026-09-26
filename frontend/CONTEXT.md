@@ -48,9 +48,42 @@ _Avoid_: unconfirmed updates (the old heading, retired by NEU-1406 because it bo
 badge's word for a different axis), via TMDB (older still), catalog section (the codebase's
 word, not the reader's), TMDB-only (fine in code, not on screen).
 
+**Demotion** (of Not yet reported):
+How a Not yet reported beat reads as lighter than an In the news beat without being hidden or
+cut down. It has exactly two parts: **order** (within a day, In the news leads) and the
+**heading** (the section is named). Nothing else differs: the same event line at the same size,
+weight and colour, the same beat and confidence badges, the same link.
+A section with nothing in it is not rendered at all, so an empty "Not yet reported" is silence,
+never a placeholder line. Collapsing, titles-only rows and "None today" were earlier forms of
+demotion and are retired (NEU-1467).
+_Avoid_: hidden, collapsed, muted (reads as colour, which is not one of the two parts), smaller
+(a type-size step was tried and dropped in NEU-1467), titles-only, None today.
+
 **Confidence badge**:
 The `confirmed` / `unconfirmed` pill on every event card. The backend says `rumored`; the
 badge says `unconfirmed`, and anything the frontend does not recognise also reads
 `unconfirmed`. It is the card's only truth signal and the only place "unconfirmed" means
 "we are not sure this is true", together with the "(unconfirmed)" release-date parenthetical.
 _Avoid_: veracity heading, section badge, rumored (on screen).
+
+### The home page and access
+
+**Timeline hint**:
+A first-party cookie (`timeline_hint=1`) on the site origin that the browser writes for itself
+when the account last resolved entitled, and clears when it resolves anonymous or unentitled,
+or on logout (NEU-1468, ADR-0001). It predicts that `/` will be the reader's timeline so the
+server can render the timeline skeleton, and the nav its two-item form, before `/me` has
+answered. It proves nothing and grants nothing: the API never sees it, and a stale one only
+costs a skeleton-to-feed swap. The session cookie is a different thing on a different origin.
+_Avoid_: session hint, auth cookie, logged-in flag (it is set only for entitled readers and is
+not evidence of anything), login cookie.
+
+**Access state**:
+What `useFollowAccess()` answers about the viewer: **anonymous** (no account, which is also what
+the server render sees), **locked** (signed in, no grant), **ready** (signed in and entitled),
+and **hinted** (no account yet, the timeline hint is present, and an account read is in
+flight). Hinted is a waiting state, never a resolved one: only the home page and the nav act on
+it; every other surface treats it as anonymous until `/me` answers.
+_Avoid_: auth state (that is signed in or not; access is the three-way split plus the wait),
+pending/loading (hinted is not "still loading" in general, it is loading _with_ a prediction),
+entitlement (one of its inputs, not the state).

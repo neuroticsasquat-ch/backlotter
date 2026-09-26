@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { MIN_QUERY_LEN, useEntitySearch, usePopularPeople } from "@/api/entities";
 import { useFollows } from "@/api/me";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { PersonTile } from "./PersonTile";
 
 /** Same 250ms as the follows page's add box — one request per pause in typing. */
@@ -33,8 +34,8 @@ export function PeopleStep({ onContinue, onSkip }: { onContinue: () => void; onS
   const popular = usePopularPeople();
   const search = useEntitySearch("person", query);
   // The follows list is what every tile reads to know whether it is pressed. Subscribing here
-  // as well means the grid waits for it rather than rendering thirty "Follow" labels that flip
-  // to "Following" a moment later.
+  // as well means the grid waits for it rather than rendering thirty dimmed faces whose picked
+  // ones light up with a badge a moment later.
   const follows = useFollows();
 
   const people = searching ? (search.data?.items ?? []) : (popular.data ?? []);
@@ -55,16 +56,19 @@ export function PeopleStep({ onContinue, onSkip }: { onContinue: () => void; onS
       <label htmlFor={inputId} className="sr-only">
         Search for a person
       </label>
-      <input
-        id={inputId}
-        type="search"
-        value={input}
-        placeholder="Search for someone…"
-        // The backend caps `q` at 200 and answers 422 above it, so the input stops first.
-        maxLength={200}
-        onChange={(event) => setInput(event.target.value)}
-        className="mt-4 w-full rounded border border-input bg-background px-3 py-2 text-sm"
-      />
+      <div className="relative mt-4">
+        <input
+          id={inputId}
+          type="search"
+          value={input}
+          placeholder="Search for someone…"
+          // The backend caps `q` at 200 and answers 422 above it, so the input stops first.
+          maxLength={200}
+          onChange={(event) => setInput(event.target.value)}
+          className="w-full rounded border border-input bg-background py-2 pl-3 pr-9 text-sm"
+        />
+        {search.isFetching && <Spinner className="absolute right-3 top-1/2 -translate-y-1/2" />}
+      </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
         {searching ? `Results for “${query}”` : "Popular on backlotter right now"}
@@ -79,7 +83,8 @@ export function PeopleStep({ onContinue, onSkip }: { onContinue: () => void; onS
           </p>
         )}
 
-        {!isLoading && !error && people.length === 0 && (
+        {/* Not while a search is in flight: the held previous answer is not this query's. */}
+        {!isLoading && !error && !search.isFetching && people.length === 0 && (
           <p className="text-sm text-muted-foreground">
             {searching ? `Nobody matches “${query}”.` : "No people to show yet."}
           </p>

@@ -3,9 +3,7 @@ import { logoUrl } from "@/lib/poster";
 import { JustWatchAttribution } from "./JustWatchAttribution";
 
 /** The monetization buckets in the order the box lists them: the one a reader may already be
- *  paying for, then the two that cost money today. The labels are the alert settings'
- *  vocabulary (D-14, D-44) — "Stream" for TMDB's `flatrate` — so the word means the same thing
- *  on both surfaces. */
+ *  paying for, then the two that cost money today. "Stream" for TMDB's `flatrate`. */
 const MONETIZATION_ROWS: readonly { key: "flatrate" | "rent" | "buy"; label: string }[] = [
   { key: "flatrate", label: "Stream" },
   { key: "rent", label: "Rent" },

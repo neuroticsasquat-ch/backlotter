@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { FeedDayItem } from "@/api/types";
 import { groupByDay, splitByNewsBacked } from "@/lib/feed-groups";
 import { FeedDayCard } from "@/components/feed/FeedDayCard";
@@ -26,8 +25,8 @@ export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
     <div className="mt-6 space-y-8">
       {groups.map((group) => {
         const { newsBacked, tmdbOnly } = splitByNewsBacked(group.items);
-        // Every day renders both labelled sections. An empty section shows a static
-        // "None today" line so the absence of catalog or news activity is legible.
+        // A day renders only the sections that have items — an empty one is silence, never a
+        // placeholder line (NEU-1467).
         const sections = [
           { key: "news", label: "In the news", items: newsBacked },
           { key: "tmdb", label: NOT_YET_REPORTED_LABEL, items: tmdbOnly },
@@ -60,9 +59,8 @@ export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
   );
 }
 
-/** Wraps a day section: "In the news" is always expanded; "Not yet reported" is
- *  collapsible and collapsed by default when non-empty, with a count of movies listed.
- *  An empty section renders a static "None today" line without a toggle. */
+/** Wraps a day section: a static heading with its movie count, then the rows, always expanded.
+ *  A section with no items renders nothing — no heading, no "None today" (NEU-1467). */
 function SectionWrapper({
   section,
   children,
@@ -70,58 +68,14 @@ function SectionWrapper({
   section: { key: string; label: string; items: unknown[] };
   children: React.ReactNode;
 }) {
-  // TMDB section: collapsible, collapsed by default. Must be declared before any
-  // early return so React hooks are called unconditionally (lint rule).
-  const [open, setOpen] = useState(section.key !== "tmdb");
-
   const count = section.items.length;
-  if (count === 0) {
-    return (
-      <div className={SECTION_BREAK}>
-        <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
-          {section.label}
-        </h3>
-        <p className="px-2 text-sm text-muted-foreground">None today</p>
-      </div>
-    );
-  }
-
-  const label = `${section.label} (${count} movie${count === 1 ? "" : "s"})`;
-
-  if (section.key === "news") {
-    return (
-      <div className={SECTION_BREAK}>
-        <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
-          {label}
-        </h3>
-        {children}
-      </div>
-    );
-  }
+  if (count === 0) return null;
   return (
     <div className={SECTION_BREAK}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80"
-      >
-        <svg
-          className={`size-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <path
-            d="M5.5 3.5L10.5 8L5.5 12.5"
-            stroke="currentColor"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span>{label}</span>
-      </button>
-      {open && children}
+      <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
+        {`${section.label} (${count} movie${count === 1 ? "" : "s"})`}
+      </h3>
+      {children}
     </div>
   );
 }

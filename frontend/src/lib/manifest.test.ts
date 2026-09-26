@@ -70,11 +70,4 @@ describe("web app manifest", () => {
       expect({ src: icon.src, ...pngSize(icon.src) }).toEqual({ src: icon.src, width, height });
     }
   });
-
-  it("ships the notification icon and badge NEU-1388 consumes", () => {
-    // Contract with NEU-1388: these two paths are its `showNotification` icon and badge.
-    // The badge is not a manifest member, so nothing above would catch it going missing.
-    expect(pngSize("icons/icon-192.png")).toEqual({ width: 192, height: 192 });
-    expect(pngSize("icons/badge-96.png")).toEqual({ width: 96, height: 96 });
-  });
 });

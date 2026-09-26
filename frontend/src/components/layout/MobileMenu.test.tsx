@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import { delay, http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/components/AuthContext";
 import { server } from "@/test/msw/server";
 import { meHandler, unauthMeHandler } from "@/test/msw/me";
 import { NavMenu } from "@/components/layout/MobileMenu";
+import { env } from "@/env";
+import type { AuthedUser } from "@/api/types";
+import { writeTimelineHint } from "@/lib/timeline-hint";
 
 /**
  * The providers `PublicLayout` supplies in the app. `NavMenu` needs them now that the nav it
@@ -66,6 +70,51 @@ describe("NavMenu", () => {
 
     expect(await screen.findByRole("link", { name: /^updates$/i })).toHaveAttribute("href", "/");
     expect(screen.queryByRole("link", { name: /^all updates$/i })).toBeNull();
+  });
+
+  describe("with the timeline hint (NEU-1468)", () => {
+    const slow401 = () =>
+      http.get(`${env.apiBaseUrl}/me`, async () => {
+        await delay(100);
+        return HttpResponse.json({ detail: "auth_required" }, { status: 401 });
+      });
+
+    it("names both feeds while /me is in flight, then collapses when it answers 401", async () => {
+      writeTimelineHint({ entitled: true } as AuthedUser);
+      server.use(slow401());
+      renderMenu();
+
+      const nav = mobileNav();
+      expect(within(nav).getByRole("link", { name: /^my feed$/i })).toHaveAttribute("href", "/");
+      expect(within(nav).getByRole("link", { name: /^all updates$/i })).toHaveAttribute(
+        "href",
+        "/feed",
+      );
+
+      expect(await within(nav).findByRole("link", { name: /^updates$/i })).toHaveAttribute(
+        "href",
+        "/",
+      );
+      expect(within(nav).queryByRole("link", { name: /^my feed$/i })).toBeNull();
+    });
+
+    it("lists Updates throughout without it", async () => {
+      let answered = false;
+      server.use(
+        http.get(`${env.apiBaseUrl}/me`, async () => {
+          await delay(100);
+          answered = true;
+          return HttpResponse.json({ detail: "auth_required" }, { status: 401 });
+        }),
+      );
+      renderMenu();
+
+      const nav = mobileNav();
+      expect(within(nav).getByRole("link", { name: /^updates$/i })).toBeInTheDocument();
+      await waitFor(() => expect(answered).toBe(true));
+      expect(within(nav).getByRole("link", { name: /^updates$/i })).toBeInTheDocument();
+      expect(within(nav).queryByRole("link", { name: /^my feed$/i })).toBeNull();
+    });
   });
 
   it("offers Log in when logged out", async () => {

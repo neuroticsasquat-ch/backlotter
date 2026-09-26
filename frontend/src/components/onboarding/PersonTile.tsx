@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { useIsFollowing, useToggleFollow } from "@/api/me";
 import type { EntityResult } from "@/api/entities";
 import type { FollowTarget } from "@/lib/film-entities";
@@ -11,6 +12,9 @@ import { profileUrl } from "@/lib/poster";
  *
  * A toggle, not a one-way add: the tap that follows the wrong Chris has to be undoable by the
  * same tap, and `aria-pressed` is what says which state it is in.
+ *
+ * `w-full h-full` pin the card to its grid cell: a `<button>` shrink-fits to its content even as
+ * a flex box, so without them a long name widened the card and its photo with it (NEU-1471).
  */
 export function PersonTile({ person }: { person: EntityResult }) {
   const target: FollowTarget = {
@@ -29,7 +33,7 @@ export function PersonTile({ person }: { person: EntityResult }) {
       aria-pressed={following}
       aria-label={following ? `Unfollow ${person.label}` : `Follow ${person.label}`}
       onClick={() => toggle.mutate({ target, following })}
-      className={`group flex flex-col overflow-hidden rounded-lg border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+      className={`group relative flex h-full w-full flex-col overflow-hidden rounded-lg border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
         following ? "border-primary bg-primary/5" : "border-border hover:border-foreground/40"
       }`}
     >
@@ -46,18 +50,23 @@ export function PersonTile({ person }: { person: EntityResult }) {
       ) : (
         <div aria-hidden="true" className="aspect-[2/3] w-full bg-muted" />
       )}
-      <span className="flex flex-1 flex-col gap-0.5 p-2">
-        <span className="truncate text-xs font-medium text-foreground">{person.label}</span>
+      {following && (
+        // The state is already spoken by aria-pressed; the badge is for the eye only.
+        <span
+          aria-hidden="true"
+          data-testid="picked"
+          className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm"
+        >
+          <Check className="size-3" />
+        </span>
+      )}
+      <span className="flex flex-col gap-0.5 p-2">
+        <span className="line-clamp-2 text-xs font-medium break-words text-foreground">
+          {person.label}
+        </span>
         {person.secondary && (
           <span className="truncate text-[11px] text-muted-foreground">{person.secondary}</span>
         )}
-        <span
-          className={`mt-1 text-[11px] font-medium ${
-            following ? "text-primary" : "text-muted-foreground"
-          }`}
-        >
-          {following ? "Following" : "Follow"}
-        </span>
       </span>
     </button>
   );

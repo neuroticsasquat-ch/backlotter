@@ -57,79 +57,6 @@ const webcalUrl = (token: string) =>
   `${env.apiBaseUrl.replace(/^https?:/, "webcal:")}/calendar/${token}.ics`;
 
 describe("Settings", () => {
-  describe("alert stores (D-44)", () => {
-    it("shows the saved store set as the pressed chips", async () => {
-      renderPage({ entitled: true }, settingsHandlers({ alert_stores: ["rent", "stream"] }));
-
-      expect(await screen.findByRole("button", { name: "Rent alerts" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      );
-      expect(screen.getByRole("button", { name: "Stream alerts" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      );
-      expect(screen.getByRole("button", { name: "Buy alerts" })).toHaveAttribute(
-        "aria-pressed",
-        "false",
-      );
-    });
-
-    it("turning a chip on PATCHes the whole canonical set", async () => {
-      const settings = renderPage(
-        { entitled: true },
-        settingsHandlers({ alert_stores: ["stream"] }),
-      );
-
-      await userEvent.click(await screen.findByRole("button", { name: "Buy alerts" }));
-
-      // Canonical order (buy, rent, stream), matching the backend's `normalise_alert_stores` —
-      // not the order the user happened to click them in.
-      await waitFor(() => expect(settings.patches).toEqual([{ alert_stores: ["buy", "stream"] }]));
-      expect(settings.current().alert_stores).toEqual(["buy", "stream"]);
-      expect(await screen.findByText(/saved/i)).toBeInTheDocument();
-    });
-
-    it("turning the last chip off is a real setting, not a no-op", async () => {
-      const settings = renderPage(
-        { entitled: true },
-        settingsHandlers({ alert_stores: ["stream"] }),
-      );
-
-      await userEvent.click(await screen.findByRole("button", { name: "Stream alerts" }));
-
-      await waitFor(() => expect(settings.current().alert_stores).toEqual([]));
-    });
-
-    it("puts the chips back when the save is refused", async () => {
-      const settings = settingsHandlers({ alert_stores: ["stream"] });
-      server.use(meHandler({ entitled: true }), ...settings.handlers);
-      server.use(
-        http.patch(`${env.apiBaseUrl}/me/settings`, () =>
-          HttpResponse.json({ detail: "boom" }, { status: 500 }),
-        ),
-      );
-      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-      const Stub = createRoutesStub([{ path: "/me/settings", Component: Settings }]);
-      render(
-        <QueryClientProvider client={qc}>
-          <AuthProvider>
-            <Stub initialEntries={["/me/settings"]} />
-          </AuthProvider>
-        </QueryClientProvider>,
-      );
-
-      await userEvent.click(await screen.findByRole("button", { name: "Buy alerts" }));
-
-      await waitFor(() =>
-        expect(screen.getByRole("button", { name: "Buy alerts" })).toHaveAttribute(
-          "aria-pressed",
-          "false",
-        ),
-      );
-    });
-  });
-
   describe("digest cadence", () => {
     it("says what each cadence sends, the slate day included (DC-15)", async () => {
       renderPage();
@@ -151,7 +78,7 @@ describe("Settings", () => {
         ),
       ).toBeInTheDocument();
       expect(
-        screen.getByText("No digest. Alerts for the films you follow still arrive."),
+        screen.getByText("No mail. Everything is still on your timeline."),
       ).toBeInTheDocument();
     });
 
@@ -337,7 +264,6 @@ describe("Settings", () => {
       renderPage({ entitled: true });
 
       expect(await screen.findByRole("heading", { name: /digest/i })).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: "Alerts" })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /follows/i })).toHaveAttribute("href", "/me/follows");
       // No Watchlist row beside it: the page it linked to is gone (EF-14).
       expect(screen.queryByRole("link", { name: /watchlist/i })).toBeNull();
@@ -347,11 +273,24 @@ describe("Settings", () => {
       );
       // The TMDB connect control, mounted here as NEU-1359 asked (settings *and* onboarding).
       expect(screen.getByRole("link", { name: /connect tmdb/i })).toBeInTheDocument();
-      // The two delivery sections that are their own tickets: the calendar feed (NEU-1384)
-      // and the push toggle (NEU-1388). Under jsdom the latter finds no push APIs and says
-      // so, which is its "unsupported" branch — exercised properly in `PushSection.test.tsx`.
+      // The calendar feed is its own ticket's section (NEU-1384).
       expect(screen.getByRole("heading", { name: /calendar/i })).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: /browser notifications/i })).toBeInTheDocument();
+    });
+
+    it("has no Alerts or browser-notification section, only the digest (ADR-0021)", async () => {
+      renderPage({ entitled: true });
+
+      await screen.findByRole("heading", { name: /digest/i });
+      expect(
+        screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent),
+      ).toEqual([
+        "Account",
+        "Change your email",
+        "Change your password",
+        "Digest email",
+        "Calendar",
+        "Your library",
+      ]);
     });
 
     it("shows the account basics and a locked panel instead of the delivery block without a grant", async () => {
@@ -458,7 +397,6 @@ describe("Settings", () => {
           csrf.push(request.headers.get("X-CSRF-Token"));
           return HttpResponse.json({
             digest_cadence: "daily",
-            alert_stores: ["stream"],
             ical_token: "t",
             created_at: "",
             updated_at: "",

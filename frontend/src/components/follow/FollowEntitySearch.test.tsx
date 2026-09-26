@@ -9,6 +9,7 @@ import { AuthProvider } from "@/components/AuthContext";
 import { server } from "@/test/msw/server";
 import { meHandler } from "@/test/msw/me";
 import { entitySearchHandlers, followGraphHandlers, makeFollow } from "@/test/msw/follows";
+import { heldResponse } from "@/test/msw/search";
 import { FollowEntitySearch } from "./FollowEntitySearch";
 
 const PEOPLE = [{ id: 525, name: "Christopher Nolan" }];
@@ -177,5 +178,106 @@ describe("FollowEntitySearch", () => {
 
     await userEvent.type(screen.getByRole("searchbox"), "zzzz");
     expect(await screen.findByText(/no people match/i)).toBeInTheDocument();
+  });
+});
+
+describe("FollowEntitySearch while a search runs (NEU-1469)", () => {
+  const person = (id: number, name: string) => ({
+    id,
+    name,
+    known_for_department: "Directing",
+    profile_path: null,
+  });
+  const page = <T,>(items: T[]) =>
+    HttpResponse.json({ items, total: items.length, limit: 10, offset: 0 });
+
+  /** `/people/search` answers "nolan" and "zz" at once, and any other query only once `held`
+   *  is released — with a person named after that query. */
+  function peopleHandler(held: Promise<void>) {
+    return http.get(`${env.apiBaseUrl}/people/search`, async ({ request }) => {
+      const q = new URL(request.url).searchParams.get("q") ?? "";
+      if (q === "nolan") return page([person(525, "Christopher Nolan")]);
+      if (q === "zz") return page([]);
+      await held;
+      return page([person(1, `Person ${q}`)]);
+    });
+  }
+
+  it("spins over the previous list until the new one lands", async () => {
+    const later = heldResponse();
+    renderSearch();
+    server.use(peopleHandler(later.held));
+    const box = screen.getByRole("searchbox");
+    await userEvent.type(box, "nolan");
+    await screen.findByText("Christopher Nolan");
+    expect(screen.queryByTestId("spinner")).not.toBeInTheDocument();
+
+    await userEvent.type(box, "s");
+    expect(await screen.findByTestId("spinner")).toBeInTheDocument();
+    expect(screen.getByText("Christopher Nolan")).toBeInTheDocument();
+
+    later.release();
+    expect(await screen.findByText("Person nolans")).toBeInTheDocument();
+    expect(screen.queryByText("Christopher Nolan")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("spinner")).not.toBeInTheDocument();
+  });
+
+  it("does not say the new query matched nothing while it is still in flight", async () => {
+    const later = heldResponse();
+    renderSearch();
+    server.use(peopleHandler(later.held));
+    const box = screen.getByRole("searchbox");
+    await userEvent.type(box, "zz");
+    expect(await screen.findByText(/no people match "zz"/i)).toBeInTheDocument();
+
+    await userEvent.type(box, "z");
+    expect(await screen.findByTestId("spinner")).toBeInTheDocument();
+    expect(screen.queryByText(/no people match/i)).not.toBeInTheDocument();
+
+    later.release();
+    expect(await screen.findByText("Person zzz")).toBeInTheDocument();
+  });
+
+  it("spins over the old tab's list while the new tab answers", async () => {
+    const later = heldResponse();
+    renderSearch();
+    server.use(
+      http.get(`${env.apiBaseUrl}/companies/search`, async () => {
+        await later.held;
+        return page([{ id: 41, name: "A24", logo_path: null, origin_country: "US" }]);
+      }),
+    );
+    await userEvent.type(screen.getByRole("searchbox"), "nolan");
+    await screen.findByText("Christopher Nolan");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Companies" }));
+    expect(await screen.findByTestId("spinner")).toBeInTheDocument();
+    expect(screen.getByText("Christopher Nolan")).toBeInTheDocument();
+
+    later.release();
+    expect(await screen.findByText("A24")).toBeInTheDocument();
+    expect(screen.queryByText("Christopher Nolan")).not.toBeInTheDocument();
+  });
+
+  it("drops the held list once the query is cut below the minimum, and does not revive it", async () => {
+    const later = heldResponse();
+    renderSearch();
+    server.use(peopleHandler(later.held));
+    const box = screen.getByRole("searchbox");
+    await userEvent.type(box, "nolan");
+    await screen.findByText("Christopher Nolan");
+
+    await userEvent.clear(box);
+    await userEvent.type(box, "n");
+    expect(await screen.findByText(/at least 2 characters/i)).toBeInTheDocument();
+    expect(screen.queryByText("Christopher Nolan")).not.toBeInTheDocument();
+
+    // The next query holds what was on screen — nothing — not the last answer TanStack has.
+    await userEvent.type(box, "t");
+    expect(await screen.findByTestId("spinner")).toBeInTheDocument();
+    expect(screen.queryByText("Christopher Nolan")).not.toBeInTheDocument();
+
+    later.release();
+    expect(await screen.findByText("Person nt")).toBeInTheDocument();
   });
 });
