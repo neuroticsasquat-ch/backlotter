@@ -291,7 +291,7 @@ export function MyFollows() {
     <div className="mx-auto max-w-3xl p-8">
       <h1 className="text-2xl font-semibold">Follows</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Your timeline and your alerts are built from these.
+        Your timeline and your digest are built from these.
       </p>
 
       <div className="mt-6">

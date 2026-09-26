@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/msw/server";
 import { entitlementRequiredHandlers, followGraphHandlers } from "@/test/msw/follows";
-import { settingsHandlers } from "@/test/msw/settings";
 import { env } from "@/env";
 import { ApiError } from "./client";
 import { followsKey, myFilmsCalendarPageKey, timelineKey } from "./query-keys";
@@ -14,10 +13,8 @@ import {
   deleteFollow,
   fetchFollows,
   fetchMyFilmsCalendar,
-  fetchSettings,
   fetchTimeline,
   isEntitlementError,
-  updateAlertStores,
   useToggleFollow,
 } from "./me";
 
@@ -93,46 +90,6 @@ describe("follow fetchers", () => {
     server.use(...entitlementRequiredHandlers());
 
     await expect(createFollow(PERSON)).rejects.toSatisfy(isEntitlementError);
-  });
-});
-
-describe("alert store fetchers", () => {
-  it("PATCHes the whole store set, which is how an empty one is expressible", async () => {
-    let body: unknown;
-    server.use(
-      http.patch(`${base}/me/settings`, async ({ request }) => {
-        body = await request.json();
-        return HttpResponse.json({}, { status: 200 });
-      }),
-    );
-
-    await updateAlertStores([]);
-
-    // Not a delta and not an omission: `{}` would mean "unchanged" to a PATCH, while an
-    // explicit empty list is the user asking for no availability alerts at all (D-44).
-    expect(body).toEqual({ alert_stores: [] });
-  });
-
-  it("round-trips a store change through the settings row", async () => {
-    const settings = settingsHandlers();
-    server.use(...settings.handlers);
-
-    await updateAlertStores(["buy", "rent"]);
-
-    expect((await fetchSettings()).alert_stores).toEqual(["buy", "rent"]);
-    // The cadence is untouched: the PATCH named one field, which is the whole point of the
-    // backend's two-optional-field request model.
-    expect((await fetchSettings()).digest_cadence).toBe("weekly");
-  });
-
-  it("surfaces the entitlement 403 on a store change too", async () => {
-    server.use(
-      http.patch(`${base}/me/settings`, () =>
-        HttpResponse.json({ detail: "entitlement_required" }, { status: 403 }),
-      ),
-    );
-
-    await expect(updateAlertStores(["stream"])).rejects.toSatisfy(isEntitlementError);
   });
 });
 

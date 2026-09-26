@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: 2026-06-30**
+**Last updated: 2026-09-26**
 
 This Privacy Policy explains how Tom Boone, doing business as neuroticsasquat.ch ("we," "us," or "our") collects, uses, and shares information when you use Backlotter (the "Service"). It is incorporated into our [Terms of Service](/terms) by reference. By using the Service, you agree to the practices described here.
 
@@ -9,7 +9,7 @@ This Privacy Policy explains how Tom Boone, doing business as neuroticsasquat.ch
 **Information you provide:**
 
 - **Account information** — your email address and password (stored hashed, never in plain text).
-- **Profile and preferences** — movies you track, watchlists, ratings, notification settings, and similar data you create in the Service.
+- **Profile and preferences** — movies you track, watchlists, ratings, digest settings, and similar data you create in the Service.
 - **Communications** — messages you send us (e.g., support requests).
 
 **Information we collect automatically:**
@@ -28,14 +28,14 @@ We use your information to:
 
 - Operate, maintain, and provide the Service;
 - Authenticate you and secure your account;
-- Send you account-related and Service notifications (e.g., release alerts you've opted into);
+- Send you account-related messages and Service email (e.g., the digest you've opted into);
 - Respond to your requests and provide support;
 - Analyze and improve the Service; and
 - Comply with legal obligations and enforce our Terms.
 
 ## 3. Email Communications
 
-We use your email address to send account and transactional messages, and any notifications you opt into. We will not send you marketing email from third parties, and we will not provide your email address to third parties for their marketing. You can manage notification preferences in your account settings or unsubscribe via the link in any non-essential email.
+We use your email address to send account and transactional messages, and the digest you opt into. We will not send you marketing email from third parties, and we will not provide your email address to third parties for their marketing. You can change or turn off the digest in your account settings or unsubscribe via the link in any non-essential email.
 
 ## 4. We Do Not Sell Your Personal Information
 
@@ -94,7 +94,7 @@ To exercise these rights, contact us at support@backlotter.com. We will not disc
 
 **California residents (CCPA/CPRA):** You have the right to know, delete, and correct your personal information, and to opt out of its "sale" or "sharing." As stated, we do not sell or share your personal information as those terms are defined, other than aggregated/de-identified data that falls outside those definitions.
 
-**EU/UK residents (GDPR):** We process your information on the legal bases of contract (to provide the Service), legitimate interests (to improve and secure it), consent (where required, e.g., certain notifications), and legal obligation. You may lodge a complaint with your local supervisory authority.
+**EU/UK residents (GDPR):** We process your information on the legal bases of contract (to provide the Service), legitimate interests (to improve and secure it), consent (where required, e.g., the digest), and legal obligation. You may lodge a complaint with your local supervisory authority.
 
 ## 11. Children's Privacy
 

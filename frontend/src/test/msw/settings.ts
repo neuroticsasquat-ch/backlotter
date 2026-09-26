@@ -1,13 +1,12 @@
 import { HttpResponse, http } from "msw";
 import { env } from "@/env";
-import type { AlertStore, DigestCadence, UserSettings } from "@/api/types";
+import type { DigestCadence, UserSettings } from "@/api/types";
 
 const base = env.apiBaseUrl;
 
 export function makeSettings(overrides: Partial<UserSettings> = {}): UserSettings {
   return {
     digest_cadence: "weekly",
-    alert_stores: ["stream"],
     ical_token: "tok-abcdef0123456789",
     created_at: "2026-09-18T00:00:00Z",
     updated_at: "2026-09-18T00:00:00Z",
@@ -15,9 +14,8 @@ export function makeSettings(overrides: Partial<UserSettings> = {}): UserSetting
   };
 }
 
-/** A PATCH of the settings row: either field, or both, as the backend's request model takes
- *  them — the screen writes the control the user touched, not the whole row. */
-type SettingsPatch = { digest_cadence?: DigestCadence; alert_stores?: AlertStore[] };
+/** A PATCH of the settings row: the cadence, the one field the backend's request model takes. */
+type SettingsPatch = { digest_cadence: DigestCadence };
 
 /**
  * `/me/settings` with a row that remembers what was PATCHed into it, so a test can assert a
@@ -34,14 +32,7 @@ export function settingsHandlers(initial: Partial<UserSettings> = {}) {
     http.patch(`${base}/me/settings`, async ({ request }) => {
       const body = (await request.json()) as SettingsPatch;
       patches.push(body);
-      // Only what the body names, so a store change does not reset the cadence — which is the
-      // property the one-field PATCH exists for.
-      row = {
-        ...row,
-        ...(body.digest_cadence !== undefined ? { digest_cadence: body.digest_cadence } : {}),
-        ...(body.alert_stores !== undefined ? { alert_stores: body.alert_stores } : {}),
-        updated_at: new Date().toISOString(),
-      };
+      row = { ...row, digest_cadence: body.digest_cadence, updated_at: new Date().toISOString() };
       return HttpResponse.json(row);
     }),
     // The rotate answers with the whole row, as the backend's does, and the new token is one

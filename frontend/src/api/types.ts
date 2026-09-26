@@ -27,9 +27,6 @@ export type DigestCadence = "daily" | "weekly" | "off";
  *  this page does not render it. */
 export interface UserSettings {
   digest_cadence: DigestCadence;
-  /** The availability beats this account is alerted on, product-wide (D-44). `[]` is a real
-   *  answer — no store alerts at all — and is not the same as the `["stream"]` default. */
-  alert_stores: AlertStore[];
   ical_token: string;
   created_at: string;
   updated_at: string;
@@ -233,7 +230,7 @@ export interface WatchProvider {
  */
 export interface WhereToWatchBox {
   region: string; // "US" in v1
-  flatrate: WatchProvider[]; // subscription — rendered as "Stream", matching AlertStore
+  flatrate: WatchProvider[]; // subscription — rendered as "Stream"
   rent: WatchProvider[];
   buy: WatchProvider[];
   link: string | null; // TMDB's per-film watch page
@@ -431,11 +428,6 @@ export interface Follow {
 export interface FollowListResponse {
   items: Follow[];
 }
-
-/** An availability beat the reader can be alerted on. One set per account
- *  (`UserSettings.alert_stores`, D-44) — the per-film `alert_prefs` this replaced is gone, and
- *  no per-film preference exists any more. */
-export type AlertStore = "buy" | "rent" | "stream";
 
 /**
  * The one release date a film row shows, chosen by the backend (NEU-1397).
@@ -757,20 +749,4 @@ export interface ResolutionDecision {
 export interface ResolutionDecisionPage {
   items: ResolutionDecision[];
   next_cursor: string | null;
-}
-
-/** One browser's registration as `POST /me/push` takes it, mirroring the backend
- *  `PushSubscribeRequest` (D-36). This is `PushSubscription.toJSON()` minus `expirationTime`,
- *  which the backend deliberately neither models nor stores — it is null in every current
- *  implementation, and a field nothing writes is one a reader would eventually trust. */
-export interface PushSubscriptionPayload {
-  endpoint: string;
-  keys: { p256dh: string; auth: string };
-}
-
-/** `GET /me/push/vapid-public-key` — the application server key the browser subscribes with.
- *  Served rather than bundled because it is a property of the deployment: staging and
- *  production hold different keypairs. */
-export interface VapidPublicKey {
-  public_key: string;
 }

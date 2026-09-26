@@ -71,7 +71,7 @@ export function VerifyEmailBanner() {
             <>Sent — check {user.email} for the confirmation link.</>
           ) : (
             <>
-              Confirm your email address so we can send you alerts.{" "}
+              Confirm your email address so we can send you your digest.{" "}
               <Link to="/verify" className="underline">
                 How this works
               </Link>
