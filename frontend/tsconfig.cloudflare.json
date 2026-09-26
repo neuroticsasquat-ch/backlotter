@@ -25,5 +25,9 @@
     "workers",
     "worker-configuration.d.ts",
     ".react-router/types/**/*"
-  ]
+  ],
+  // Tests are not Worker code: they run in vitest's jsdom environment and some of them
+  // read repo files with node builtins, which have no types under `@cloudflare/workers-types`.
+  // The root project still typechecks them, with "node" in its `types`.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

@@ -1,108 +1,98 @@
 import { RouterContextProvider, createRoutesStub } from "react-router";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
-import { cloudflareContext } from "@/lib/load-context";
+import { env } from "@/env";
+import { meHandler, unauthMeHandler } from "@/test/msw/me";
+import { emptyTimelineHandler, lockedTimelineHandler, timelineHandler } from "@/test/msw/timeline";
+import { dayItem, feed } from "@/test/feed-fixtures";
+import { activeImportHandler, makeImportJob } from "@/test/msw/imports";
+import { cloudflareContext, type AppEnv } from "@/lib/load-context";
+import { AuthProvider, useAuth } from "@/components/AuthContext";
+import { useToggleFollow } from "@/api/me";
 import FeedPage, { loader, meta } from "@/routes/feed";
-import type { FeedDayItem, FeedDayResponse } from "@/api/types";
+import { TimelineOrFeed } from "@/components/feed/TimelineOrFeed";
+import { SECTION_SPLIT_EXPLAINER } from "@/components/film/labels";
+import type { AuthedUser } from "@/api/types";
+import { readTimelineHint, writeTimelineHint } from "@/lib/timeline-hint";
 
 const BACKEND = "https://api.upmovies.localhost";
 
-const feed: FeedDayResponse = {
-  items: [
-    {
-      film_ref: "the-odyssey-2026",
-      film_title: "The Odyssey",
-      release_year: 2026,
-      poster_path: "/odyssey.jpg",
-      arc_stage: "shooting",
-      production_countries: [],
-      directors: [],
-      day: "2026-06-23",
-      top_event_type: "trailer",
-      event_types: ["trailer"],
-      event_count: 1,
-      news_backed: true,
-      events: [
-        {
-          event_id: "evt-odyssey-trailer",
-          event_type: "trailer",
-          confidence: "confirmed",
-          created_at: "2026-06-23T12:00:00Z",
-          summary: "The first trailer for The Odyssey was released.",
-          summary_edited: false,
-          provenance: "story",
-          sources: [],
-        },
-      ],
-    },
-    {
-      film_ref: "dune-3-2026",
-      film_title: "Dune Part Three",
-      release_year: 2026,
-      poster_path: null,
-      arc_stage: "shooting",
-      production_countries: [],
-      directors: [],
-      day: "2026-06-22",
-      top_event_type: "casting",
-      event_types: ["casting"],
-      event_count: 3,
-      news_backed: false,
-      events: [],
-    },
-  ],
-  total: 2,
-  limit: 50,
-  offset: 0,
-};
+/** Overrides for one `callLoader` call: Worker env extras and inbound request headers. */
+type LoaderCall = { env?: Partial<AppEnv>; headers?: Record<string, string> };
 
-function dayItem(film_ref: string, overrides: Partial<FeedDayItem> = {}): FeedDayItem {
-  return {
-    film_ref,
-    film_title: film_ref.toUpperCase(),
-    release_year: 2026,
-    poster_path: null,
-    arc_stage: "shooting",
-    production_countries: [],
-    directors: [],
-    day: "2026-06-23",
-    top_event_type: "casting",
-    event_types: ["casting"],
-    event_count: 1,
-    news_backed: false,
-    events: [],
-    ...overrides,
-  };
-}
-
-/** One day, ordered as the backend returns it. */
-function oneDay(...items: FeedDayResponse["items"]): FeedDayResponse {
-  return { items, total: 1, limit: 10, offset: 0 };
-}
-
-function contextWithEnv() {
+function contextWithEnv(env: Partial<AppEnv> = {}) {
   const context = new RouterContextProvider();
-  context.set(cloudflareContext, { env: { API_BASE_URL: BACKEND } });
+  context.set(cloudflareContext, { env: { API_BASE_URL: BACKEND, ...env } });
   return context;
 }
 
-function callLoader() {
+function callLoader({ env, headers }: LoaderCall = {}) {
   return loader({
-    request: new Request("https://upmovies.example/"),
-    context: contextWithEnv(),
+    request: new Request("https://upmovies.example/", { headers }),
+    context: contextWithEnv(env),
     params: {},
   } as unknown as Parameters<typeof loader>[0]);
 }
 
 describe("feed route loader", () => {
+  it("signs the fetch and forwards the visitor IP when the secret is set", async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${BACKEND}/feed/grouped`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(feed);
+      }),
+    );
+    await callLoader({
+      env: { SSR_ORIGIN_SECRET: "s3cret" },
+      headers: { "CF-Connecting-IP": "203.0.113.7" },
+    });
+    expect(captured?.get("X-Backlotter-Origin")).toBe("s3cret");
+    expect(captured?.get("X-Backlotter-Client-IP")).toBe("203.0.113.7");
+  });
+
+  it("sends no signing headers when the secret is unset", async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${BACKEND}/feed/grouped`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(feed);
+      }),
+    );
+    await callLoader({ headers: { "CF-Connecting-IP": "203.0.113.7" } });
+    expect(captured?.get("X-Backlotter-Origin")).toBeNull();
+    expect(captured?.get("X-Backlotter-Client-IP")).toBeNull();
+  });
+
   it("fetches the grouped feed from the backend", async () => {
     server.use(http.get(`${BACKEND}/feed/grouped`, () => HttpResponse.json(feed)));
     const data = await callLoader();
     expect(data.feed.total).toBe(2);
     expect(data.feed.items[0].film_ref).toBe("the-odyssey-2026");
+  });
+
+  it("SSRs the global feed whatever the session is, so / stays anonymous-safe", async () => {
+    // The loader never reads a cookie and never calls /me: the swap to a timeline is a client
+    // decision (D-12), which is what keeps this document anonymous-safe and free of a hydration
+    // mismatch. A request carrying a session must produce the same fetch as one without — and
+    // so must one carrying the timeline hint, which only the layout reads (NEU-1468, D-1468.6).
+    const paths: string[] = [];
+    server.use(
+      http.get(`${BACKEND}/feed/grouped`, ({ request }) => {
+        paths.push(new URL(request.url).pathname);
+        return HttpResponse.json(feed);
+      }),
+      http.get(`${BACKEND}/me`, () => {
+        throw new Error("the / loader must not resolve auth server-side");
+      }),
+    );
+    await callLoader({ headers: { Cookie: "session=abc" } });
+    await callLoader({ headers: { Cookie: "session=abc; timeline_hint=1" } });
+    expect(paths).toEqual(["/feed/grouped", "/feed/grouped"]);
   });
 });
 
@@ -119,353 +109,633 @@ describe("feed route meta", () => {
   });
 });
 
-describe("feed route render", () => {
-  it("groups films by day (newest first) and links each card to its film page", async () => {
-    const Stub = createRoutesStub([{ path: "/", Component: FeedPage, loader: () => ({ feed }) }]);
-    render(<Stub initialEntries={["/"]} />);
-
-    expect(
-      await screen.findByRole("heading", { name: "Latest Updates for Upcoming Movies" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
-    expect(screen.getByText(/June 22, 2026/)).toBeInTheDocument();
-
-    // Reached through the title rather than by accessible name: the day's poster strip links
-    // the same film too, under "<title> poster".
-    expect(screen.getByText("The Odyssey").closest("a")).toHaveAttribute(
-      "href",
-      "/film/the-odyssey-2026",
-    );
-
-    // The TMDB-only film is inside the collapsed unconfirmed updates section.
-    await userEvent.click(screen.getByText("unconfirmed updates (1 movie)"));
-    expect(screen.getByText("Dune Part Three").closest("a")).toHaveAttribute(
-      "href",
-      "/film/dune-3-2026",
-    );
-  });
-
-  it("gives each day a poster strip and links every poster to its film", async () => {
-    const Stub = createRoutesStub([{ path: "/", Component: FeedPage, loader: () => ({ feed }) }]);
-    render(<Stub initialEntries={["/"]} />);
-
-    // June 23 has The Odyssey's poster; June 22's only film has none, so that day has no strip.
-    const posters = await screen.findAllByRole("img");
-    expect(posters).toHaveLength(1);
-    expect(posters[0].getAttribute("src")).toContain("/w185/odyssey.jpg");
-    expect(posters[0].closest("a")).toHaveAttribute("href", "/film/the-odyssey-2026");
-  });
-
-  it("puts the poster strip above the day's updates at every width", async () => {
-    // Beside the list, a poster lined up with whatever row happened to sit next to it and read
-    // as a label for a film it had nothing to do with.
-    const Stub = createRoutesStub([{ path: "/", Component: FeedPage, loader: () => ({ feed }) }]);
-    render(<Stub initialEntries={["/"]} />);
-
-    await screen.findByRole("img");
-    const row = screen
-      .getByText(/June 23, 2026/)
-      .closest("section")
-      ?.querySelector("div");
-    expect(row?.className).toContain("flex-col");
-    expect(row?.className).not.toContain("flex-row");
-  });
-
-  it("shows the empty state when there are no updates", async () => {
-    const Stub = createRoutesStub([
-      {
-        path: "/",
-        Component: FeedPage,
-        loader: () => ({ feed: { ...feed, items: [], total: 0 } }),
-      },
-    ]);
-    render(<Stub initialEntries={["/"]} />);
-    expect(await screen.findByText(/no updates yet/i)).toBeInTheDocument();
-  });
-
-  it("loads the next page of days when 'View more' is clicked (no autoload)", async () => {
-    // Page 1 has one day but total=2, so 'View more' shows; clicking fetches page 2.
-    const page1: FeedDayResponse = { items: [feed.items[0]], total: 2, limit: 10, offset: 0 };
-    server.use(
-      http.get(`${BACKEND}/feed/grouped`, () =>
-        HttpResponse.json({ items: [feed.items[1]], total: 2, limit: 10, offset: 1 }),
-      ),
-    );
-    const Stub = createRoutesStub([
-      { path: "/", Component: FeedPage, loader: () => ({ feed: page1 }) },
-    ]);
-    render(<Stub initialEntries={["/"]} />);
-    expect(await screen.findByText(/June 23, 2026/)).toBeInTheDocument();
-    expect(screen.queryByText(/June 22, 2026/)).toBeNull();
-
-    await userEvent.click(screen.getByRole("button", { name: /view more/i }));
-    expect(await screen.findByText(/June 22, 2026/)).toBeInTheDocument();
-  });
-});
-
-function renderFeed(data: FeedDayResponse) {
+/** The home route with the providers the public layout gives it, so the island can resolve
+ *  `me` the way it does in the app. */
+function renderHome(
+  loaderFeed = feed,
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   const Stub = createRoutesStub([
-    { path: "/", Component: FeedPage, loader: () => ({ feed: data }) },
+    { path: "/", Component: FeedPage, loader: () => ({ feed: loaderFeed }) },
+    { path: "/feed", Component: () => <h1>All updates</h1> },
+    { path: "/calendar", Component: () => <h1>Calendar</h1> },
+    { path: "/login", Component: () => <h1>Log in</h1> },
   ]);
-  return render(<Stub initialEntries={["/"]} />);
+  return render(
+    <QueryClientProvider client={qc}>
+      <AuthProvider>
+        <Stub initialEntries={["/"]} />
+      </AuthProvider>
+    </QueryClientProvider>,
+  );
 }
 
-describe("feed day sections", () => {
-  it("leads with the news-backed section, then the unconfirmed updates one", async () => {
-    renderFeed(
-      oneDay(
-        dayItem("tmdb-first"),
-        dayItem("reported", { news_backed: true }),
-        dayItem("tmdb-second"),
-      ),
-    );
-    await screen.findByText(/June 23, 2026/);
+const GLOBAL_HEADING = "All updates";
+const timelineHeading = () => screen.findByRole("heading", { name: "My feed" });
 
-    expect(screen.getByText("In the news (1 movie)")).toBeInTheDocument();
-    expect(screen.getByText("unconfirmed updates (2 movies)")).toBeInTheDocument();
+describe("home route — anonymous", () => {
+  it("renders the SSR'd global feed, named the way the nav names it", async () => {
+    server.use(unauthMeHandler());
+    renderHome();
 
-    // The news-backed film renders above both unconfirmed ones despite the original order.
-    const links = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
-    expect(links).toContain("/film/reported");
+    expect(await screen.findByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
+    // The feed itself is the one the loader already fetched.
+    expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
   });
 
-  it("renders both labels on a news-only day with a static None today line", async () => {
-    renderFeed(oneDay(dayItem("a", { news_backed: true }), dayItem("b", { news_backed: true })));
-    await screen.findByText(/June 23, 2026/);
+  /** The only way to `/login` is the header's account menu now (NEU-1407/1410). */
+  it("offers no sign-in link of its own", async () => {
+    server.use(unauthMeHandler());
+    renderHome();
 
-    expect(screen.getByText("In the news (2 movies)")).toBeInTheDocument();
-    expect(screen.getByText("unconfirmed updates")).toBeInTheDocument();
-    expect(screen.getByText("None today")).toBeInTheDocument();
-    expect(screen.getAllByRole("link")).toHaveLength(2);
+    await screen.findByRole("heading", { name: GLOBAL_HEADING });
+    expect(screen.queryByRole("link", { name: /^sign in$/i })).toBeNull();
+    expect(screen.queryByText(/see a timeline of the people you follow/i)).toBeNull();
   });
 
-  it("renders both labels on a tmdb-only day with a static None today line", async () => {
-    renderFeed(oneDay(dayItem("a"), dayItem("b")));
-    await screen.findByText(/June 23, 2026/);
+  /** The words the old SEO heading carried, kept as body copy on the same document. */
+  it("carries the descriptive standfirst under the heading", async () => {
+    server.use(unauthMeHandler());
+    renderHome();
 
-    expect(screen.getByText("In the news")).toBeInTheDocument();
-    expect(screen.getByText("None today")).toBeInTheDocument();
-    expect(screen.getByText("unconfirmed updates (2 movies)")).toBeInTheDocument();
-
-    await userEvent.click(screen.getByText("unconfirmed updates (2 movies)"));
-    expect(screen.getAllByRole("link")).toHaveLength(2);
+    expect(
+      await screen.findByText(/every casting change, trailer and release date/i),
+    ).toBeInTheDocument();
   });
 
-  it("sort items alphabetically within each section", async () => {
-    renderFeed(
-      oneDay(
-        dayItem("z-movie", { news_backed: true, film_title: "Z Movie" }),
-        dayItem("a-movie", { news_backed: true, film_title: "A Movie" }),
-        dayItem("m-movie", { film_title: "M Movie" }),
-        dayItem("b-movie", { film_title: "B Movie" }),
-      ),
+  it("shows no loading state while /me is still in flight", async () => {
+    // Held open so "still in flight" is a real window to assert inside rather than a race.
+    server.use(
+      http.get(`${env.apiBaseUrl}/me`, async () => {
+        await delay(100);
+        return HttpResponse.json({ detail: "auth_required" }, { status: 401 });
+      }),
     );
-    await screen.findByText(/June 23, 2026/);
+    renderHome();
 
-    const newsSection = screen.getByText("In the news (2 movies)").closest("div")!;
-    const newsLinks = [...newsSection.querySelectorAll("a[href^='/film/']")].map((a) =>
-      a.getAttribute("href"),
-    );
-    expect(newsLinks).toEqual(["/film/a-movie", "/film/z-movie"]);
-
-    // Expand the unconfirmed updates section to inspect its order too.
-    await userEvent.click(screen.getByText("unconfirmed updates (2 movies)"));
-    const tmdbSection = screen.getByText("unconfirmed updates (2 movies)").closest("div")!;
-    const tmdbLinks = [...tmdbSection.querySelectorAll("a[href^='/film/']")].map((a) =>
-      a.getAttribute("href"),
-    );
-    expect(tmdbLinks).toEqual(["/film/b-movie", "/film/m-movie"]);
+    // The whole feed is up before the account query lands — the anonymous experience must not
+    // regress into a spinner while we work out whether there is anyone to swap it for.
+    expect(await screen.findByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
+    expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/loading your timeline/i)).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
-  it("renders events within a card with a summary line and source chips", async () => {
-    renderFeed(
-      oneDay(
-        dayItem("reported", {
-          news_backed: true,
-          film_title: "Reported Film",
-          events: [
-            {
-              event_id: "evt-1",
-              event_type: "trailer",
-              confidence: "confirmed",
-              created_at: "2026-06-23T10:00:00Z",
-              summary: "First trailer released.",
-              summary_edited: false,
-              provenance: "story",
-              sources: [
-                {
-                  url: "https://variety.com/story1",
-                  source: "Variety",
-                  title: "Story One",
-                  published_at: null,
-                },
-              ],
-            },
-          ],
-        }),
-      ),
+  it("never requests the timeline", async () => {
+    let asked = false;
+    server.use(
+      unauthMeHandler(),
+      http.get(`${env.apiBaseUrl}/me/timeline`, () => {
+        asked = true;
+        return HttpResponse.json({ items: [], total: 0, limit: 10, offset: 0 });
+      }),
     );
-    await screen.findByText("Reported Film");
-    expect(screen.getByText("First trailer released.")).toBeInTheDocument();
-    expect(screen.getByText("Variety")).toBeInTheDocument();
+    renderHome();
+    await screen.findByRole("heading", { name: GLOBAL_HEADING });
+    expect(asked).toBe(false);
+  });
+});
+
+describe("home route — signed in without a grant", () => {
+  /**
+   * The point of NEU-1410: this reader gets the same page an anonymous one gets, and the same
+   * page `/feed` gives them. The "Your timeline is not open yet" panel that used to sit here
+   * is gone — its copy said there was nothing to buy, and NEU-1409 replaces it with the real
+   * subscription offer, shown on both routes rather than only this one.
+   */
+  it("renders the global feed with nothing added and nothing withheld", async () => {
+    server.use(meHandler({ entitled: false }), lockedTimelineHandler());
+    renderHome();
+
+    expect(await screen.findByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
+    expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /not open yet/i })).toBeNull();
+    expect(screen.queryByText(/access is limited while we build that tier/i)).toBeNull();
   });
 
-  it("sections a promoted event on its original day, not the day the story arrived", async () => {
-    // NEU-1136's promotion rule: TMDB carded "reported-monday" on the 22nd; a trade covered it
-    // on the 23rd and the story attached to that same event. `created_at` does not move (backend
-    // ADR-0016), so the item stays on the 22nd — and now leads that day's news-backed section.
-    renderFeed({
-      items: [
-        dayItem("tuesday-tmdb", { day: "2026-06-23" }),
-        dayItem("reported-monday", { day: "2026-06-22", news_backed: true }),
-        dayItem("monday-tmdb", { day: "2026-06-22" }),
-      ],
-      total: 2,
-      limit: 10,
-      offset: 0,
+  it("offers no sign-in link either — they are already signed in", async () => {
+    server.use(meHandler({ entitled: false }), lockedTimelineHandler());
+    renderHome();
+
+    await screen.findByRole("heading", { name: GLOBAL_HEADING });
+    expect(screen.queryByRole("link", { name: /^sign in$/i })).toBeNull();
+  });
+
+  it("does not offer the onboarding the empty timeline offers", async () => {
+    // "No access yet" and "no follows yet" are different states: sending this reader to follow
+    // something would only get them refused (D-41).
+    server.use(meHandler({ entitled: false }), lockedTimelineHandler());
+    renderHome();
+
+    await screen.findByRole("heading", { name: GLOBAL_HEADING });
+    expect(screen.queryByText(/your timeline is empty/i)).toBeNull();
+    expect(screen.queryByRole("link", { name: /get started/i })).toBeNull();
+  });
+
+  it("never requests the timeline it is not entitled to", async () => {
+    let asked = false;
+    server.use(
+      meHandler({ entitled: false }),
+      http.get(`${env.apiBaseUrl}/me/timeline`, () => {
+        asked = true;
+        return HttpResponse.json({ detail: "entitlement_required" }, { status: 403 });
+      }),
+    );
+    renderHome();
+    await screen.findByRole("heading", { name: GLOBAL_HEADING });
+    expect(asked).toBe(false);
+  });
+});
+
+describe("home route — signed in and entitled", () => {
+  it("swaps the global feed for the timeline", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      timelineHandler([
+        dayItem("followed-film", { film_title: "Followed Film", news_backed: true }),
+      ]),
+    );
+    renderHome();
+
+    // Keyed off a day from the timeline, not the heading: the heading is up during the skeleton
+    // too (by design — the page must not jump), and the node holding it is replaced when the
+    // days land, so awaiting it hands back an element that is already detached.
+    expect(await screen.findByText("Followed Film")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "My feed" })).toBeInTheDocument();
+    // The global feed is gone — its heading and its days with it.
+    expect(screen.queryByRole("heading", { name: GLOBAL_HEADING })).toBeNull();
+    expect(screen.queryByText("The Odyssey")).toBeNull();
+  });
+
+  it("links out to the unfiltered feed", async () => {
+    server.use(meHandler({ entitled: true }), timelineHandler([dayItem("followed-film")]));
+    renderHome();
+
+    await timelineHeading();
+    expect(screen.getByRole("link", { name: /all updates/i })).toHaveAttribute("href", "/feed");
+  });
+
+  it("renders the onboarding card when nothing is followed yet", async () => {
+    server.use(meHandler({ entitled: true }), emptyTimelineHandler());
+    renderHome();
+
+    await timelineHeading();
+    expect(await screen.findByText(/your timeline is empty/i)).toBeInTheDocument();
+    // `/welcome` now that NEU-1358 has built it — the card used to point one hop wide, at the
+    // calendar, because the onboarding route did not exist yet.
+    expect(screen.getByRole("link", { name: /get started/i })).toHaveAttribute("href", "/welcome");
+    expect(screen.getByRole("link", { name: /browse all updates/i })).toHaveAttribute(
+      "href",
+      "/feed",
+    );
+    // An empty timeline is never an empty page, and never the locked panel.
+    expect(screen.queryByRole("heading", { name: /not open yet/i })).toBeNull();
+    // No sections to explain: the onboarding card carries its own copy.
+    expect(screen.queryByText(SECTION_SPLIT_EXPLAINER)).toBeNull();
+  });
+
+  it("explains the section split once, under the heading", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      timelineHandler([
+        dayItem("followed-film", { film_title: "Followed Film", news_backed: true }),
+      ]),
+    );
+    renderHome();
+
+    expect(await screen.findByText("Followed Film")).toBeInTheDocument();
+    expect(screen.getAllByText(SECTION_SPLIT_EXPLAINER)).toHaveLength(1);
+  });
+
+  it("fetches the next page of days when there are more than fit on one", async () => {
+    const days = Array.from({ length: 12 }, (_, n) =>
+      // News-backed so every day lands in the same section: a test asserting on paging should
+      // not also be asserting on which section the item landed in.
+      dayItem(`film-${n}`, {
+        day: `2026-06-${String(23 - n).padStart(2, "0")}`,
+        film_title: `Film ${n}`,
+        news_backed: true,
+      }),
+    );
+    server.use(meHandler({ entitled: true }), timelineHandler(days, 12));
+    renderHome();
+
+    await timelineHeading();
+    // Two round trips and twelve days of markup behind them, so the default 1s is tight.
+    expect(await screen.findByText("Film 0", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.queryByText("Film 10")).toBeNull();
+
+    await userEvent.click(await screen.findByRole("button", { name: /view more/i }));
+    expect(await screen.findByText("Film 10", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByText("Film 11")).toBeInTheDocument();
+  });
+
+  it("shows a skeleton in the content area until the first page lands", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      http.get(`${env.apiBaseUrl}/me/timeline`, async () => {
+        // Held open so the skeleton is observable rather than a race the assertion may lose.
+        await delay(50);
+        return HttpResponse.json({ items: [], total: 0, limit: 10, offset: 0 });
+      }),
+    );
+    renderHome();
+
+    // The heading is already up while the days load, so the page does not jump when they land.
+    expect(await screen.findByLabelText(/loading your timeline/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "My feed" })).toBeInTheDocument();
+    // So is the explainer under it, for the same reason.
+    expect(screen.getByText(SECTION_SPLIT_EXPLAINER)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByLabelText(/loading your timeline/i)).toBeNull());
+  });
+});
+
+/**
+ * The timeline hint (NEU-1468): a reader whose account last resolved entitled gets the "My feed"
+ * skeleton from the first paint instead of "All updates". These stubs mount no public layout, so
+ * the hint is read from the browser's cookie jar — the same answer the layout's loader gives.
+ */
+describe("home route — with the timeline hint", () => {
+  /** `/me` held open for a real window, so "before it answers" is assertable, not a race. */
+  function slowMe(answer: "entitled" | "unentitled" | "anonymous") {
+    return http.get(`${env.apiBaseUrl}/me`, async () => {
+      await delay(100);
+      if (answer === "anonymous") {
+        return HttpResponse.json({ detail: "auth_required" }, { status: 401 });
+      }
+      return HttpResponse.json({
+        id: "u1",
+        email: "a@b.com",
+        display_name: "Test User",
+        is_admin: false,
+        email_verified: true,
+        entitled: answer === "entitled",
+        created_at: new Date().toISOString(),
+        csrf_token: "test-csrf",
+      });
     });
-    await screen.findByText(/June 22, 2026/);
+  }
 
-    const days = [...document.querySelectorAll("main section")] as HTMLElement[];
-    const tuesday = days.find(
-      (d) => d.querySelector("time")?.getAttribute("datetime") === "2026-06-23",
-    )!;
-    const monday = days.find(
-      (d) => d.querySelector("time")?.getAttribute("datetime") === "2026-06-22",
-    )!;
+  const hint = () => writeTimelineHint({ entitled: true } as AuthedUser);
 
-    // The promoted item is on Monday, in Monday's news section — not on Tuesday.
-    expect(monday.querySelector('a[href="/film/reported-monday"]')).not.toBeNull();
-    expect(tuesday.querySelector('a[href="/film/reported-monday"]')).toBeNull();
-    expect([...monday.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
-      "In the news (1 movie)",
-    ]);
-    // Expand Monday's unconfirmed updates section to see all items.
-    await userEvent.click(within(monday).getByText("unconfirmed updates (1 movie)"));
-    // Within each section, items are alphabetically sorted. News section renders first (reported-monday),
-    // then unconfirmed updates section (monday-tmdb).
-    const mondayLinks = [...monday.querySelectorAll("a[href^='/film/']")].map((a) =>
-      a.getAttribute("href"),
+  /** Records whether the global feed's heading is *ever* put in the document, not just whether
+   *  it is there at the moments the test happens to look. */
+  function watchForGlobalHeading() {
+    let seen = false;
+    const check = () => {
+      seen ||= [...document.querySelectorAll("h1")].some((h) => h.textContent === GLOBAL_HEADING);
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    return {
+      seen: () => {
+        check();
+        return seen;
+      },
+      stop: () => observer.disconnect(),
+    };
+  }
+
+  it("shows the timeline skeleton before /me answers, then the timeline, never the global feed", async () => {
+    hint();
+    server.use(
+      slowMe("entitled"),
+      timelineHandler([
+        dayItem("followed-film", { film_title: "Followed Film", news_backed: true }),
+      ]),
     );
-    expect(mondayLinks).toEqual(["/film/reported-monday", "/film/monday-tmdb"]);
-    expect(mondayLinks.length).toBe(2);
-    // Tuesday is TMDB-only: empty "In the news" heading plus collapsed "unconfirmed updates".
-    expect([...tuesday.querySelectorAll("h3")].map((h) => h.textContent)).toEqual(["In the news"]);
-    expect(within(tuesday).getByText("unconfirmed updates (1 movie)")).toBeInTheDocument();
+    const watch = watchForGlobalHeading();
+    renderHome();
+
+    // Inside `/me`'s hold: the stub's loader settles in microtasks, the account in 100ms.
+    expect(await screen.findByLabelText(/loading your timeline/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "My feed" })).toBeInTheDocument();
+
+    expect(await screen.findByText("Followed Film")).toBeInTheDocument();
+    expect(watch.seen()).toBe(false);
+    watch.stop();
   });
 
-  it("opens every section with a rule and space, not just a heading", async () => {
-    renderFeed(oneDay(dayItem("reported", { news_backed: true }), dayItem("tmdb")));
-    const newsContainer = (await screen.findByText("In the news (1 movie)")).closest(".border-t")!;
-    const tmdbContainer = screen.getByText("unconfirmed updates (1 movie)").closest(".border-t")!;
-    expect(newsContainer).not.toBeNull();
-    expect(tmdbContainer).not.toBeNull();
+  it("keeps the same skeleton when the account lands, rather than remounting it", async () => {
+    // The hinted skeleton and the timeline's own pending skeleton are one element, so the
+    // hand-over from prediction to answer is invisible — not even a restarted pulse.
+    let timelineAsked = false;
+    hint();
+    server.use(
+      http.get(`${env.apiBaseUrl}/me`, async () => {
+        await delay(50);
+        return HttpResponse.json({
+          id: "u1",
+          email: "a@b.com",
+          display_name: "Test User",
+          is_admin: false,
+          email_verified: true,
+          entitled: true,
+          created_at: new Date().toISOString(),
+          csrf_token: "test-csrf",
+        });
+      }),
+      http.get(`${env.apiBaseUrl}/me/timeline`, async () => {
+        timelineAsked = true;
+        await delay(200);
+        return HttpResponse.json({ items: [], total: 0, limit: 10, offset: 0 });
+      }),
+    );
+    renderHome();
+
+    const skeleton = await screen.findByLabelText(/loading your timeline/i);
+    // Only a `ready` page asks for the timeline, so this is past the account's answer.
+    await waitFor(() => expect(timelineAsked).toBe(true));
+    expect(skeleton.isConnected).toBe(true);
   });
 
-  it("gives the day one strip covering both sections, news-backed posters first", async () => {
-    renderFeed(
-      oneDay(
-        dayItem("tmdb", { poster_path: "/tmdb.jpg" }),
-        dayItem("reported", { news_backed: true, poster_path: "/news.jpg" }),
-      ),
+  it("falls back from the skeleton to the SSR'd feed when /me answers 401, quietly", async () => {
+    let asked = false;
+    hint();
+    server.use(
+      slowMe("anonymous"),
+      http.get(`${env.apiBaseUrl}/me/timeline`, () => {
+        asked = true;
+        return HttpResponse.json({ items: [], total: 0, limit: 10, offset: 0 });
+      }),
     );
-    await screen.findByText(/June 23, 2026/);
-    const posters = screen.getAllByRole("img");
-    // One strip for the whole day — but ordered news-first, so the reported film leads even
-    // though backend order (popularity) puts the TMDB-only one ahead of it.
-    expect(posters.map((p) => p.getAttribute("src"))).toEqual([
-      "https://image.tmdb.org/t/p/w185/news.jpg",
-      "https://image.tmdb.org/t/p/w185/tmdb.jpg",
-    ]);
+    renderHome();
+
+    expect(await screen.findByLabelText(/loading your timeline/i)).toBeInTheDocument();
+
+    expect(await screen.findByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
+    expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/loading your timeline/i)).toBeNull();
+    expect(screen.queryByText(/couldn.t load your timeline/i)).toBeNull();
+    expect(asked).toBe(false);
+  });
+
+  it("renders the global feed for an unentitled answer, and drops the hint", async () => {
+    hint();
+    server.use(slowMe("unentitled"), lockedTimelineHandler());
+    renderHome();
+
+    expect(await screen.findByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
+    expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
+    expect(readTimelineHint(document.cookie)).toBe(false);
+  });
+
+  it("shows the skeleton over a stale cached null while the refetch is in flight", async () => {
+    // The landing after `/login`: the public layout's client last saw this tab signed out, and
+    // `refetchOnMount: "always"` is re-reading it. The cached `null` used to paint first.
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, refetchOnMount: "always" } },
+    });
+    qc.setQueryData(["me"], null);
+    hint();
+    server.use(slowMe("entitled"), emptyTimelineHandler());
+    renderHome(feed, qc);
+
+    expect(await screen.findByLabelText(/loading your timeline/i)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: GLOBAL_HEADING })).toBeNull();
   });
 });
 
-describe("unconfirmed updates section", () => {
-  it("renders unconfirmed updates section collapsed by default with movie count", async () => {
-    renderFeed(
-      oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-a"), dayItem("tmdb-b")),
-    );
-    await screen.findByText(/June 23, 2026/);
+/** A control the real page does not carry — the account menu lives in the header, outside this
+ *  route — so the cache behaviour around signing out can be driven from within the page under
+ *  test rather than by reaching into the QueryClient. */
+function LogOutControl() {
+  const { logout } = useAuth();
+  return (
+    <button type="button" onClick={() => void logout()}>
+      Log out
+    </button>
+  );
+}
 
-    expect(screen.getByText("unconfirmed updates (2 movies)")).toBeInTheDocument();
-  });
+/** Likewise for a follow: the buttons live on film pages, but what a follow does to *this*
+ *  page's cache is this page's business. */
+function FollowControl() {
+  const toggle = useToggleFollow();
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        toggle.mutate({
+          target: { entityType: "person", entityId: "505710", label: "Zendaya" },
+          following: false,
+        })
+      }
+    >
+      Follow someone
+    </button>
+  );
+}
 
-  it("renders In the news section always expanded with count", async () => {
-    renderFeed(oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-film")));
-    await screen.findByText(/June 23, 2026/);
-
-    expect(screen.getByText("In the news (1 movie)")).toBeInTheDocument();
-    expect(screen.getByText("In the news (1 movie)").tagName).toBe("H3");
-  });
-
-  it("toggles unconfirmed updates section open on click", async () => {
-    renderFeed(oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-a")));
-    await screen.findByText(/June 23, 2026/);
-
-    // Initially unconfirmed section items are not visible.
-    expect(screen.queryByText("TMDB-A")).toBeNull();
-
-    await userEvent.click(screen.getByText("unconfirmed updates (1 movie)"));
-    expect(screen.getByText("TMDB-A")).toBeInTheDocument();
-  });
-
-  it("empty section shows None today without count suffix", async () => {
-    renderFeed(oneDay(dayItem("news-film", { news_backed: true })));
-    await screen.findByText(/June 23, 2026/);
-
-    const emptyHeading = screen.getByText("unconfirmed updates");
-    expect(emptyHeading).toBeInTheDocument();
-    expect(emptyHeading.textContent).not.toContain("movie");
-    expect(screen.getByText("None today")).toBeInTheDocument();
-  });
-
-  it("renders movie titles with beat labels but no event cards", async () => {
-    // Backend still ships events: [] for catalog-sourced feed rows (NEU-1208); NEU-1212
-    // labels the row with the day's beats so it can be triaged without a page load.
-    renderFeed(
-      oneDay(
-        dayItem("tmdb-film", {
-          film_title: "TMDB Film",
-          event_count: 1,
-          event_types: ["casting"],
-          events: [],
-        }),
+function renderHomeWith(extra: React.ReactNode) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const Stub = createRoutesStub([
+    {
+      path: "/",
+      loader: () => ({ feed }),
+      // The island rather than the route module: what these two assert is cache behaviour
+      // around the swap, and the route adds only a loader the stub is already standing in for.
+      Component: () => (
+        <>
+          <TimelineOrFeed feed={feed} />
+          {extra}
+        </>
       ),
-    );
-    await screen.findByText(/June 23, 2026/);
+    },
+    { path: "/feed", Component: () => <h1>All updates</h1> },
+    { path: "/calendar", Component: () => <h1>Calendar</h1> },
+    { path: "/login", Component: () => <h1>Log in</h1> },
+  ]);
+  return render(
+    <QueryClientProvider client={qc}>
+      <AuthProvider>
+        <Stub initialEntries={["/"]} />
+      </AuthProvider>
+    </QueryClientProvider>,
+  );
+}
 
-    await userEvent.click(screen.getByText("unconfirmed updates (1 movie)"));
-    expect(screen.getByText("TMDB Film")).toBeInTheDocument();
-    expect(screen.getByText("Casting")).toBeInTheDocument();
-    expect(screen.queryByText("The official trailer was released.")).toBeNull();
-    expect(screen.queryByText("Trailer")).toBeNull();
+describe("home route — an import waiting on its review list (NEU-1452)", () => {
+  it("says so above the timeline, with the way back to the list", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      timelineHandler([
+        dayItem("followed-film", { film_title: "Followed Film", news_backed: true }),
+      ]),
+      activeImportHandler(makeImportJob({ status: "awaiting_review" })).handler,
+    );
+    renderHome();
+
+    const notice = await screen.findByRole("status");
+    expect(notice).toHaveTextContent(/waiting for you to review its list/i);
+    expect(notice).toHaveTextContent(/nothing is followed until you confirm it/i);
+    expect(screen.getByRole("link", { name: /review the list/i })).toHaveAttribute(
+      "href",
+      "/welcome",
+    );
+    expect(screen.getByText("Followed Film")).toBeInTheDocument();
+  });
+
+  it("says so on an empty timeline too, where the import looks like it did nothing", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      emptyTimelineHandler(),
+      activeImportHandler(makeImportJob({ status: "awaiting_review" })).handler,
+    );
+    renderHome();
+
+    expect(await screen.findByRole("link", { name: /review the list/i })).toBeInTheDocument();
+    expect(screen.getByText(/your timeline is empty/i)).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a running import", makeImportJob({ status: "running" })],
+    ["no open import", null],
+  ] as const)("shows nothing for %s, and the feed as before", async (_, answer) => {
+    const active = activeImportHandler(answer);
+    server.use(
+      meHandler({ entitled: true }),
+      timelineHandler([
+        dayItem("followed-film", { film_title: "Followed Film", news_backed: true }),
+      ]),
+      active.handler,
+    );
+    renderHome();
+
+    expect(await screen.findByText("Followed Film")).toBeInTheDocument();
+    await waitFor(() => expect(active.calls).toBeGreaterThan(0));
+    expect(screen.queryByRole("link", { name: /review the list/i })).toBeNull();
+    expect(screen.queryByText(/waiting for you to review/i)).toBeNull();
   });
 });
 
-describe("within-day cap removal", () => {
-  // Backend ADR-0016: the first directors sweep published 74 updates under one date heading,
-  // and future tranches will do the same by design. That day must now render in full.
-  const tallDay: FeedDayResponse = {
-    items: Array.from({ length: 74 }, (_, n) => dayItem(`film-${n}`, { news_backed: n % 3 === 0 })),
-    total: 1,
-    limit: 10,
-    offset: 0,
-  };
+describe("home route — the timeline could not be read", () => {
+  it("says so rather than showing the onboarding card", async () => {
+    // An error is not `total === 0`. Falling through to the empty state would tell an entitled
+    // reader to go and follow things they may already follow.
+    server.use(
+      meHandler({ entitled: true }),
+      http.get(`${env.apiBaseUrl}/me/timeline`, () =>
+        HttpResponse.json({ detail: "server_error" }, { status: 500 }),
+      ),
+    );
+    renderHome();
 
-  it("renders every update in a tall day with no additional disclosure controls", async () => {
-    renderFeed(tallDay);
-    await screen.findByText(/June 23, 2026/);
-
-    // Expand the unconfirmed updates section to count all items
-    const tmdbBtn = screen.getByText(/unconfirmed updates/);
-    await userEvent.click(tmdbBtn);
-    expect(screen.getAllByRole("link").length).toBeGreaterThanOrEqual(74);
-    expect(screen.queryByText(/Show all/i)).toBeNull();
-    expect(screen.queryByText(/Show fewer/i)).toBeNull();
+    expect(await screen.findByText(/couldn't load your timeline/i)).toBeInTheDocument();
+    expect(screen.queryByText(/your timeline is empty/i)).toBeNull();
+    expect(screen.getByRole("link", { name: /browse all updates/i })).toHaveAttribute(
+      "href",
+      "/feed",
+    );
   });
 
-  it("keeps day-level pagination untouched", async () => {
-    renderFeed({ ...tallDay, total: 2 });
-    expect(await screen.findByRole("button", { name: /view more/i })).toBeInTheDocument();
+  it("falls back to the global feed when the grant lapsed mid-session", async () => {
+    // The cached account still said `entitled`, so the timeline mounted and got a 403. Re-reading
+    // /me flips the flag, and the island must land on the global feed — never on "no follows
+    // yet", which would send a reader to follow something they would be refused.
+    let meCalls = 0;
+    server.use(
+      http.get(`${env.apiBaseUrl}/me`, () => {
+        meCalls += 1;
+        return HttpResponse.json({
+          id: "u1",
+          email: "a@b.com",
+          display_name: "Test User",
+          is_admin: false,
+          email_verified: true,
+          // Entitled on the first read only: the grant runs out between the two.
+          entitled: meCalls === 1,
+          created_at: "2026-06-23T12:00:00Z",
+          csrf_token: "test-csrf",
+        });
+      }),
+      lockedTimelineHandler(),
+    );
+    renderHome();
+
+    // Wait for the lapse itself before looking at anything. `/` renders the SSR'd global feed
+    // for everyone until the account resolves, so `GLOBAL_HEADING` is on screen during that
+    // first paint as well as after the grant runs out — and a `findByRole` racing the swap
+    // resolves with the *pre-auth* heading, then fails on a node React has already replaced
+    // with the timeline. The second `/me` read is the signal that the 403 landed, `refresh()`
+    // ran, and what is on screen now is what the lapse produced.
+    await waitFor(() => expect(meCalls).toBe(2));
+
+    // The global feed the server already sent is what they are left looking at — no panel
+    // above it, and not the empty-timeline onboarding. Re-queried on each poll rather than
+    // held from a `findBy`, so the assertion can never be about a detached node.
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/your timeline is empty/i)).toBeNull();
+    expect(screen.queryByText(/couldn't load your timeline/i)).toBeNull();
+    expect(screen.queryByRole("heading", { name: /not open yet/i })).toBeNull();
+    expect(screen.queryByLabelText("Loading your timeline")).toBeNull();
+  });
+});
+
+describe("home route — cache behaviour around the swap", () => {
+  it("falls back to the SSR'd feed on logout, with no round trip for it", async () => {
+    let feedFetches = 0;
+    server.use(
+      meHandler({ entitled: true }),
+      timelineHandler([
+        dayItem("followed-film", { film_title: "Followed Film", news_backed: true }),
+      ]),
+      http.post(`${env.apiBaseUrl}/auth/logout`, () => new HttpResponse(null, { status: 204 })),
+      http.get(`${env.apiBaseUrl}/feed/grouped`, () => {
+        feedFetches += 1;
+        return HttpResponse.json(feed);
+      }),
+    );
+    renderHomeWith(<LogOutControl />);
+
+    await screen.findByText("Followed Film");
+    await userEvent.click(screen.getByRole("button", { name: /log out/i }));
+
+    // Back to the global feed the loader already handed us — the data never left `loaderData`,
+    // so re-rendering it costs nothing.
+    expect(await screen.findByRole("heading", { name: GLOBAL_HEADING })).toBeInTheDocument();
+    expect(screen.getByText(/June 23, 2026/)).toBeInTheDocument();
+    expect(feedFetches).toBe(0);
+    // And the previous reader's timeline is gone, not merely stale.
+    expect(screen.queryByText("Followed Film")).toBeNull();
+  });
+
+  it("refreshes the timeline when a follow lands", async () => {
+    let timelineFetches = 0;
+    server.use(
+      meHandler({ entitled: true }),
+      http.get(`${env.apiBaseUrl}/me/timeline`, () => {
+        timelineFetches += 1;
+        return HttpResponse.json({
+          items: [dayItem("followed-film", { film_title: "Followed Film", news_backed: true })],
+          total: 1,
+          limit: 10,
+          offset: 0,
+        });
+      }),
+      http.post(`${env.apiBaseUrl}/me/follows`, () =>
+        HttpResponse.json(
+          {
+            entity_type: "person",
+            entity_id: "505710",
+            source: "manual",
+            created_at: "2026-06-23T12:00:00Z",
+          },
+          { status: 201 },
+        ),
+      ),
+      http.get(`${env.apiBaseUrl}/me/follows`, () => HttpResponse.json({ items: [] })),
+    );
+    renderHomeWith(<FollowControl />);
+
+    await screen.findByText("Followed Film");
+    const before = timelineFetches;
+
+    await userEvent.click(screen.getByRole("button", { name: /follow someone/i }));
+
+    // The timeline is the feed filtered by exactly this list, so a new follow has to re-read it.
+    await waitFor(() => expect(timelineFetches).toBeGreaterThan(before));
   });
 });

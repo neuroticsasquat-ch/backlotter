@@ -4,7 +4,12 @@ React + TypeScript SPA for the Upcoming Movies Tracker. Vite, react-router, TanS
 
 ## Branching
 
-- `loop_base`: main — v0.3.0 shipped 2026-08-11 and `release/v0.3.0` is fully merged, so work branches from `main` again. **Repoint this when the next release branch is cut**, and back to `main` when it merges; a stale value here silently forks new work off a dead branch.
+Work happens on a release branch, `release/vX.Y.Z`, cut from `main` per release and merged back
+when it ships. Branch each ticket from, and PR it to, the **current** release branch; `main` only
+when none is open. The name is deliberately not written here: it changes every release, and the
+`/implementit` / `/shipit` / `/doit` skills resolve it themselves (`--base`, else the checked-out
+integration branch, else the one unmerged `origin/release/*`). Only pin a `loop_base:` line in
+`CLAUDE.md` if that resolution picks wrong, and remove it as soon as the branch merges.
 
 ## Golden rule: everything runs in the container via `task`
 
@@ -55,4 +60,10 @@ The backend lives at `../backend`. Read its `AGENTS.md` before working on backen
 
 ## Commits / PRs
 
-Conventional commits with the Linear ID as a trailing parenthetical: `feat: add X (NEU-123)`. **No** `Co-Authored-By`. The GitHub↔Linear connector moves ticket status automatically — don't touch it. Branch per ticket (Linear gives the branch name).
+Conventional commits with a **scope** and the Linear ID as a trailing parenthetical: `feat(auth): add X (NEU-123)`. **No** `Co-Authored-By`. The GitHub↔Linear connector moves ticket status automatically — don't touch it. Branch per ticket (Linear gives the branch name).
+
+The scope is the component (`auth`, `feed`, `onboarding`, …), not the Linear project, and it is load-bearing rather than decorative: `cliff.toml` groups `RELEASE_NOTES.md` by scope, so a scopeless commit lands under a catch-all "General" heading.
+
+## Release notes
+
+Tag the release, then `task release-notes -- v0.4.1`. git-cliff renders only user-facing types (`feat`/`fix`/`perf`/`revert`) and **prepends** the new section — `RELEASE_NOTES.md` accumulates per-release chunks and is never rebuilt wholesale. It runs on the host rather than in the container, because git-cliff reads git history and tags, and neither it nor a usable `.git` is in the image. Don't call `git-cliff` directly.

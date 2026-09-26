@@ -1,7 +1,20 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
-import { getCalendar, getFeedGrouped, getFilm, getFilmSearch } from "@/api/public";
+import {
+  getCalendar,
+  getCollection,
+  getCollectionsSearch,
+  getCompaniesSearch,
+  getCompany,
+  getEntityEvents,
+  getFeedGrouped,
+  getFilm,
+  getFilmSearch,
+  getPeopleSearch,
+  getPerson,
+  getPopularPeople,
+} from "@/api/public";
 import type { CalendarResponse, FeedDayResponse, FilmDetail, FilmIndexResponse } from "@/api/types";
 
 const BACKEND = "https://api.upmovies.localhost";
@@ -49,6 +62,39 @@ describe("getFilm", () => {
   it("throws on a 500", async () => {
     server.use(http.get(`${BACKEND}/films/boom`, () => new HttpResponse(null, { status: 500 })));
     await expect(getFilm(BACKEND, "boom")).rejects.toThrow(/failed: 500/);
+  });
+});
+
+// The two entity-page fetchers behind `/studio/:ref` and `/franchise/:ref` (NEU-1428). Their
+// 200 and 404 paths are exercised through the route loaders; what is only reachable here is
+// the branch that distinguishes "no such entity" from "the backend is broken", which the
+// loaders must not turn into a 404 page.
+describe.each([
+  ["getCompany", getCompany, "companies"],
+  ["getCollection", getCollection, "collections"],
+] as const)("%s", (_name, fetcher, path) => {
+  it("returns null on 404", async () => {
+    server.use(
+      http.get(`${BACKEND}/${path}/missing`, () => new HttpResponse(null, { status: 404 })),
+    );
+    expect(await fetcher(BACKEND, "missing")).toBeNull();
+  });
+
+  it("throws on a 500", async () => {
+    server.use(http.get(`${BACKEND}/${path}/boom`, () => new HttpResponse(null, { status: 500 })));
+    await expect(fetcher(BACKEND, "boom")).rejects.toThrow(/failed: 500/);
+  });
+
+  it("encodes a ref that is not URL-safe", async () => {
+    let seen: string | undefined;
+    server.use(
+      http.get(`${BACKEND}/${path}/:ref`, ({ request }) => {
+        seen = request.url;
+        return HttpResponse.json({});
+      }),
+    );
+    await fetcher(BACKEND, "33/../films");
+    expect(seen).toBe(`${BACKEND}/${path}/33%2F..%2Ffilms`);
   });
 });
 
@@ -203,5 +249,224 @@ describe("getFilmSearch", () => {
     const controller = new AbortController();
     controller.abort();
     await expect(getFilmSearch(BACKEND, "matrix", { signal: controller.signal })).rejects.toThrow();
+  });
+});
+
+describe("getEntityEvents", () => {
+  const page = { items: [], next_cursor: "abc" };
+
+  // The one place the on-screen word, the follow graph's word and the backend path all differ
+  // (EF-19). A kind wired to the wrong path 404s in production and nowhere else.
+  it.each([
+    ["person", "people"],
+    ["company", "companies"],
+    ["franchise", "collections"],
+  ] as const)("reads a %s's cards from /%s", async (kind, segment) => {
+    server.use(http.get(`${BACKEND}/${segment}/525-nolan/events`, () => HttpResponse.json(page)));
+    await expect(getEntityEvents(BACKEND, kind, "525-nolan")).resolves.toEqual(page);
+  });
+
+  it("asks for the backend's own page size and omits the cursor on the first page", async () => {
+    let url: URL | undefined;
+    server.use(
+      http.get(`${BACKEND}/people/525-nolan/events`, ({ request }) => {
+        url = new URL(request.url);
+        return HttpResponse.json(page);
+      }),
+    );
+    await getEntityEvents(BACKEND, "person", "525-nolan");
+    expect(url?.searchParams.get("limit")).toBe("20");
+    expect(url?.searchParams.has("cursor")).toBe(false);
+  });
+
+  it("echoes the cursor back on a later page", async () => {
+    let url: URL | undefined;
+    server.use(
+      http.get(`${BACKEND}/people/525-nolan/events`, ({ request }) => {
+        url = new URL(request.url);
+        return HttpResponse.json({ items: [], next_cursor: null });
+      }),
+    );
+    await getEntityEvents(BACKEND, "person", "525-nolan", { cursor: "abc" });
+    expect(url?.searchParams.get("cursor")).toBe("abc");
+  });
+
+  it("returns null for an entity the catalog does not hold", async () => {
+    server.use(
+      http.get(
+        `${BACKEND}/collections/missing/events`,
+        () => new HttpResponse(null, { status: 404 }),
+      ),
+    );
+    await expect(getEntityEvents(BACKEND, "franchise", "missing")).resolves.toBeNull();
+  });
+
+  it("throws on any other non-OK response", async () => {
+    server.use(
+      http.get(`${BACKEND}/people/525-nolan/events`, () => new HttpResponse(null, { status: 500 })),
+    );
+    await expect(getEntityEvents(BACKEND, "person", "525-nolan")).rejects.toThrow(/500/);
+  });
+});
+
+describe("SSR signing headers", () => {
+  const signed = { "X-Backlotter-Origin": "s3cret", "X-Backlotter-Client-IP": "203.0.113.7" };
+
+  function captureHeaders(path: string, body: FilmDetail | FeedDayResponse | CalendarResponse) {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${BACKEND}${path}`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(body);
+      }),
+    );
+    return () => captured;
+  }
+
+  it("forwards them on getFilm", async () => {
+    const headers = captureHeaders("/films/the-odyssey-2026", sample);
+    await getFilm(BACKEND, "the-odyssey-2026", { headers: signed });
+    expect(headers()?.get("X-Backlotter-Origin")).toBe("s3cret");
+    expect(headers()?.get("X-Backlotter-Client-IP")).toBe("203.0.113.7");
+    expect(headers()?.get("Accept")).toBe("application/json");
+  });
+
+  it("forwards them on getFeedGrouped", async () => {
+    const headers = captureHeaders("/feed/grouped", sampleGrouped);
+    await getFeedGrouped(BACKEND, { headers: signed });
+    expect(headers()?.get("X-Backlotter-Origin")).toBe("s3cret");
+    expect(headers()?.get("X-Backlotter-Client-IP")).toBe("203.0.113.7");
+  });
+
+  it("forwards them on getCalendar", async () => {
+    const headers = captureHeaders("/calendar", sampleCalendar);
+    await getCalendar(BACKEND, { headers: signed });
+    expect(headers()?.get("X-Backlotter-Origin")).toBe("s3cret");
+    expect(headers()?.get("X-Backlotter-Client-IP")).toBe("203.0.113.7");
+  });
+
+  it("sends neither header when the caller omits them (the browser-side path)", async () => {
+    const headers = captureHeaders("/feed/grouped", sampleGrouped);
+    await getFeedGrouped(BACKEND);
+    expect(headers()?.get("X-Backlotter-Origin")).toBeNull();
+    expect(headers()?.get("X-Backlotter-Client-IP")).toBeNull();
+  });
+});
+
+/**
+ * The dev stack's base URL is **relative** (`VITE_API_BASE_URL=/api`), so the browser reaches
+ * the API same-origin through Vite's proxy. Every test above passes an absolute one, which is
+ * exactly how `new URL(path, "/api")` — a `TypeError` thrown before any request goes out —
+ * killed search, both "View more" buttons, the add-follow box and the onboarding grid in dev
+ * without a single failing test (NEU-1421).
+ *
+ * jsdom gives these an origin to resolve against, as a browser does. A caller must not have to
+ * know which spelling it was handed.
+ */
+describe("a relative base URL, as the dev proxy hands it to the browser", () => {
+  // The page's own origin, whatever jsdom gives this run — the point is that the fetcher
+  // resolves against it, not that it is any particular host.
+  const ORIGIN = globalThis.location.origin;
+  const proxied = (path: string) => `${ORIGIN}/api${path}`;
+
+  it("resolves against the page origin and keeps the proxy prefix", async () => {
+    let seen: string | undefined;
+    server.use(
+      http.get(proxied("/films/search"), ({ request }) => {
+        seen = request.url;
+        return HttpResponse.json({ items: [], total: 0, limit: 8, offset: 0 });
+      }),
+    );
+
+    await getFilmSearch("/api", "odyssey", { limit: 8 });
+
+    // The prefix survives: `new URL("/films/search", "http://host/api")` would have dropped it,
+    // because an absolute path replaces the base's path.
+    expect(new URL(seen ?? "").pathname).toBe("/api/films/search");
+    expect(new URL(seen ?? "").searchParams.get("q")).toBe("odyssey");
+  });
+
+  it.each([
+    ["the feed", () => getFeedGrouped("/api"), "/api/feed/grouped"],
+    ["the calendar", () => getCalendar("/api"), "/api/calendar"],
+    ["people search", () => getPeopleSearch("/api", "nolan"), "/api/people/search"],
+    ["company search", () => getCompaniesSearch("/api", "a24"), "/api/companies/search"],
+    ["collection search", () => getCollectionsSearch("/api", "star"), "/api/collections/search"],
+    ["the onboarding grid", () => getPopularPeople("/api"), "/api/people/popular"],
+  ])("reaches %s", async (_label, call, pathname) => {
+    let seen: string | undefined;
+    server.use(
+      http.get(`${ORIGIN}${pathname}`, ({ request }) => {
+        seen = request.url;
+        return HttpResponse.json({ items: [], total: 0, limit: 10, offset: 0, days: [] });
+      }),
+    );
+
+    await call();
+
+    expect(new URL(seen ?? "").pathname).toBe(pathname);
+  });
+
+  it("reaches a film and a person by ref", async () => {
+    server.use(
+      http.get(proxied("/films/603-the-odyssey"), () => HttpResponse.json(sample)),
+      http.get(proxied("/people/525-christopher-nolan"), () =>
+        HttpResponse.json({ ref: "525-christopher-nolan", id: 525, name: "Christopher Nolan" }),
+      ),
+    );
+
+    expect(await getFilm("/api", "603-the-odyssey")).toMatchObject({ title: "The Odyssey" });
+    expect(await getPerson("/api", "525-christopher-nolan")).toMatchObject({ id: 525 });
+  });
+
+  it("does not double the slash when the base carries a trailing one", async () => {
+    let seen: string | undefined;
+    server.use(
+      http.get(proxied("/calendar"), ({ request }) => {
+        seen = request.url;
+        return HttpResponse.json({ days: [], total: 0, limit: 100, offset: 0 });
+      }),
+    );
+
+    await getCalendar("/api/");
+
+    expect(new URL(seen ?? "").pathname).toBe("/api/calendar");
+  });
+
+  it("treats a bare slash as the page origin itself", async () => {
+    let seen: string | undefined;
+    server.use(
+      http.get(`${ORIGIN}/calendar`, ({ request }) => {
+        seen = request.url;
+        return HttpResponse.json({ days: [], total: 0, limit: 100, offset: 0 });
+      }),
+    );
+
+    await getCalendar("/");
+
+    expect(new URL(seen ?? "").pathname).toBe("/calendar");
+  });
+
+  it("still takes an absolute base, which is what SSR and prod pass", async () => {
+    server.use(http.get(`${BACKEND}/films/603`, () => HttpResponse.json(sample)));
+    expect(await getFilm(BACKEND, "603")).toMatchObject({ title: "The Odyssey" });
+  });
+
+  it("keeps a path component on an absolute base, which `new URL` would have dropped", async () => {
+    // The trap the helper exists to avoid, asserted rather than left in a comment:
+    // `new URL("/calendar", "https://host/api")` resolves to `https://host/calendar`, because
+    // an absolute path replaces the base's path. Nothing deployed mounts the API under a path
+    // today, so this guards the reasoning rather than a live config.
+    let seen: string | undefined;
+    server.use(
+      http.get("https://gateway.example/api/calendar", ({ request }) => {
+        seen = request.url;
+        return HttpResponse.json({ days: [], total: 0, limit: 100, offset: 0 });
+      }),
+    );
+
+    await getCalendar("https://gateway.example/api");
+
+    expect(new URL(seen ?? "").pathname).toBe("/api/calendar");
   });
 });

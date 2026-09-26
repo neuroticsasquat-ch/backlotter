@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import { ReleaseDates } from "@/components/film/ReleaseDates";
 import type { ReleaseDate } from "@/api/types";
 
-/** Two US rows of different types + one GB (origin-country) row. */
+/** Three US rows — theatrical plus both home-release buckets (D-26) — and one GB
+ *  (origin-country) theatrical row. `type_label` is the backend's own short bucket label, the
+ *  string `public.release` emits for each TMDB type. */
 const multiCountryDates: ReleaseDate[] = [
   {
     country: "US",
     release_type: 3,
-    type_label: "Theatrical (limited)",
+    type_label: "Wide",
     date: "2026-06-25T00:00:00Z",
     certification: "PG-13",
   },
@@ -20,9 +22,16 @@ const multiCountryDates: ReleaseDate[] = [
     certification: "",
   },
   {
+    country: "US",
+    release_type: 5,
+    type_label: "Physical",
+    date: "2026-09-08T00:00:00Z",
+    certification: null,
+  },
+  {
     country: "GB",
     release_type: 3,
-    type_label: "Theatrical (limited)",
+    type_label: "Wide",
     date: "2026-07-04T00:00:00Z",
     certification: null,
   },
@@ -33,7 +42,7 @@ const singleCountryDates: ReleaseDate[] = [
   {
     country: "US",
     release_type: 3,
-    type_label: "Theatrical (limited)",
+    type_label: "Wide",
     date: "2026-06-25T00:00:00Z",
     certification: "PG-13",
   },
@@ -53,10 +62,11 @@ describe("ReleaseDates", () => {
       expect(screen.getByRole("heading", { name: /release dates/i })).toBeInTheDocument();
     });
 
-    it("shows type_label for each row", () => {
+    it("shows type_label for each row, home-release buckets included", () => {
       render(<ReleaseDates dates={multiCountryDates} />);
-      expect(screen.getAllByText("Theatrical (limited)")).toHaveLength(2);
+      expect(screen.getAllByText("Wide")).toHaveLength(2);
       expect(screen.getByText("Digital")).toBeInTheDocument();
+      expect(screen.getByText("Physical")).toBeInTheDocument();
     });
 
     it("shows UTC-formatted date in a <time dateTime={iso}> element", () => {
@@ -86,8 +96,8 @@ describe("ReleaseDates", () => {
 
     it("shows country tag for each row when multiple distinct countries", () => {
       render(<ReleaseDates dates={multiCountryDates} />);
-      // There are two "US" rows and one "GB" row
-      expect(screen.getAllByText("US")).toHaveLength(2);
+      // There are three "US" rows and one "GB" row
+      expect(screen.getAllByText("US")).toHaveLength(3);
       expect(screen.getByText("GB")).toBeInTheDocument();
     });
   });

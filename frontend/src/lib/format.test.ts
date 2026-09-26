@@ -5,13 +5,15 @@ import {
   formatCountryList,
   formatDayHeading,
   formatEventDate,
+  formatHeadlineRelease,
   formatLanguage,
+  formatRelativeDate,
   formatRuntime,
   formatUsd,
   pickRating,
   truncate,
 } from "@/lib/format";
-import type { ReleaseDate } from "@/api/types";
+import type { HeadlineRelease, ReleaseDate } from "@/api/types";
 
 function rd(over: Partial<ReleaseDate> = {}): ReleaseDate {
   return {
@@ -31,6 +33,40 @@ describe("formatEventDate", () => {
 
   it("uses UTC so a late-UTC time does not roll the day", () => {
     expect(formatEventDate("2025-03-14T23:30:00Z")).toBe("Mar 14, 2025");
+  });
+});
+
+describe("formatRelativeDate", () => {
+  // A fixed `now`, so the distances are the test's rather than the clock's.
+  const now = new Date("2026-09-23T12:00:00Z");
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
+
+  const MINUTE = 60_000;
+  const HOUR = 60 * MINUTE;
+  const DAY = 24 * HOUR;
+
+  it("counts minutes and hours inside the first day", () => {
+    expect(formatRelativeDate(ago(5 * MINUTE), now)).toBe("5 minutes ago");
+    expect(formatRelativeDate(ago(3 * HOUR), now)).toBe("3 hours ago");
+  });
+
+  it("says the near days as words rather than as a count of one", () => {
+    // `numeric: "auto"` — "yesterday" is how a person says it, and "1 day ago" is not.
+    expect(formatRelativeDate(ago(DAY), now)).toBe("yesterday");
+    expect(formatRelativeDate(ago(3 * DAY), now)).toBe("3 days ago");
+  });
+
+  it("steps up to months and then years as the distance grows", () => {
+    expect(formatRelativeDate(ago(45 * DAY), now)).toBe("2 months ago");
+    expect(formatRelativeDate(ago(400 * DAY), now)).toBe("last year");
+    expect(formatRelativeDate(ago(800 * DAY), now)).toBe("2 years ago");
+  });
+
+  it("is the coarsest unit that still says something, not the most precise", () => {
+    // 30 days is a month rather than "30 days ago": this is a "when did something last
+    // happen here" line, not a date, and the row shows a date where one is wanted.
+    expect(formatRelativeDate(ago(30 * DAY), now)).toBe("last month");
+    expect(formatRelativeDate(ago(29 * DAY), now)).toBe("29 days ago");
   });
 });
 
@@ -288,5 +324,50 @@ describe("filmParenthetical", () => {
         input({ production_countries: nine, directors: ["Apichatpong Weerasethakul"] }),
       ),
     ).toBe("Canada/Colombia/France +6, Dir: Apichatpong Weerasethakul");
+  });
+});
+
+describe("formatHeadlineRelease", () => {
+  const upcoming = {
+    date: "2026-10-03",
+    kind: "upcoming",
+    country: "US",
+    bucket: "limited",
+  } satisfies HeadlineRelease;
+
+  it("says a film has no date yet rather than blanking the line", () => {
+    expect(formatHeadlineRelease(null)).toBe("No date yet");
+  });
+
+  it("opens an upcoming release with its bucket and country", () => {
+    expect(formatHeadlineRelease(upcoming)).toBe("Opens Oct 3, 2026 · Limited · US");
+  });
+
+  it("puts a released date in the past tense, so it does not read as a date to wait for", () => {
+    expect(
+      formatHeadlineRelease({
+        date: "2026-03-03",
+        kind: "released",
+        country: "US",
+        bucket: "wide",
+      }),
+    ).toBe("Opened Mar 3, 2026 · Wide · US");
+  });
+
+  it("marks a primary date unconfirmed and claims no bucket or country for it", () => {
+    expect(
+      formatHeadlineRelease({ date: "2026-10-03", kind: "primary", country: null, bucket: null }),
+    ).toBe("Oct 3, 2026 (unconfirmed)");
+  });
+
+  it("renders the date in UTC, so a YYYY-MM-DD never slips a day west of Greenwich", () => {
+    expect(formatHeadlineRelease({ ...upcoming, date: "2026-01-01" })).toContain("Jan 1, 2026");
+  });
+
+  it("drops a missing bucket or country instead of leaving an empty separator", () => {
+    expect(formatHeadlineRelease({ ...upcoming, bucket: null })).toBe("Opens Oct 3, 2026 · US");
+    expect(formatHeadlineRelease({ ...upcoming, country: null })).toBe(
+      "Opens Oct 3, 2026 · Limited",
+    );
   });
 });

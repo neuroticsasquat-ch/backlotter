@@ -5,11 +5,14 @@ import { describe, expect, it } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/components/AuthContext";
 import { server } from "@/test/msw/server";
-import { cloudflareContext } from "@/lib/load-context";
+import { cloudflareContext, type AppEnv } from "@/lib/load-context";
 import FilmPage, { ErrorBoundary, loader, meta } from "@/routes/film";
 import type { FilmDetail } from "@/api/types";
 
 const BACKEND = "https://api.upmovies.localhost";
+
+/** Overrides for one `callLoader` call: Worker env extras and inbound request headers. */
+type LoaderCall = { env?: Partial<AppEnv>; headers?: Record<string, string> };
 
 const film: FilmDetail = {
   ref: "12345-the-odyssey",
@@ -28,8 +31,12 @@ const film: FilmDetail = {
           event_type: "trailer",
           confidence: "rumored",
           created_at: "2026-06-01T00:00:00Z",
+          occurred_at: "2026-06-01T00:00:00Z",
           summary: "Trailer dropped.",
           summary_edited: false,
+          status: "published",
+          superseded_by: null,
+          video_key: null,
           provenance: "story",
           sources: [],
         },
@@ -45,11 +52,20 @@ const film: FilmDetail = {
           event_type: "casting",
           confidence: "confirmed",
           created_at: "2025-01-01T00:00:00Z",
+          occurred_at: "2025-01-01T00:00:00Z",
           summary: "Casting announced.",
           summary_edited: false,
+          status: "published",
+          superseded_by: null,
+          video_key: null,
           provenance: "story",
           sources: [
-            { url: "https://deadline.com/a", source: "Deadline", title: "Cast", published_at: null },
+            {
+              url: "https://deadline.com/a",
+              source: "Deadline",
+              title: "Cast",
+              published_at: null,
+            },
           ],
         },
       ],
@@ -76,23 +92,63 @@ const film: FilmDetail = {
   crew: [{ name: "Christopher Nolan", job: "Director", department: "Directing" }],
   tmdb_id: 603,
   imdb_id: "tt0133093",
+  where_to_watch: null,
 };
 
-function contextWithEnv() {
+/** The box the backend sends once a providers poll has found the film (D-29). */
+const whereToWatch: NonNullable<FilmDetail["where_to_watch"]> = {
+  region: "US",
+  flatrate: [{ id: 8, name: "Netflix", logo_path: "/netflix.jpg" }],
+  rent: [{ id: 2, name: "Apple TV", logo_path: "/appletv.jpg" }],
+  buy: [],
+  link: "https://www.themoviedb.org/movie/603/watch?locale=US",
+  attribution: "JustWatch",
+};
+
+function contextWithEnv(env: Partial<AppEnv> = {}) {
   const context = new RouterContextProvider();
-  context.set(cloudflareContext, { env: { API_BASE_URL: BACKEND } });
+  context.set(cloudflareContext, { env: { API_BASE_URL: BACKEND, ...env } });
   return context;
 }
 
-function callLoader(ref: string, search = "") {
+function callLoader(ref: string, search = "", { env, headers }: LoaderCall = {}) {
   return loader({
-    request: new Request(`https://upmovies.example/film/${ref}${search}`),
-    context: contextWithEnv(),
+    request: new Request(`https://upmovies.example/film/${ref}${search}`, { headers }),
+    context: contextWithEnv(env),
     params: { ref },
   } as unknown as Parameters<typeof loader>[0]);
 }
 
 describe("film route loader", () => {
+  it("signs the fetch and forwards the visitor IP when the secret is set", async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${BACKEND}/films/12345-the-odyssey`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(film);
+      }),
+    );
+    await callLoader("12345-the-odyssey", "", {
+      env: { SSR_ORIGIN_SECRET: "s3cret" },
+      headers: { "CF-Connecting-IP": "203.0.113.7" },
+    });
+    expect(captured?.get("X-Backlotter-Origin")).toBe("s3cret");
+    expect(captured?.get("X-Backlotter-Client-IP")).toBe("203.0.113.7");
+  });
+
+  it("sends no signing headers when the secret is unset", async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${BACKEND}/films/12345-the-odyssey`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json(film);
+      }),
+    );
+    await callLoader("12345-the-odyssey", "", { headers: { "CF-Connecting-IP": "203.0.113.7" } });
+    expect(captured?.get("X-Backlotter-Origin")).toBeNull();
+    expect(captured?.get("X-Backlotter-Client-IP")).toBeNull();
+  });
+
   it("fetches the film detail by ref", async () => {
     server.use(http.get(`${BACKEND}/films/12345-the-odyssey`, () => HttpResponse.json(film)));
     const data = await callLoader("12345-the-odyssey");
@@ -172,8 +228,12 @@ describe("film route meta", () => {
               event_type: "trailer",
               confidence: "confirmed",
               created_at: "2026-06-01T00:00:00Z",
+              occurred_at: "2026-06-01T00:00:00Z",
               summary: "Newest: trailer dropped.",
               summary_edited: false,
+              status: "published",
+              superseded_by: null,
+              video_key: null,
               provenance: "story",
               sources: [],
             },
@@ -189,8 +249,12 @@ describe("film route meta", () => {
               event_type: "casting",
               confidence: "confirmed",
               created_at: "2025-01-01T00:00:00Z",
+              occurred_at: "2025-01-01T00:00:00Z",
               summary: "Oldest: casting announced.",
               summary_edited: false,
+              status: "published",
+              superseded_by: null,
+              video_key: null,
               provenance: "story",
               sources: [],
             },
@@ -273,7 +337,7 @@ describe("film route render", () => {
         {
           country: "US",
           release_type: 3,
-          type_label: "Theatrical (limited)",
+          type_label: "Wide",
           date: "2026-06-25T00:00:00Z",
           certification: "PG-13",
         },
@@ -284,8 +348,70 @@ describe("film route render", () => {
     ]);
     renderStub(Stub, "/film/the-odyssey-2026");
     expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
-    expect(screen.getByText("Theatrical (limited)")).toBeInTheDocument();
+    expect(screen.getByText("Wide")).toBeInTheDocument();
     expect(screen.getByText("Jun 25, 2026")).toBeInTheDocument();
+  });
+
+  it("renders the US home-release rows alongside the theatrical ones", async () => {
+    const filmWithHomeRelease: FilmDetail = {
+      ...film,
+      release_dates: [
+        {
+          country: "US",
+          release_type: 3,
+          type_label: "Wide",
+          date: "2026-06-25T00:00:00Z",
+          certification: "PG-13",
+        },
+        {
+          country: "US",
+          release_type: 4,
+          type_label: "Digital",
+          date: "2026-08-12T00:00:00Z",
+          certification: null,
+        },
+        {
+          country: "US",
+          release_type: 5,
+          type_label: "Physical",
+          date: "2026-09-08T00:00:00Z",
+          certification: null,
+        },
+      ],
+    };
+    const Stub = createRoutesStub([
+      { path: "/film/:slug", Component: FilmPage, loader: () => ({ film: filmWithHomeRelease }) },
+    ]);
+    renderStub(Stub, "/film/the-odyssey-2026");
+    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
+    expect(screen.getByText("Digital")).toBeInTheDocument();
+    expect(screen.getByText("Aug 12, 2026")).toBeInTheDocument();
+    expect(screen.getByText("Physical")).toBeInTheDocument();
+    expect(screen.getByText("Sep 8, 2026")).toBeInTheDocument();
+  });
+
+  it("renders the where-to-watch box under the release dates when the film is carried", async () => {
+    const Stub = createRoutesStub([
+      {
+        path: "/film/:slug",
+        Component: FilmPage,
+        loader: () => ({ film: { ...film, where_to_watch: whereToWatch } }),
+      },
+    ]);
+    renderStub(Stub, "/film/the-odyssey-2026");
+    expect(await screen.findByRole("heading", { name: /where to watch/i })).toBeInTheDocument();
+    expect(screen.getByText("Netflix")).toBeInTheDocument();
+    expect(screen.getByText(/JustWatch/)).toBeInTheDocument();
+  });
+
+  it("omits the where-to-watch box when no poll has found the film", async () => {
+    const Stub = createRoutesStub([
+      { path: "/film/:slug", Component: FilmPage, loader: () => ({ film }) },
+    ]);
+    renderStub(Stub, "/film/the-odyssey-2026");
+    expect(await screen.findByRole("heading", { name: "The Odyssey" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /where to watch/i })).toBeNull();
+    expect(screen.queryByText(/JustWatch/)).toBeNull();
   });
 
   it("omits the release-dates heading when release_dates is empty", async () => {

@@ -37,7 +37,10 @@ export function GlobalHeader() {
         <div className="flex items-center gap-4">
           {/* Inline nav + account on wide viewports */}
           <PrimaryNav />
-          <div className="hidden md:block">
+          {/* The avatar menu, wide viewports only — the hamburger below `md` carries its own
+              copy of the account links as stacked rows. `flex` rather than `block` so the
+              trigger does not pick up inline-layout descender space. */}
+          <div className="hidden md:flex">
             <HeaderAccount variant="inline" />
           </div>
           {/* Hamburger on narrow viewports (hidden at md+) */}

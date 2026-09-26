@@ -22,7 +22,7 @@ describe("privacy route render", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: /privacy policy/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/last updated: 2026-06-30/i)).toBeInTheDocument();
+    expect(screen.getByText(/last updated: 2026-09-26/i)).toBeInTheDocument();
   });
 
   it("states we do not sell personal information and may sell aggregated data", async () => {

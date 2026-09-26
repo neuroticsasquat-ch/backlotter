@@ -1,0 +1,433 @@
+import { describe, expect, it } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { createRoutesStub, useLocation, useNavigationType } from "react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider } from "@/components/AuthContext";
+import { env } from "@/env";
+import { server } from "@/test/msw/server";
+import { emailInUseResponse, invalidCredentialsResponse } from "@/test/msw/handlers";
+import { meHandler } from "@/test/msw/me";
+import { settingsHandlers } from "@/test/msw/settings";
+import { Settings } from "./Settings";
+
+/** Where the router thinks it is, and how it got there — so a test can tell a `replace` from a
+ *  `push`, which the memory router otherwise gives no way to see. */
+function LocationProbe() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  return <output data-testid="location">{`${location.search}|${navigationType}`}</output>;
+}
+
+function renderPage(
+  me: Parameters<typeof meHandler>[0] = { entitled: true },
+  settings = settingsHandlers(),
+  path = "/me/settings",
+) {
+  server.use(meHandler(me), ...settings.handlers);
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const Stub = createRoutesStub([
+    {
+      path: "/me/settings",
+      Component: () => (
+        <>
+          <Settings />
+          <LocationProbe />
+        </>
+      ),
+    },
+    { path: "/me/follows", Component: () => <p>Follows page</p> },
+    { path: "/feed", Component: () => <p>Global feed</p> },
+  ]);
+  render(
+    <QueryClientProvider client={qc}>
+      <AuthProvider>
+        <Stub initialEntries={[path]} />
+      </AuthProvider>
+    </QueryClientProvider>,
+  );
+  return settings;
+}
+
+/** The link the calendar panel shows: the API origin under the `webcal:` scheme. Spelled out
+ *  here rather than imported from `lib/ical-url`, so a test would notice that module changing
+ *  its mind about the shape of the URL. */
+const webcalUrl = (token: string) =>
+  `${env.apiBaseUrl.replace(/^https?:/, "webcal:")}/calendar/${token}.ics`;
+
+describe("Settings", () => {
+  describe("digest cadence", () => {
+    it("says what each cadence sends, the slate day included (DC-15)", async () => {
+      renderPage();
+
+      expect(await screen.findByRole("radio", { name: /daily/i })).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "What happened to the films, people, studios and franchises you follow, one entry per film — and on Thursdays, the dates coming up for the films among them.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Every morning there is news on your follows, plus your slate on Thursdays.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Your slate and the week's news, in one mail every Thursday. The default.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("No mail. Everything is still on your timeline."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows the saved cadence as the checked option", async () => {
+      renderPage({ entitled: true }, settingsHandlers({ digest_cadence: "daily" }));
+
+      expect(await screen.findByRole("radio", { name: /daily/i })).toBeChecked();
+      expect(screen.getByRole("radio", { name: /weekly/i })).not.toBeChecked();
+      expect(screen.getByRole("radio", { name: /off/i })).not.toBeChecked();
+    });
+
+    it("persists a change and reads it back", async () => {
+      const settings = renderPage();
+
+      expect(await screen.findByRole("radio", { name: /weekly/i })).toBeChecked();
+      await userEvent.click(screen.getByRole("radio", { name: /off/i }));
+
+      await waitFor(() => expect(settings.patches).toEqual([{ digest_cadence: "off" }]));
+      expect(settings.current().digest_cadence).toBe("off");
+      await waitFor(() => expect(screen.getByRole("radio", { name: /off/i })).toBeChecked());
+      expect(await screen.findByText(/saved/i)).toBeInTheDocument();
+    });
+
+    it("puts the cadence back when the save is refused", async () => {
+      const settings = settingsHandlers({ digest_cadence: "weekly" });
+      server.use(meHandler({ entitled: true }), ...settings.handlers);
+      server.use(
+        http.patch(`${env.apiBaseUrl}/me/settings`, () =>
+          HttpResponse.json({ detail: "boom" }, { status: 500 }),
+        ),
+      );
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const Stub = createRoutesStub([{ path: "/me/settings", Component: Settings }]);
+      render(
+        <QueryClientProvider client={qc}>
+          <AuthProvider>
+            <Stub initialEntries={["/me/settings"]} />
+          </AuthProvider>
+        </QueryClientProvider>,
+      );
+
+      expect(await screen.findByRole("radio", { name: /weekly/i })).toBeChecked();
+      await userEvent.click(screen.getByRole("radio", { name: /daily/i }));
+
+      // The server still says weekly, and the control has to agree with it once the request
+      // has failed rather than keep showing a choice that did not land.
+      await waitFor(() => expect(screen.getByRole("radio", { name: /weekly/i })).toBeChecked());
+      expect(screen.queryByText(/saved/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("unsubscribe landing (DC-10)", () => {
+    it("says the digest is off above the cadence control, and drops the parameter by replace", async () => {
+      renderPage(
+        { entitled: true },
+        settingsHandlers({ digest_cadence: "off" }),
+        "/me/settings?digest=off",
+      );
+
+      const notice = await screen.findByText("Your digest is off.");
+      const off = screen.getByRole("radio", { name: /off/i });
+      expect(off).toBeChecked();
+      expect(notice.compareDocumentPosition(off) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      // Gone from the URL, so a reload does not show the notice again — and replaced rather
+      // than pushed, so Back does not walk into it either.
+      await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\|REPLACE$/));
+      expect(screen.getByText("Your digest is off.")).toBeInTheDocument();
+    });
+
+    it("shows nothing on an ordinary visit, whatever the cadence", async () => {
+      renderPage({ entitled: true }, settingsHandlers({ digest_cadence: "off" }));
+
+      expect(await screen.findByRole("radio", { name: /off/i })).toBeChecked();
+      expect(screen.queryByText("Your digest is off.")).not.toBeInTheDocument();
+    });
+
+    it("takes the notice down for good once another cadence is chosen", async () => {
+      renderPage(
+        { entitled: true },
+        settingsHandlers({ digest_cadence: "off" }),
+        "/me/settings?digest=off",
+      );
+
+      expect(await screen.findByText("Your digest is off.")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("radio", { name: /weekly/i }));
+
+      await waitFor(() =>
+        expect(screen.queryByText("Your digest is off.")).not.toBeInTheDocument(),
+      );
+
+      // Back to Off is a choice made on this page, not the unsubscribe it confirmed: the saved
+      // cadence is true, the notice is not shown twice.
+      await userEvent.click(screen.getByRole("radio", { name: /off/i }));
+      await waitFor(() => expect(screen.getByRole("radio", { name: /off/i })).toBeChecked());
+      expect(screen.queryByText("Your digest is off.")).not.toBeInTheDocument();
+    });
+
+    it("drops the parameter for an account without a grant too", async () => {
+      renderPage({ entitled: false }, settingsHandlers(), "/me/settings?digest=off");
+
+      expect(await screen.findByRole("heading", { name: /not open yet/i })).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\|REPLACE$/));
+    });
+  });
+
+  describe("calendar (D-34)", () => {
+    it("shows the tokenised webcal link and offers it to a calendar app", async () => {
+      renderPage({ entitled: true }, settingsHandlers({ ical_token: "tok-mine" }));
+
+      expect(await screen.findByLabelText(/your calendar link/i)).toHaveValue(
+        webcalUrl("tok-mine"),
+      );
+      expect(screen.getByRole("link", { name: /subscribe/i })).toHaveAttribute(
+        "href",
+        webcalUrl("tok-mine"),
+      );
+      // The https spelling for the calendar apps that will not take an unknown scheme.
+      expect(screen.getByRole("link", { name: /https version/i })).toHaveAttribute(
+        "href",
+        `${env.apiBaseUrl}/calendar/tok-mine.ics`,
+      );
+    });
+
+    it("copies the link", async () => {
+      const user = userEvent.setup();
+      renderPage({ entitled: true }, settingsHandlers({ ical_token: "tok-mine" }));
+
+      await user.click(await screen.findByRole("button", { name: /^copy$/i }));
+
+      expect(await navigator.clipboard.readText()).toBe(webcalUrl("tok-mine"));
+      expect(await screen.findByText(/copied/i)).toBeInTheDocument();
+    });
+
+    it("rotates the link behind a confirm, and the URL changes", async () => {
+      const settings = renderPage({ entitled: true }, settingsHandlers({ ical_token: "tok-old" }));
+
+      const field = await screen.findByLabelText(/your calendar link/i);
+      expect(field).toHaveValue(webcalUrl("tok-old"));
+
+      await userEvent.click(screen.getByRole("button", { name: /rotate link/i }));
+      const dialog = await screen.findByRole("dialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: "Rotate" }));
+
+      await waitFor(() => expect(settings.rotations()).toBe(1));
+      await waitFor(() =>
+        expect(screen.getByLabelText(/your calendar link/i)).toHaveValue(
+          webcalUrl("tok-rotated-1"),
+        ),
+      );
+      expect(settings.current().ical_token).toBe("tok-rotated-1");
+    });
+
+    it("sends nothing when the rotate confirm is cancelled", async () => {
+      const settings = renderPage({ entitled: true }, settingsHandlers({ ical_token: "tok-old" }));
+
+      await userEvent.click(await screen.findByRole("button", { name: /rotate link/i }));
+      const dialog = await screen.findByRole("dialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+      expect(settings.rotations()).toBe(0);
+      expect(screen.getByLabelText(/your calendar link/i)).toHaveValue(webcalUrl("tok-old"));
+    });
+
+    it("takes 'Copied.' back down once the link it refers to has been rotated away", async () => {
+      const user = userEvent.setup();
+      renderPage({ entitled: true }, settingsHandlers({ ical_token: "tok-old" }));
+
+      await user.click(await screen.findByRole("button", { name: /^copy$/i }));
+      expect(await screen.findByText(/copied/i)).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /rotate link/i }));
+      const dialog = await screen.findByRole("dialog");
+      await user.click(within(dialog).getByRole("button", { name: "Rotate" }));
+
+      // The clipboard still holds the old URL, which is now dead — the page must not keep
+      // claiming the link on screen is the one that was copied.
+      await waitFor(() => expect(screen.queryByText(/copied/i)).not.toBeInTheDocument());
+    });
+  });
+
+  describe("access (D-41)", () => {
+    it("renders the delivery block and the subscriber links for an entitled account", async () => {
+      renderPage({ entitled: true });
+
+      expect(await screen.findByRole("heading", { name: /digest/i })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /follows/i })).toHaveAttribute("href", "/me/follows");
+      // No Watchlist row beside it: the page it linked to is gone (EF-14).
+      expect(screen.queryByRole("link", { name: /watchlist/i })).toBeNull();
+      expect(screen.getByRole("link", { name: /redo onboarding/i })).toHaveAttribute(
+        "href",
+        "/welcome",
+      );
+      // The TMDB connect control, mounted here as NEU-1359 asked (settings *and* onboarding).
+      expect(screen.getByRole("link", { name: /connect tmdb/i })).toBeInTheDocument();
+      // The calendar feed is its own ticket's section (NEU-1384).
+      expect(screen.getByRole("heading", { name: /calendar/i })).toBeInTheDocument();
+    });
+
+    it("has no Alerts or browser-notification section, only the digest (ADR-0021)", async () => {
+      renderPage({ entitled: true });
+
+      await screen.findByRole("heading", { name: /digest/i });
+      expect(
+        screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent),
+      ).toEqual([
+        "Account",
+        "Change your email",
+        "Change your password",
+        "Digest email",
+        "Calendar",
+        "Your library",
+      ]);
+    });
+
+    it("shows the account basics and a locked panel instead of the delivery block without a grant", async () => {
+      const seen: string[] = [];
+      server.use(
+        http.get(`${env.apiBaseUrl}/me/settings`, () => {
+          seen.push("settings");
+          return HttpResponse.json({ detail: "entitlement_required" }, { status: 403 });
+        }),
+      );
+      renderPage({ entitled: false, email: "locked@example.com" });
+
+      // Keyed off the locked panel, which only renders once the account has resolved.
+      expect(await screen.findByRole("heading", { name: /not open yet/i })).toBeInTheDocument();
+      expect(screen.getByText("locked@example.com")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /change your password/i })).toBeInTheDocument();
+      expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /connect tmdb/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /redo onboarding/i })).not.toBeInTheDocument();
+      // Nothing was asked of a route that would only have answered 403.
+      expect(seen).toEqual([]);
+    });
+  });
+
+  describe("email", () => {
+    it("shows the address and whether it is verified", async () => {
+      renderPage({ entitled: true, email: "me@example.com", email_verified: false });
+
+      expect(await screen.findByText("me@example.com")).toBeInTheDocument();
+      expect(screen.getByText(/not verified/i)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /confirm it/i })).toHaveAttribute("href", "/verify");
+    });
+
+    it("asks for the new address and the password, then says where the link went", async () => {
+      const seen: unknown[] = [];
+      server.use(
+        http.post(`${env.apiBaseUrl}/auth/email-change/request`, async ({ request }) => {
+          seen.push(await request.json());
+          return new HttpResponse(null, { status: 202 });
+        }),
+      );
+      renderPage();
+
+      const form = await screen.findByRole("form", { name: /change your email/i });
+      await userEvent.type(within(form).getByLabelText(/new email/i), "new@example.com");
+      await userEvent.type(within(form).getByLabelText(/current password/i), "hunter2hunter2");
+      await userEvent.click(within(form).getByRole("button", { name: /send confirmation/i }));
+
+      expect(await within(form).findByRole("status")).toHaveTextContent(/check new@example.com/i);
+      expect(seen).toEqual([{ new_email: "new@example.com", current_password: "hunter2hunter2" }]);
+    });
+
+    it("says so when the password is wrong or the address is taken", async () => {
+      server.use(
+        http.post(`${env.apiBaseUrl}/auth/email-change/request`, async ({ request }) => {
+          const body = (await request.json()) as { new_email: string };
+          return body.new_email === "taken@example.com"
+            ? emailInUseResponse()
+            : invalidCredentialsResponse();
+        }),
+      );
+      renderPage();
+
+      const form = await screen.findByRole("form", { name: /change your email/i });
+      const email = within(form).getByLabelText(/new email/i);
+      const password = within(form).getByLabelText(/current password/i);
+      const submit = within(form).getByRole("button", { name: /send confirmation/i });
+
+      await userEvent.type(email, "new@example.com");
+      await userEvent.type(password, "wrong-password");
+      await userEvent.click(submit);
+      expect(await within(form).findByRole("alert")).toHaveTextContent(/password/i);
+
+      await userEvent.clear(email);
+      await userEvent.type(email, "taken@example.com");
+      await userEvent.click(submit);
+      expect(await within(form).findByRole("alert")).toHaveTextContent(/already/i);
+    });
+  });
+
+  describe("password", () => {
+    it("changes the password and installs the rotated CSRF token", async () => {
+      const seen: unknown[] = [];
+      const csrf: (string | null)[] = [];
+      renderPage();
+      // Registered after the page's own handlers so these take precedence over them.
+      server.use(
+        http.post(`${env.apiBaseUrl}/auth/password`, async ({ request }) => {
+          seen.push(await request.json());
+          return HttpResponse.json({
+            id: "u1",
+            email: "a@b.com",
+            display_name: "Test User",
+            is_admin: false,
+            email_verified: true,
+            entitled: true,
+            created_at: new Date().toISOString(),
+            csrf_token: "rotated-csrf",
+          });
+        }),
+        // Whatever mutation goes out next has to carry the token the password change handed
+        // back, not the one the session started with.
+        http.patch(`${env.apiBaseUrl}/me/settings`, ({ request }) => {
+          csrf.push(request.headers.get("X-CSRF-Token"));
+          return HttpResponse.json({
+            digest_cadence: "daily",
+            ical_token: "t",
+            created_at: "",
+            updated_at: "",
+          });
+        }),
+      );
+
+      const form = await screen.findByRole("form", { name: /change your password/i });
+      await userEvent.type(within(form).getByLabelText(/current password/i), "hunter2hunter2");
+      await userEvent.type(within(form).getByLabelText(/new password/i), "correct-horse-battery");
+      await userEvent.click(within(form).getByRole("button", { name: /change password/i }));
+
+      expect(await screen.findByText(/password changed/i)).toBeInTheDocument();
+      expect(seen).toEqual([
+        { current_password: "hunter2hunter2", new_password: "correct-horse-battery" },
+      ]);
+
+      await userEvent.click(screen.getByRole("radio", { name: /daily/i }));
+      await waitFor(() => expect(csrf).toEqual(["rotated-csrf"]));
+    });
+
+    it("says so when the current password is wrong", async () => {
+      server.use(http.post(`${env.apiBaseUrl}/auth/password`, () => invalidCredentialsResponse()));
+      renderPage();
+
+      const form = await screen.findByRole("form", { name: /change your password/i });
+      await userEvent.type(within(form).getByLabelText(/current password/i), "nope-nope-nope");
+      await userEvent.type(within(form).getByLabelText(/new password/i), "correct-horse-battery");
+      await userEvent.click(within(form).getByRole("button", { name: /change password/i }));
+
+      expect(await within(form).findByRole("alert")).toHaveTextContent(/password/i);
+    });
+  });
+});

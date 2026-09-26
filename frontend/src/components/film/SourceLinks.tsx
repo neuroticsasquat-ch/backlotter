@@ -4,8 +4,8 @@ import type { FilmSource } from "@/api/types";
  *  clearly-clickable chips — each opens the original article in a new tab.
  *  When `admin` and `onDelink` are both provided, each chip gets a × button
  *  that calls `onDelink(source.url)`. A catalog-sourced event with no outlets
- *  renders no attribution line at all; the "unconfirmed updates" section heading
- *  is the sole veracity signal. */
+ *  renders no attribution line at all; the section heading says where the beat
+ *  came from, and the confidence badge on the card is the veracity signal. */
 export function SourceLinks({
   sources,
   admin = false,

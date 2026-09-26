@@ -18,7 +18,9 @@
     "noUncheckedSideEffectImports": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
-    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"],
+    // "node" is here for the handful of tests that read repo files off disk
+    // (src/lib/manifest.test.ts); app code still targets the browser/Worker runtime.
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom", "node"],
     "paths": {
       "@/*": ["./src/*"]
     },

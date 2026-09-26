@@ -7,3 +7,9 @@ API_BASE_URL=http://api:8000
 # Optional: SSR (server-side) Sentry DSN for the Worker. Leave unset locally to disable.
 # In prod this is the SENTRY_DSN var in wrangler.jsonc (or a CF dashboard Worker var).
 # SENTRY_DSN=
+# Optional: shared secret that identifies SSR loader fetches to the backend rate limiter
+# (backend NEU-1344 §4). Unset -> loaders send no signing headers and the backend limits them
+# on the Worker's egress IP. In prod this is a Wrangler secret: `wrangler secret put
+# SSR_ORIGIN_SECRET`, matching SSR_ORIGIN_SECRET on the backend (set in Coolify). Keep it ASCII:
+# it travels as a header value, and workerd rejects anything outside latin-1.
+# SSR_ORIGIN_SECRET=

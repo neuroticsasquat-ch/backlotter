@@ -23,3 +23,12 @@ export function profileUrl(path: string | null, size = "w185"): string | null {
   if (!path) return null;
   return `${env.tmdbImageBase}/${size}${path}`;
 }
+
+/** A watch provider's logo. TMDB serves these as small squares, so `w92` is already generous at
+ *  the ~24px the where-to-watch box renders them; the default keeps the call sites uniform.
+ *  Returns null for a provider with no logo, same as the others — the box falls back to the
+ *  provider's name, which it renders either way. */
+export function logoUrl(path: string | null, size = "w92"): string | null {
+  if (!path) return null;
+  return `${env.tmdbImageBase}/${size}${path}`;
+}

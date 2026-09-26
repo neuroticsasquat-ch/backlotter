@@ -2,12 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Linear
+
+`linear_initiative: backlotter`
+`linear_team: Neuroticsasquatch`
+`linear_repos: upcoming-movies-backend`
+`specs_dir: docs`
+
 ## Companion docs — read before working
 
 - **`AGENTS.md`** — operating rules and container workflow. Note: its architecture description
   (Vite SPA, `createBrowserRouter`, ESLint) is **stale** — see Architecture below for what's
   actually here. Its `task` command table and container rules are accurate.
 - **Sibling repo**: `../backend`; read its `AGENTS.md` before touching backend code.
+- **Project-wide specs live in the backend repo**: `../backend/docs/specs/` — a ticket in a
+  cross-repo project (e.g. `bl-entity-follows-project-spec.md`) may have no per-ticket spec
+  under `docs/specs/` here; read the project spec there instead. Linear tickets write that
+  path umbrella-relative (`backend/docs/specs/…`).
 
 ## Everything runs in the container
 
@@ -19,6 +30,7 @@ dependency changes require `task build`.
 |---|---|
 | `task up` / `task down` / `task build` | container lifecycle (`build` also reinstalls deps) |
 | `task test` | `vitest run` (`task test -- src/routes/film.test.tsx` to scope to one file) |
+| `task release-notes -- v0.4.1` | Prepend a tag's notes to `RELEASE_NOTES.md` (runs on the host) |
 | `task lint` | `oxlint src --max-warnings 0` |
 | `task typecheck` | `react-router typegen && tsc -b` (typegen must run first — routes use generated `+types/*` imports) |
 | `task format` | `prettier --write` |
@@ -52,12 +64,36 @@ vice versa):
   mutations. Auth guards (`RequireAuth`, `RequireAdmin`) are **layout routes** in `routes.ts`, not
   JSX wrappers around page components.
 
+### SSR requests are signed, browser requests are not
+
+The backend rate-limits public reads per visitor IP (backend `NEU-1344` §4). Every SSR fetch leaves
+Cloudflare from a shared egress IP, so loaders sign their fetches: `ssrOriginHeaders(env, request)`
+(`lib/ssr-origin.ts`) returns `X-Backlotter-Origin: <SSR_ORIGIN_SECRET>` plus
+`X-Backlotter-Client-IP: <CF-Connecting-IP>`, and the public fetchers take them as an optional
+`headers` argument. Browser-side calls to the same fetchers pass nothing — they already arrive with
+the visitor's own IP. `sitemap.ts` is the one unsigned loader: the backend excludes `/sitemap.xml`
+from the rate-limit bucket (crawlers, cached upstream), so it has no visitor to key on.
+
+A **dedicated header, never `X-Forwarded-For`**: Traefik strips forwarded headers from senders
+outside its trusted set and the Worker is not in it, so an `X-Forwarded-For` from here dies at the
+hop. `SSR_ORIGIN_SECRET` is an ASCII Wrangler secret (`wrangler secret put SSR_ORIGIN_SECRET`), not a var
+in `wrangler.jsonc`; unset, loaders send nothing and the backend falls back to the egress IP. Deploy
+order matters — backend first, then this secret + the frontend, then flip
+`RATE_LIMIT_PUBLIC_ENABLED=true` in Coolify.
+
 ### SSR-safety invariant
 
 `publicQueryClient` (`routes/public-layout.tsx`) is a module-level `QueryClient` shared across the
 public subtree. It's safe under SSR only because the `["me"]` account query never resolves during
-the server render pass — the first client paint is always the logged-out default, avoiding a
+the server render pass — the first client paint is always a logged-out render, avoiding a
 hydration mismatch. `refetchOnMount: "always"` then refreshes auth state on the client.
+
+Which logged-out render is chosen by the **timeline hint** (NEU-1468,
+`docs/adr/0001-timeline-hint-cookie.md`): a `timeline_hint` cookie the browser writes itself on an
+entitled resolve. The public layout's loader reads it from the request and hands it down
+(`useTimelineHint`), so the server and the first client paint agree; after hydration the live cookie
+is read instead. `useFollowAccess()` answers `hinted` while it is set and `/me` is in flight, and
+only the home page and the nav act on that. It is a prediction, never auth.
 
 ### Sentry: three surfaces, one tunnel
 
@@ -103,6 +139,14 @@ There are two separate DSN/env-var sets: `VITE_SENTRY_DSN` (build-time, browser)
 ## Conventions
 
 - Path alias `@/` → `src/`.
-- Conventional commits with a trailing Linear ID: `feat: add X (NEU-123)`. No `Co-Authored-By`.
+- Conventional commits with a **scope** and a trailing Linear ID: `feat(auth): add X (NEU-123)`.
+  No `Co-Authored-By`. The scope is the component (`auth`, `feed`, `onboarding`, …), not the Linear
+  project, and it is load-bearing: `cliff.toml` groups `RELEASE_NOTES.md` by scope, so a scopeless
+  commit lands under a catch-all "General" heading.
   Branch per ticket using Linear's generated name. The GitHub↔Linear connector moves ticket status
   automatically — don't touch it.
+- Release notes: tag the release, then `task release-notes -- v0.4.1`. git-cliff renders only
+  user-facing types (`feat`/`fix`/`perf`/`revert`) and **prepends** the new section —
+  `RELEASE_NOTES.md` accumulates per-release chunks and is never rebuilt wholesale. It runs on the
+  host, not in the container, because git-cliff reads git history and tags; don't call `git-cliff`
+  directly.

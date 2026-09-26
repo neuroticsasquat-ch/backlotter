@@ -1,35 +1,22 @@
 /* eslint-disable react-refresh/only-export-components -- route files intentionally export loader + meta + ErrorBoundary alongside the component */
-import { useState } from "react";
-import { Link } from "react-router";
 import type { Route } from "./+types/feed";
-import { getFeedGrouped } from "@/api/public";
-import { cloudflareContext } from "@/lib/load-context";
-import { env } from "@/env";
 import { buildMeta } from "@/lib/seo";
-import { groupByDay, splitByNewsBacked } from "@/lib/feed-groups";
-import { FeedDayCard } from "@/components/feed/FeedDayCard";
-import { FeedDayPosters } from "@/components/feed/FeedDayPosters";
-import { UNCONFIRMED_UPDATES_LABEL } from "@/components/film/labels";
+import { loadGlobalFeed } from "@/lib/global-feed";
+import { FeedErrorBoundary } from "@/components/feed/GlobalFeed";
+import { TimelineOrFeed } from "@/components/feed/TimelineOrFeed";
 
-// Every section opens with a rule and real space: the sub-heading otherwise lands between two
-// striped rows and reads as one of them, and the first one needs the break just as much — to
-// stand off the poster strip above it on a phone, and the dateline on desktop. The extra top
-// margin is only from the second section on, so the first rule stays level with the top of the
-// day's poster column rather than floating below it.
-const SECTION_BREAK = "border-t border-border pt-4 [&:not(:first-child)]:mt-5";
-
-// How many days the feed shows per page. "View more" fetches the next page of days
-// (manual — never auto-loads — so the footer stays reachable).
-const DAYS_PER_PAGE = 10;
-
-export async function loader({ context }: Route.LoaderArgs) {
-  const { env } = context.get(cloudflareContext);
-  const feed = await getFeedGrouped(env.API_BASE_URL, { limit: DAYS_PER_PAGE });
-  return { feed };
+export async function loader({ request, context }: Route.LoaderArgs) {
+  // Unchanged by the timeline swap, and deliberately so: `/` loads the global feed for every
+  // visitor, signed in or not, which is what keeps the document anonymous-safe. Who is looking
+  // is decided afterwards, on the client, by `TimelineOrFeed`; the timeline hint only picks
+  // whether the server renders this feed or the timeline skeleton over it (NEU-1468, D-1468.6),
+  // and a wrong hint falls back to this data with no second request.
+  return loadGlobalFeed({ request, context });
 }
 
 export function meta({ location }: Route.MetaArgs): Route.MetaDescriptors {
-  // No page title → the tab reads "production log — backlotter".
+  // No page title → the tab reads "production log — backlotter". Describes the global feed
+  // because that is the only render that is ever indexed; signed-in users are not.
   return buildMeta({
     description:
       "The latest casting, trailers, release dates, and production updates across every movie we track.",
@@ -39,161 +26,9 @@ export function meta({ location }: Route.MetaArgs): Route.MetaDescriptors {
 }
 
 export default function FeedPage({ loaderData }: Route.ComponentProps) {
-  const { feed } = loaderData;
-  const [items, setItems] = useState(feed.items);
-  const [loading, setLoading] = useState(false);
-  const groups = groupByDay(items);
-  const hasMore = groups.length < feed.total;
-
-  async function loadMore() {
-    if (loading) return;
-    setLoading(true);
-    try {
-      const next = await getFeedGrouped(env.apiBaseUrl, {
-        limit: DAYS_PER_PAGE,
-        offset: groups.length,
-      });
-      setItems((prev) => [...prev, ...next.items]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <main className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-semibold">Latest Updates for Upcoming Movies</h1>
-      {groups.length === 0 ? (
-        <p className="mt-6 text-sm text-muted-foreground">No updates yet — check back soon.</p>
-      ) : (
-        <>
-          <div className="mt-6 space-y-8">
-            {groups.map((group) => {
-              const { newsBacked, tmdbOnly } = splitByNewsBacked(group.items);
-              // Every day renders both labelled sections. An empty section shows a static
-              // "None today" line so the absence of catalog or news activity is legible.
-              const sections = [
-                { key: "news", label: "In the news", items: newsBacked },
-                { key: "tmdb", label: UNCONFIRMED_UPDATES_LABEL, items: tmdbOnly },
-              ];
-              return (
-                <section key={group.dayKey}>
-                  <h2 className="text-sm font-medium text-muted-foreground">
-                    <time dateTime={group.dayKey}>{group.heading}</time>
-                  </h2>
-                  <div className="mt-2 flex flex-col gap-3 border-l-2 border-border pl-3">
-                    {/* One strip per day, not per section — it anchors the date, and takes the
-                        whole day's items so its own news-first ordering applies. Above the list at
-                        every width: beside it, a poster lined up with whatever row happened to sit
-                        next to it and read as a label for an unrelated film. */}
-                    <FeedDayPosters items={group.items} />
-                    <div className="min-w-0 flex-1">
-                      {sections.map((section) => (
-                        <SectionWrapper key={section.key} section={section}>
-                          {section.items.map((item) => (
-                            <FeedDayCard key={item.film_ref} item={item} />
-                          ))}
-                        </SectionWrapper>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-              );
-            })}
-          </div>
-          {hasMore && (
-            <div className="mt-8 text-center">
-              <button
-                type="button"
-                onClick={loadMore}
-                disabled={loading}
-                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-              >
-                {loading ? "Loading…" : "View more"}
-              </button>
-            </div>
-          )}
-        </>
-      )}
-    </main>
-  );
-}
-
-/** Wraps a day section: "In the news" is always expanded; "unconfirmed updates" is
- *  collapsible and collapsed by default when non-empty, with a count of movies listed.
- *  An empty section renders a static "None today" line without a toggle. */
-function SectionWrapper({
-  section,
-  children,
-}: {
-  section: { key: string; label: string; items: unknown[] };
-  children: React.ReactNode;
-}) {
-  // TMDB section: collapsible, collapsed by default. Must be declared before any
-  // early return so React hooks are called unconditionally (lint rule).
-  const [open, setOpen] = useState(section.key !== "tmdb");
-
-  const count = section.items.length;
-  if (count === 0) {
-    return (
-      <div className={SECTION_BREAK}>
-        <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
-          {section.label}
-        </h3>
-        <p className="px-2 text-sm text-muted-foreground">None today</p>
-      </div>
-    );
-  }
-
-  const label = `${section.label} (${count} movie${count === 1 ? "" : "s"})`;
-
-  if (section.key === "news") {
-    return (
-      <div className={SECTION_BREAK}>
-        <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
-          {label}
-        </h3>
-        {children}
-      </div>
-    );
-  }
-  return (
-    <div className={SECTION_BREAK}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80"
-      >
-        <svg
-          className={`size-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
-          viewBox="0 0 16 16"
-          fill="currentColor"
-        >
-          <path
-            d="M5.5 3.5L10.5 8L5.5 12.5"
-            stroke="currentColor"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span>{label}</span>
-      </button>
-      {open && children}
-    </div>
-  );
+  return <TimelineOrFeed feed={loaderData.feed} />;
 }
 
 export function ErrorBoundary() {
-  return (
-    <main className="mx-auto max-w-3xl px-4 py-16 text-center">
-      <h1 className="text-2xl font-semibold">Something went wrong</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        We couldn&apos;t load the latest updates. Please try again in a moment.
-      </p>
-      <Link to="/" className="mt-6 inline-block text-sm text-blue-600 underline">
-        Reload
-      </Link>
-    </main>
-  );
+  return <FeedErrorBoundary />;
 }

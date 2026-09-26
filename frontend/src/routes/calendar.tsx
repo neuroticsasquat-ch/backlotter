@@ -1,21 +1,22 @@
 /* eslint-disable react-refresh/only-export-components -- route files intentionally export loader + meta + ErrorBoundary alongside the component */
-import { useState } from "react";
 import { Link } from "react-router";
 import type { Route } from "./+types/calendar";
 import { getCalendar } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
-import { env } from "@/env";
+import { ssrOriginHeaders } from "@/lib/ssr-origin";
 import { buildMeta } from "@/lib/seo";
-import { groupByReleaseDate, nestByYearMonth } from "@/lib/calendar-groups";
-import { CalendarFilmRow } from "@/components/calendar/CalendarFilmRow";
+import { DATES_PER_PAGE } from "@/lib/calendar";
+import { CalendarView } from "@/components/calendar/CalendarView";
 
-// How many release dates the calendar shows per page. "View more" fetches the next page
-// of dates (manual — never auto-loads — so the footer stays reachable).
-const DATES_PER_PAGE = 20;
-
-export async function loader({ context }: Route.LoaderArgs) {
+/** The all-releases calendar, server-rendered for everyone. It stays anonymous and cacheable
+ *  whoever is looking (D-12): the reader's own calendar is a client-side fetch inside
+ *  `CalendarView`, after the account lands. */
+export async function loader({ request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
-  const calendar = await getCalendar(env.API_BASE_URL, { limit: DATES_PER_PAGE });
+  const calendar = await getCalendar(env.API_BASE_URL, {
+    limit: DATES_PER_PAGE,
+    headers: ssrOriginHeaders(env, request),
+  });
   return { calendar };
 }
 
@@ -23,91 +24,17 @@ export function meta({ location }: Route.MetaArgs): Route.MetaDescriptors {
   return buildMeta({
     title: "Release Calendar",
     description:
-      "Upcoming movie releases by date — premieres, limited, and wide theatrical openings for every film we track.",
+      "Upcoming movie releases by date — limited and wide theatrical openings plus US digital and physical home releases for every film we track.",
     pathname: location.pathname,
     type: "website",
   });
 }
 
 export default function CalendarPage({ loaderData }: Route.ComponentProps) {
-  const [items, setItems] = useState(loaderData.calendar.items);
-  const [loading, setLoading] = useState(false);
-  const dayGroups = groupByReleaseDate(items);
-  const years = nestByYearMonth(dayGroups);
-  const hasMore = dayGroups.length < loaderData.calendar.total;
-
-  async function loadMore() {
-    if (loading) return;
-    setLoading(true);
-    try {
-      const next = await getCalendar(env.apiBaseUrl, {
-        limit: DATES_PER_PAGE,
-        offset: dayGroups.length,
-      });
-      setItems((prev) => [...prev, ...next.items]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-semibold">Release Calendar</h1>
-      {dayGroups.length === 0 ? (
-        <p className="mt-6 text-sm text-muted-foreground">
-          No upcoming releases yet — check back soon.
-        </p>
-      ) : (
-        <>
-          {years.map((year) => (
-            <section key={year.year} className="mt-8">
-              <h2 className="sticky top-0 z-20 bg-background py-1 text-xl font-bold">
-                {year.year}
-              </h2>
-              {year.months.map((month) => (
-                <div key={month.monthKey} className="mt-4">
-                  <h3 className="sticky top-8 z-10 bg-background py-1 text-sm font-semibold text-muted-foreground">
-                    {month.heading}
-                  </h3>
-                  {month.days.map((group) => (
-                    <section key={group.dateKey} className="mt-4">
-                      <h4 className="text-sm font-medium text-muted-foreground">
-                        <time dateTime={group.dateKey}>{group.heading}</time>
-                      </h4>
-                      <div className="mt-2 space-y-3 border-l-2 border-border pl-3">
-                        {group.buckets.map((bucket) => (
-                          <div key={bucket.bucket}>
-                            <h5 className="mb-1 text-xs font-medium text-muted-foreground">
-                              {bucket.label}
-                            </h5>
-                            <div>
-                              {bucket.films.map((f) => (
-                                <CalendarFilmRow item={f} key={f.film_ref} />
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              ))}
-            </section>
-          ))}
-          {hasMore && (
-            <div className="mt-10 text-center">
-              <button
-                type="button"
-                onClick={loadMore}
-                disabled={loading}
-                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-              >
-                {loading ? "Loading…" : "View more"}
-              </button>
-            </div>
-          )}
-        </>
-      )}
+      <h1 className="text-2xl font-semibold">Calendar</h1>
+      <CalendarView calendar={loaderData.calendar} />
     </main>
   );
 }
