@@ -10,6 +10,7 @@ import { env } from "@/env";
 import { server } from "@/test/msw/server";
 import { meHandler } from "@/test/msw/me";
 import { entitySearchHandlers, followGraphHandlers } from "@/test/msw/follows";
+import { heldResponse } from "@/test/msw/search";
 import { activeImportKey, followsKey, importJobKey } from "@/api/query-keys";
 import {
   activeImportHandler,
@@ -248,6 +249,40 @@ describe("Welcome", () => {
 
     await userEvent.clear(screen.getByLabelText(/search for a person/i));
     expect(await screen.findByRole("button", { name: /follow matt damon/i })).toBeInTheDocument();
+  });
+
+  it("spins in the search box while a people search is in flight (NEU-1469)", async () => {
+    const later = heldResponse();
+    renderWelcome();
+    // Its own `server.use`, after the render's: handlers in one call are tried in order, so
+    // passed as `extraHandlers` this would sit behind the default people search.
+    server.use(
+      http.get(`${env.apiBaseUrl}/people/search`, async () => {
+        await later.held;
+        return HttpResponse.json({
+          items: [
+            { id: 138, name: "Quentin Tarantino", known_for_department: null, profile_path: null },
+          ],
+          total: 1,
+          limit: 10,
+          offset: 0,
+        });
+      }),
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: /^continue$/i }));
+    await screen.findByRole("button", { name: /follow matt damon/i });
+    expect(screen.queryByTestId("spinner")).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText(/search for a person/i), "tarantino");
+    expect(await screen.findByTestId("spinner")).toBeInTheDocument();
+    expect(screen.queryByText(/nobody matches/i)).not.toBeInTheDocument();
+
+    later.release();
+    expect(
+      await screen.findByRole("button", { name: /follow quentin tarantino/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("spinner")).not.toBeInTheDocument();
   });
 
   it("says so when the poll cannot reach the job it just started", async () => {

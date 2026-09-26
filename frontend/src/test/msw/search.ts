@@ -58,3 +58,12 @@ export function headerSearchHandlers(
     http.get(`${base}/collections/search`, () => page(items.collections)),
   ];
 }
+
+/** A response held open until the test lets it go, so a search's in-flight window can be
+ *  asserted on rather than raced (NEU-1469). A handler `await`s `held`; `release()` lets
+ *  every waiting handler answer. */
+export function heldResponse() {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  return { held, release };
+}

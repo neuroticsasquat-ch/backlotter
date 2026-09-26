@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, Outlet, createRoutesStub } from "react-router";
 import { server } from "@/test/msw/server";
-import { headerSearchHandlers } from "@/test/msw/search";
+import { headerSearchHandlers, heldResponse } from "@/test/msw/search";
 import { SearchBox } from "@/components/search/SearchBox";
 import type {
   CollectionSearchItem,
@@ -228,8 +228,8 @@ describe("SearchBox dropdown", () => {
     renderSearchBox();
     const user = userEvent.setup({ delay: null });
     await user.type(screen.getByRole("combobox"), "abc");
-    // Wait for a rendered hit, not merely for the listbox: the listbox opens on `loading`, so
-    // asserting the count before a result lands would pass on zero requests having fired.
+    // Wait for a rendered hit, not merely for the listbox: a held-over listbox from an earlier
+    // answer would let the count be asserted before this query's requests had fired.
     await screen.findByRole("option", { name: /The Odyssey/i });
 
     // Three keystrokes, one debounced query, one request each — the full fan-out and no more.
@@ -383,5 +383,64 @@ describe("SearchBox dropdown", () => {
     await user.click(screen.getByRole("button", { name: "outside" }));
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(input).toHaveValue("");
+  });
+});
+
+describe("SearchBox while a search runs (NEU-1469)", () => {
+  /** All four endpoints wait on `held`, then answer with a film titled after the query, so a
+   *  test can tell whose answer is on screen. */
+  function heldHandlers(held: Promise<void>) {
+    const paths = ["/films/search", "/people/search", "/companies/search", "/collections/search"];
+    return paths.map((path) =>
+      http.get(`${BACKEND}${path}`, async ({ request }) => {
+        await held;
+        const q = new URL(request.url).searchParams.get("q") ?? "";
+        const items = path === "/films/search" ? [{ ...sampleFilm, title: `Film ${q}` }] : [];
+        return HttpResponse.json({ items, total: items.length, limit: 5, offset: 0 });
+      }),
+    );
+  }
+
+  it("spins in the input on a first query, and opens no dropdown until the answer lands", async () => {
+    const first = heldResponse();
+    server.use(...heldHandlers(first.held));
+    renderSearchBox();
+    const user = userEvent.setup();
+    const box = screen.getByRole("combobox");
+    await user.type(box, "od");
+
+    expect(await screen.findByTestId("spinner")).toBeInTheDocument();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(box).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("status")).toHaveTextContent("Searching…");
+
+    first.release();
+    expect(await screen.findByRole("option", { name: /Film od/ })).toBeInTheDocument();
+    expect(screen.queryByTestId("spinner")).not.toBeInTheDocument();
+    expect(box).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("1 result found.");
+  });
+
+  it("keeps the previous hits under the spinner until a re-query answers", async () => {
+    const first = heldResponse();
+    first.release();
+    server.use(...heldHandlers(first.held));
+    renderSearchBox();
+    const user = userEvent.setup();
+    await user.type(screen.getByRole("combobox"), "od");
+    await screen.findByRole("option", { name: /Film od/ });
+
+    const second = heldResponse();
+    server.use(...heldHandlers(second.held));
+    await user.type(screen.getByRole("combobox"), "y");
+
+    expect(await screen.findByTestId("spinner")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Film od/ })).toBeInTheDocument();
+    // The count already announced stands: the list it describes is still on screen.
+    expect(screen.getByRole("status")).toHaveTextContent("1 result found.");
+
+    second.release();
+    expect(await screen.findByRole("option", { name: /Film ody/ })).toBeInTheDocument();
+    expect(screen.queryByTestId("spinner")).not.toBeInTheDocument();
   });
 });

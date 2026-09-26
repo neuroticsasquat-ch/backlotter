@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { env } from "@/env";
 import {
@@ -106,15 +107,30 @@ export const entitySearchKey = (entityType: SearchableEntityType, q: string) =>
  * Results are cached per (type, query), which is what makes flipping the type selector back
  * and forth free, and the 5-minute `staleTime` what keeps re-typing a query the user just ran
  * from spending a request. Caller debounces; this fires on whatever `q` it is handed.
+ *
+ * A new query holds the answer already on screen until its own lands (NEU-1469 D-1469.6) —
+ * across a tab switch too — so the caller shows a spinner over the old list rather than a
+ * blank one; `isFetching` is that window. What is held is what this hook last *returned*,
+ * not TanStack's `keepPreviousData`: that hands over the last query that had data, so after
+ * the input is cut below `MIN_QUERY_LEN` (nothing shown) the next query would revive the
+ * list from two queries ago. And no placeholder at all while disabled, since TanStack
+ * applies `placeholderData` to a disabled query too.
  */
 export function useEntitySearch(entityType: SearchableEntityType, q: string) {
   const search = SEARCHES[entityType];
-  return useQuery({
+  const enabled = q.length >= MIN_QUERY_LEN;
+  const shown = useRef<EntityPage | undefined>(undefined);
+  const result = useQuery({
     queryKey: entitySearchKey(entityType, q),
     queryFn: ({ signal }) => search(env.apiBaseUrl, q, signal),
-    enabled: q.length >= MIN_QUERY_LEN,
+    enabled,
+    placeholderData: enabled ? () => shown.current : undefined,
     staleTime: 5 * 60 * 1000,
   });
+  useEffect(() => {
+    shown.current = enabled ? result.data : undefined;
+  }, [enabled, result.data]);
+  return result;
 }
 
 /** How many faces the onboarding grid asks for (D-17: "~30"). The endpoint's own default is
