@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRoutesStub, useLocation } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -233,6 +233,28 @@ describe("Welcome", () => {
     expect(graph.follows).toContainEqual(
       expect.objectContaining({ entity_type: "person", entity_id: "525" }),
     );
+  });
+
+  it("pins each face to its grid track and marks a picked one with a badge (NEU-1471)", async () => {
+    renderWelcome();
+
+    await userEvent.click(await screen.findByRole("button", { name: /^continue$/i }));
+    const card = await screen.findByRole("button", { name: /follow christopher nolan/i });
+    // jsdom does not lay out, so these classes are the guard: a <button> shrink-fits to its
+    // content even as a flex box, and w-full/h-full are what pin it to the grid track.
+    expect(card).toHaveClass("w-full", "h-full");
+    // A nowrap name sets the button's min-content wider than the track; the name wraps instead.
+    const name = within(card).getByText("Christopher Nolan");
+    expect(name).toHaveClass("line-clamp-2");
+    expect(name).not.toHaveClass("truncate");
+    expect(card).not.toHaveTextContent(/follow/i);
+    expect(within(card).queryByTestId("picked")).not.toBeInTheDocument();
+
+    await userEvent.click(card);
+
+    const picked = await screen.findByRole("button", { name: /unfollow christopher nolan/i });
+    expect(within(picked).getByTestId("picked")).toBeInTheDocument();
+    expect(picked).not.toHaveTextContent(/follow/i);
   });
 
   it("swaps the grid to search results and back when the box is cleared", async () => {

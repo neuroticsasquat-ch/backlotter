@@ -34,8 +34,8 @@ export function PeopleStep({ onContinue, onSkip }: { onContinue: () => void; onS
   const popular = usePopularPeople();
   const search = useEntitySearch("person", query);
   // The follows list is what every tile reads to know whether it is pressed. Subscribing here
-  // as well means the grid waits for it rather than rendering thirty "Follow" labels that flip
-  // to "Following" a moment later.
+  // as well means the grid waits for it rather than rendering thirty dimmed faces whose picked
+  // ones light up with a badge a moment later.
   const follows = useFollows();
 
   const people = searching ? (search.data?.items ?? []) : (popular.data ?? []);
