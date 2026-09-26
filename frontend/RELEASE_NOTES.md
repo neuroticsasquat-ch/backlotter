@@ -1,5 +1,24 @@
 # Release notes
 
+## 1.1.1 — 2026-09-26
+
+### Feed
+
+- Uncollapse Not yet reported, show its events, hide empty sections ([NEU-1467](https://linear.app/neuroticsasquatch/issue/NEU-1467)) ([#181](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/181))
+- Server-render the timeline skeleton for a hinted subscriber ([NEU-1468](https://linear.app/neuroticsasquatch/issue/NEU-1468)) ([#182](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/182))
+
+### Onboarding
+
+- Pin people tiles to their grid track ([NEU-1471](https://linear.app/neuroticsasquatch/issue/NEU-1471)) ([#185](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/185))
+
+### Search
+
+- Show a spinner while a search runs ([NEU-1469](https://linear.app/neuroticsasquatch/issue/NEU-1469)) ([#183](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/183))
+
+### Settings
+
+- Drop alerts and push, the digest is the only delivery ([NEU-1470](https://linear.app/neuroticsasquatch/issue/NEU-1470)) ([#184](https://github.com/neuroticsasquat-ch/upcoming-movies-frontend/pull/184))
+
 ## 1.1.0 — 2026-09-25
 
 ### Admin
