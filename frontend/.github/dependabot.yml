@@ -29,6 +29,12 @@ updates:
       prefix: build
       prefix-development: build
       include: scope
+    ignore:
+      # jsdom 30.1 hides its wrapper->impl link in private fields, which breaks vitest's
+      # jsdom Blob/FormData shim for fetch bodies (every upload test throws). Drop this once
+      # a vitest release reads jsdom 30.1 Blobs.
+      - dependency-name: jsdom
+        versions: [">=30.1.0"]
     groups:
       minor-and-patch:
         update-types:
