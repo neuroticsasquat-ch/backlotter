@@ -34,7 +34,6 @@ export function makeCandidate(overrides: Partial<ImportCandidate> = {}): ImportC
     title: "A Film",
     headline_release: { date: "2026-10-03", kind: "upcoming", country: "US", bucket: "wide" },
     selected: true,
-    skip_reason: null,
     ...overrides,
   };
 }
