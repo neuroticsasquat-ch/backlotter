@@ -3,14 +3,12 @@ import { groupByDay, groupByUpdateType, splitByNewsBacked } from "@/lib/feed-gro
 import { FeedDayCard } from "@/components/feed/FeedDayCard";
 import { FeedDayPosters } from "@/components/feed/FeedDayPosters";
 import { UpdateTypeGroups } from "@/components/feed/UpdateTypeGroups";
-import { NOT_YET_REPORTED_LABEL } from "@/components/film/labels";
+import { NOT_YET_REPORTED_LABEL, NOT_YET_REPORTED_QUALIFIER } from "@/components/film/labels";
+import { SectionHeading } from "@/components/film/SectionHeading";
 
-// Every section opens with a rule and real space: the sub-heading otherwise lands between two
-// striped rows and reads as one of them, and the first one needs the break just as much — to
-// stand off the poster strip above it on a phone, and the dateline on desktop. The extra top
-// margin is only from the second section on, so the first rule stays level with the top of the
-// day's poster column rather than floating below it.
-const SECTION_BREAK = "border-t border-border pt-4 [&:not(:first-child)]:mt-5";
+// Space before every section after the first. The filled heading bar is the divider itself, so
+// the rule that used to open each section would only draw a second line above it.
+const SECTION_BREAK = "[&:not(:first-child)]:mt-6";
 
 /**
  * The day-by-day body of a grouped feed: one section per day, each split into its news-backed
@@ -47,7 +45,11 @@ export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
                     <FeedDayCard key={item.film_ref} item={item} />
                   ))}
                 </SectionWrapper>
-                <SectionWrapper label={NOT_YET_REPORTED_LABEL} empty={tmdbOnly.length === 0}>
+                <SectionWrapper
+                  label={NOT_YET_REPORTED_LABEL}
+                  qualifier={NOT_YET_REPORTED_QUALIFIER}
+                  empty={tmdbOnly.length === 0}
+                >
                   <UpdateTypeGroups groups={groupByUpdateType(tmdbOnly)} />
                 </SectionWrapper>
               </div>
@@ -59,25 +61,25 @@ export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
   );
 }
 
-/** Wraps a day section: a bare static heading, then the rows, always expanded. A section with
- *  no items renders nothing — no heading, no "None today" (NEU-1467). The heading carries no
- *  movie count (NR-6): under update types a film can appear more than once, so a count of rows
- *  would no longer be a count of films. */
+/** Wraps a day section: a static heading, then the rows, always expanded. A section with no
+ *  items renders nothing — no heading, no "None today" (NEU-1467). The heading carries no movie
+ *  count (NR-6): under update types a film can appear more than once, so a count of rows would
+ *  no longer be a count of films. */
 function SectionWrapper({
   label,
+  qualifier,
   empty,
   children,
 }: {
   label: string;
+  qualifier?: string;
   empty: boolean;
   children: React.ReactNode;
 }) {
   if (empty) return null;
   return (
     <div className={SECTION_BREAK}>
-      <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
-        {label}
-      </h3>
+      <SectionHeading as="h3" label={label} qualifier={qualifier} />
       {children}
     </div>
   );

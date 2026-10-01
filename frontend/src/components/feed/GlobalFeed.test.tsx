@@ -239,7 +239,7 @@ describe("feed day sections", () => {
     expect(tuesday.querySelector('a[href="/film/reported-monday"]')).toBeNull();
     expect([...monday.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
       "In the news",
-      "Not yet reported",
+      "Not yet reported (unconfirmed)",
     ]);
     // Within each section, items are alphabetically sorted. News section renders first (reported-monday),
     // then "Not yet reported" section (monday-tmdb).
@@ -250,17 +250,17 @@ describe("feed day sections", () => {
     expect(mondayLinks.length).toBe(2);
     // Tuesday is TMDB-only: no "In the news" heading at all, just "Not yet reported".
     expect([...tuesday.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
-      "Not yet reported",
+      "Not yet reported (unconfirmed)",
     ]);
     expect(within(tuesday).getByText("TUESDAY-TMDB")).toBeInTheDocument();
   });
 
-  it("opens every section with a rule and space, not just a heading", async () => {
+  it("opens every section with the same filled heading bar", async () => {
     renderFeed(oneDay(dayItem("reported", { news_backed: true }), dayItem("tmdb")));
-    const newsContainer = (await screen.findByText("In the news")).closest(".border-t")!;
-    const tmdbContainer = screen.getByText("Not yet reported").closest(".border-t")!;
-    expect(newsContainer).not.toBeNull();
-    expect(tmdbContainer).not.toBeNull();
+    const news = await screen.findByRole("heading", { level: 3, name: "In the news" });
+    const tmdb = screen.getByRole("heading", { level: 3, name: "Not yet reported (unconfirmed)" });
+    expect(news).toHaveClass("bg-foreground/90");
+    expect(tmdb.className).toBe(news.className);
   });
 
   it("gives the day one strip covering both sections, news-backed posters first", async () => {
@@ -318,7 +318,7 @@ describe("Not yet reported section", () => {
     expect(within(day).getByText("TMDB-A")).toBeInTheDocument();
   });
 
-  it("renders a catalog row's event lines with summary and badges", async () => {
+  it("renders a catalog row's event lines with summary and no badges", async () => {
     // Catalog rows ship their events again (NEU-1467); a catalog event has no sources.
     renderFeed(
       oneDay(
@@ -352,7 +352,8 @@ describe("Not yet reported section", () => {
     // The update-type heading names the beat, so the line carries no beat pill of its own (NR-5).
     expect(screen.getByRole("heading", { level: 4, name: "Release date" })).toBeInTheDocument();
     expect(within(summary).queryByText("Release date")).toBeNull();
-    expect(within(summary).getByText("confirmed")).toBeInTheDocument();
+    // Nor a confidence badge: the section heading says "(unconfirmed)" once for all of them.
+    expect(within(summary).queryByText("confirmed")).toBeNull();
     // No source chip: the only external links would be source chips, and there are none.
     expect(document.querySelectorAll('a[target="_blank"]')).toHaveLength(0);
   });
@@ -408,7 +409,7 @@ describe("Not yet reported by update type", () => {
     renderFeed(oneDay(heat, blade));
     await screen.findByText(/June 23, 2026/);
 
-    expect(headings(3)).toEqual(["Not yet reported"]);
+    expect(headings(3)).toEqual(["Not yet reported (unconfirmed)"]);
     expect(headings(4)).toEqual(["Release date", "Production status", "Cast"]);
     expect(filmsUnder("Release date")).toEqual([expect.stringMatching(/^Heat 2/)]);
     expect(filmsUnder("Production status")).toEqual([expect.stringMatching(/^Blade/)]);
@@ -420,6 +421,26 @@ describe("Not yet reported by update type", () => {
     const cast = screen.getByRole("heading", { level: 4, name: "Cast" }).parentElement!;
     expect(within(cast).getByText(/Adam Driver joins/)).toBeInTheDocument();
     expect(within(cast).queryByText(/US Wide release date/)).toBeNull();
+  });
+
+  it("badges confidence under In the news only", async () => {
+    renderFeed(
+      oneDay(
+        dayItem("news", {
+          film_title: "News Film",
+          news_backed: true,
+          events: [{ ...evt("n1", "casting", "Rumor has it."), confidence: "rumored" }],
+        }),
+        withEvents("tmdb", "TMDB Film", {
+          ...evt("t1", "casting", "Someone joins."),
+          confidence: "rumored",
+        }),
+      ),
+    );
+    await screen.findByText(/June 23, 2026/);
+
+    expect(within(screen.getByText(/Rumor has it/)).getByText("unconfirmed")).toBeInTheDocument();
+    expect(within(screen.getByText(/Someone joins/)).queryByText("unconfirmed")).toBeNull();
   });
 
   it("keeps the beat pill only under Other updates", async () => {

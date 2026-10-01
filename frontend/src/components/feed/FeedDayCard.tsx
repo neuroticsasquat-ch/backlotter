@@ -88,21 +88,30 @@ export function FeedRowTitle({
 }
 
 /** A feed row's event lines, or nothing for a row with none. `showBeat` is off under an
- *  update-type heading, which already names the beat (NR-5). */
+ *  update-type heading, which already names the beat (NR-5); `showConfidence` is off under Not
+ *  yet reported, whose heading says "(unconfirmed)" once for the section. */
 export function FeedEvents({
   events,
   filmRef,
   showBeat = true,
+  showConfidence = true,
 }: {
   events: FilmEvent[];
   filmRef: string;
   showBeat?: boolean;
+  showConfidence?: boolean;
 }) {
   if (events.length === 0) return null;
   return (
     <div className="mt-1 space-y-1.5 pl-3">
       {events.map((event) => (
-        <FeedEvent key={event.event_id} event={event} filmRef={filmRef} showBeat={showBeat} />
+        <FeedEvent
+          key={event.event_id}
+          event={event}
+          filmRef={filmRef}
+          showBeat={showBeat}
+          showConfidence={showConfidence}
+        />
       ))}
     </div>
   );
@@ -116,10 +125,12 @@ function FeedEvent({
   event,
   filmRef,
   showBeat,
+  showConfidence,
 }: {
   event: FilmEvent;
   filmRef: string;
   showBeat: boolean;
+  showConfidence: boolean;
 }) {
   const confidence = confidenceLabel(event.confidence);
   return (
@@ -130,7 +141,9 @@ function FeedEvent({
             {eventTypeLabel(event.event_type)}
           </span>
         )}
-        <span className={`mr-1 ${CONFIDENCE_PILL[confidence]} ${PILL}`}>{confidence}</span>
+        {showConfidence && (
+          <span className={`mr-1 ${CONFIDENCE_PILL[confidence]} ${PILL}`}>{confidence}</span>
+        )}
         {event.summary}
         {event.summary_edited ? (
           <span className={`ml-1 bg-muted text-muted-foreground ${PILL}`}>edited</span>

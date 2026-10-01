@@ -61,9 +61,15 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
 };
 
 /** Shared heading for the catalog-sourced section on both the grouped feed and the film page.
- *  It names provenance — no trade outlet has covered the beat yet — never truth: "unconfirmed"
- *  belongs to the card's confidence badge alone (NEU-1406). */
+ *  It names provenance — no trade outlet has covered the beat yet. */
 export const NOT_YET_REPORTED_LABEL = "Not yet reported";
+
+/** Rendered after NOT_YET_REPORTED_LABEL in the section heading, and in place of a confidence
+ *  badge on each event beneath it. Readers could not tell what put one catalog beat at
+ *  "confirmed" and the next at "unconfirmed", and grouped by update type the badges ran in long
+ *  identical blocks, so the section says it once. Kept out of the label itself so the
+ *  explainer's quoted heading stays the bare name. */
+export const NOT_YET_REPORTED_QUALIFIER = "(unconfirmed)";
 
 /** The heading over each update type in the grouped feed's Not yet reported section (NR-3).
  *  A heading names a kind, not a beat, so these are not `EVENT_TYPE_LABELS`: "Trailer" here and
@@ -99,11 +105,10 @@ export function eventTypeLabel(eventType: string): string {
 }
 
 /** Display label for an event's confidence (D-9). The backend's vocabulary is `confirmed` |
- *  `rumored`; the card reads `confirmed` / `unconfirmed`. This badge is the card's veracity
- *  signal; the section heading above it is a provenance signal, and the two are independent — a
- *  `confirmed` badge under NOT_YET_REPORTED_LABEL is normal (NEU-1406). Anything that is not
- *  `confirmed` reads as unconfirmed — a value the frontend doesn't know must never be promoted to
- *  confirmed. */
+ *  `rumored`; the card reads `confirmed` / `unconfirmed`. Badged on In the news events only —
+ *  under NOT_YET_REPORTED_LABEL the heading's NOT_YET_REPORTED_QUALIFIER stands in for it.
+ *  Anything that is not `confirmed` reads as unconfirmed — a value the frontend doesn't know must
+ *  never be promoted to confirmed. */
 export function confidenceLabel(confidence: string): "confirmed" | "unconfirmed" {
   return confidence === "confirmed" ? "confirmed" : "unconfirmed";
 }
