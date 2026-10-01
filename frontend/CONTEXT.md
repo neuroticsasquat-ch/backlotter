@@ -43,7 +43,9 @@ with **In the news**, which holds the beats an outlet has. It says nothing about
 beat is true: that is the **confidence badge** on the card, which renders `confirmed` or
 `unconfirmed` and is independent of the section. A `confirmed` release date under "Not yet
 reported" is the normal case, not a contradiction. A beat moves from this section to "In the
-news" the day a story attaches, without changing day.
+news" the day a story attaches, without changing day. On the grouped feed and the timeline the
+section is laid out by **update type**, not by film; In the news, and the film page's
+section, stay laid out by film.
 _Avoid_: unconfirmed updates (the old heading, retired by NEU-1406 because it borrowed the
 badge's word for a different axis), via TMDB (older still), catalog section (the codebase's
 word, not the reader's), TMDB-only (fine in code, not on screen).
@@ -51,13 +53,28 @@ word, not the reader's), TMDB-only (fine in code, not on screen).
 **Demotion** (of Not yet reported):
 How a Not yet reported beat reads as lighter than an In the news beat without being hidden or
 cut down. It has exactly two parts: **order** (within a day, In the news leads) and the
-**heading** (the section is named). Nothing else differs: the same event line at the same size,
-weight and colour, the same beat and confidence badges, the same link.
+**heading** (the section is named). Nothing else differs: the same event text at the same size,
+weight and colour, the same confidence badge, the same link. The feed's **update type** layout
+is not a third part: it is a different arrangement, not a lighter one, and the beat badge it
+drops is redundant with the update-type heading above it rather than withheld.
 A section with nothing in it is not rendered at all, so an empty "Not yet reported" is silence,
 never a placeholder line. Collapsing, titles-only rows and "None today" were earlier forms of
 demotion and are retired (NEU-1467).
 _Avoid_: hidden, collapsed, muted (reads as colour, which is not one of the two parts), smaller
 (a type-size step was tried and dropped in NEU-1467), titles-only, None today.
+
+**Update type**:
+A reader-facing grouping of beats that heads a block of the feed's and timeline's Not yet
+reported section: Now available, Trailer, Release date, Production status, Cast, Crew, Studios,
+Franchise, and a trailing Other updates for any beat the grouping does not know. Each update
+type gathers one or more `event_type`s (Cast is `casting` + `cast_removed`; Production status is
+`production_start` + `production_wrap` + `canceled`), runs in that fixed order of significance
+within a day, and holds one film row per film it touched that day. A film with changes of two
+types appears under both. Under an update-type heading an event line carries no beat badge;
+under Other updates it keeps one, since that heading names nothing.
+_Avoid_: category, event type (that is the beat's own classification, one level finer), beat
+(a beat is one development; an update type is a heading over many), section (that is the
+provenance split, In the news / Not yet reported, one level coarser).
 
 **Confidence badge**:
 The `confirmed` / `unconfirmed` pill on every event card. The backend says `rumored`; the
