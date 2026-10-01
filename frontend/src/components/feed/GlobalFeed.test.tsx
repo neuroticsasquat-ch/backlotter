@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
 import { dayItem, feed, oneDay } from "@/test/feed-fixtures";
 import { env } from "@/env";
-import type { FeedDayResponse } from "@/api/types";
+import type { FeedDayResponse, FilmEvent } from "@/api/types";
 import { GLOBAL_FEED_STANDFIRST, GlobalFeed } from "@/components/feed/GlobalFeed";
 import { SECTION_SPLIT_EXPLAINER } from "@/components/film/labels";
 
@@ -121,8 +121,8 @@ describe("feed day sections", () => {
     );
     await screen.findByText(/June 23, 2026/);
 
-    expect(screen.getByText("In the news (1 movie)")).toBeInTheDocument();
-    expect(screen.getByText("Not yet reported (2 movies)")).toBeInTheDocument();
+    expect(screen.getByText("In the news")).toBeInTheDocument();
+    expect(screen.getByText("Not yet reported")).toBeInTheDocument();
 
     // The news-backed film renders above both not-yet-reported ones despite the original order.
     const links = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
@@ -133,7 +133,7 @@ describe("feed day sections", () => {
     renderFeed(oneDay(dayItem("a", { news_backed: true }), dayItem("b", { news_backed: true })));
     await screen.findByText(/June 23, 2026/);
 
-    expect(screen.getByText("In the news (2 movies)")).toBeInTheDocument();
+    expect(screen.getByText("In the news")).toBeInTheDocument();
     expect(screen.queryByText(/^Not yet reported/)).toBeNull();
     expect(screen.queryByText("None today")).toBeNull();
     expect(screen.getAllByRole("link")).toHaveLength(2);
@@ -145,7 +145,7 @@ describe("feed day sections", () => {
 
     expect(screen.queryByText(/^In the news/)).toBeNull();
     expect(screen.queryByText("None today")).toBeNull();
-    expect(screen.getByText("Not yet reported (2 movies)")).toBeInTheDocument();
+    expect(screen.getByText("Not yet reported")).toBeInTheDocument();
     expect(screen.getAllByRole("link")).toHaveLength(2);
   });
 
@@ -160,13 +160,13 @@ describe("feed day sections", () => {
     );
     await screen.findByText(/June 23, 2026/);
 
-    const newsSection = screen.getByText("In the news (2 movies)").closest("div")!;
+    const newsSection = screen.getByText("In the news").closest("div")!;
     const newsLinks = [...newsSection.querySelectorAll("a[href^='/film/']")].map((a) =>
       a.getAttribute("href"),
     );
     expect(newsLinks).toEqual(["/film/a-movie", "/film/z-movie"]);
 
-    const tmdbSection = screen.getByText("Not yet reported (2 movies)").closest("div")!;
+    const tmdbSection = screen.getByText("Not yet reported").closest("div")!;
     const tmdbLinks = [...tmdbSection.querySelectorAll("a[href^='/film/']")].map((a) =>
       a.getAttribute("href"),
     );
@@ -238,8 +238,8 @@ describe("feed day sections", () => {
     expect(monday.querySelector('a[href="/film/reported-monday"]')).not.toBeNull();
     expect(tuesday.querySelector('a[href="/film/reported-monday"]')).toBeNull();
     expect([...monday.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
-      "In the news (1 movie)",
-      "Not yet reported (1 movie)",
+      "In the news",
+      "Not yet reported",
     ]);
     // Within each section, items are alphabetically sorted. News section renders first (reported-monday),
     // then "Not yet reported" section (monday-tmdb).
@@ -250,15 +250,15 @@ describe("feed day sections", () => {
     expect(mondayLinks.length).toBe(2);
     // Tuesday is TMDB-only: no "In the news" heading at all, just "Not yet reported".
     expect([...tuesday.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
-      "Not yet reported (1 movie)",
+      "Not yet reported",
     ]);
     expect(within(tuesday).getByText("TUESDAY-TMDB")).toBeInTheDocument();
   });
 
   it("opens every section with a rule and space, not just a heading", async () => {
     renderFeed(oneDay(dayItem("reported", { news_backed: true }), dayItem("tmdb")));
-    const newsContainer = (await screen.findByText("In the news (1 movie)")).closest(".border-t")!;
-    const tmdbContainer = screen.getByText("Not yet reported (1 movie)").closest(".border-t")!;
+    const newsContainer = (await screen.findByText("In the news")).closest(".border-t")!;
+    const tmdbContainer = screen.getByText("Not yet reported").closest(".border-t")!;
     expect(newsContainer).not.toBeNull();
     expect(tmdbContainer).not.toBeNull();
   });
@@ -273,7 +273,7 @@ describe("feed day sections", () => {
     await screen.findByText(/June 23, 2026/);
     const posters = screen.getAllByRole("img");
     // One strip for the whole day — but ordered news-first, so the reported film leads even
-    // though backend order (popularity) puts the TMDB-only one ahead of it.
+    // though backend order (significance, not section) puts the TMDB-only one ahead of it.
     expect(posters.map((p) => p.getAttribute("src"))).toEqual([
       "https://image.tmdb.org/t/p/w185/news.jpg",
       "https://image.tmdb.org/t/p/w185/tmdb.jpg",
@@ -291,23 +291,23 @@ describe("Not yet reported section", () => {
     expect(screen.getAllByText(SECTION_SPLIT_EXPLAINER, { exact: false })).toHaveLength(1);
   });
 
-  it("renders Not yet reported expanded with movie count and its rows visible", async () => {
+  it("renders Not yet reported expanded under a bare h3, its rows visible", async () => {
     renderFeed(
       oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-a"), dayItem("tmdb-b")),
     );
     await screen.findByText(/June 23, 2026/);
 
-    expect(screen.getByText("Not yet reported (2 movies)").tagName).toBe("H3");
+    expect(screen.getByText("Not yet reported").tagName).toBe("H3");
     expect(screen.getByText("TMDB-A")).toBeInTheDocument();
     expect(screen.getByText("TMDB-B")).toBeInTheDocument();
   });
 
-  it("renders In the news section always expanded with count", async () => {
+  it("renders In the news always expanded under a bare h3", async () => {
     renderFeed(oneDay(dayItem("news-film", { news_backed: true }), dayItem("tmdb-film")));
     await screen.findByText(/June 23, 2026/);
 
-    expect(screen.getByText("In the news (1 movie)")).toBeInTheDocument();
-    expect(screen.getByText("In the news (1 movie)").tagName).toBe("H3");
+    expect(screen.getByText("In the news")).toBeInTheDocument();
+    expect(screen.getByText("In the news").tagName).toBe("H3");
   });
 
   it("renders no toggle button in a day's sections", async () => {
@@ -349,10 +349,153 @@ describe("Not yet reported section", () => {
 
     const summary = screen.getByText("Theatrical release set for December 18.", { exact: false });
     expect(summary).toBeInTheDocument();
-    expect(within(summary).getByText("Release date")).toBeInTheDocument();
+    // The update-type heading names the beat, so the line carries no beat pill of its own (NR-5).
+    expect(screen.getByRole("heading", { level: 4, name: "Release date" })).toBeInTheDocument();
+    expect(within(summary).queryByText("Release date")).toBeNull();
     expect(within(summary).getByText("confirmed")).toBeInTheDocument();
     // No source chip: the only external links would be source chips, and there are none.
     expect(document.querySelectorAll('a[target="_blank"]')).toHaveLength(0);
+  });
+});
+
+describe("Not yet reported by update type", () => {
+  function evt(event_id: string, event_type: string, summary: string): FilmEvent {
+    return {
+      event_id,
+      event_type,
+      confidence: "confirmed",
+      created_at: "2026-06-23T10:00:00Z",
+      occurred_at: "2026-06-23T10:00:00Z",
+      summary,
+      summary_edited: false,
+      status: "published",
+      superseded_by: null,
+      video_key: null,
+      provenance: "catalog",
+      sources: [],
+    };
+  }
+
+  function withEvents(film_ref: string, film_title: string, ...events: FilmEvent[]) {
+    const event_types = [...new Set(events.map((e) => e.event_type))];
+    return dayItem(film_ref, { film_title, events, event_types, event_count: events.length });
+  }
+
+  const heat = withEvents(
+    "heat-2",
+    "Heat 2",
+    evt("heat-date", "release_date", "US Wide release date slipped."),
+    evt("heat-cast", "casting", "Adam Driver joins the cast."),
+  );
+  const blade = withEvents(
+    "blade",
+    "Blade",
+    evt("blade-start", "production_start", "Shooting has started."),
+    evt("blade-cast", "cast_removed", "Mahershala Ali departs the cast."),
+  );
+
+  function headings(level: number) {
+    return screen.getAllByRole("heading", { level }).map((h) => h.textContent);
+  }
+
+  /** The film links under one update-type heading, in render order. */
+  function filmsUnder(label: string) {
+    const block = screen.getByRole("heading", { level: 4, name: label }).parentElement!;
+    return [...block.querySelectorAll("a[href^='/film/']")].map((a) => a.textContent);
+  }
+
+  it("heads the section by update type, then film, then that type's events", async () => {
+    renderFeed(oneDay(heat, blade));
+    await screen.findByText(/June 23, 2026/);
+
+    expect(headings(3)).toEqual(["Not yet reported"]);
+    expect(headings(4)).toEqual(["Release date", "Production status", "Cast"]);
+    expect(filmsUnder("Release date")).toEqual([expect.stringMatching(/^Heat 2/)]);
+    expect(filmsUnder("Production status")).toEqual([expect.stringMatching(/^Blade/)]);
+    // A film with changes of two types appears under both, natural-title sorted.
+    expect(filmsUnder("Cast")).toEqual([
+      expect.stringMatching(/^Blade/),
+      expect.stringMatching(/^Heat 2/),
+    ]);
+    const cast = screen.getByRole("heading", { level: 4, name: "Cast" }).parentElement!;
+    expect(within(cast).getByText(/Adam Driver joins/)).toBeInTheDocument();
+    expect(within(cast).queryByText(/US Wide release date/)).toBeNull();
+  });
+
+  it("keeps the beat pill only under Other updates", async () => {
+    renderFeed(
+      oneDay(
+        withEvents("old", "Old Card", evt("e1", "credit_removed", "Someone departs.")),
+        withEvents("cast", "Cast Card", evt("e2", "casting", "Someone joins.")),
+      ),
+    );
+    await screen.findByText(/June 23, 2026/);
+
+    expect(headings(4)).toEqual(["Cast", "Other updates"]);
+    expect(within(screen.getByText(/Someone departs/)).getByText("Credit Removed")).toBeTruthy();
+    expect(within(screen.getByText(/Someone joins/)).queryByText("Casting")).toBeNull();
+  });
+
+  it("restarts the zebra stripe under each heading", async () => {
+    renderFeed(oneDay(heat, blade));
+    await screen.findByText(/June 23, 2026/);
+
+    for (const label of ["Release date", "Cast"]) {
+      const block = screen.getByRole("heading", { level: 4, name: label }).parentElement!;
+      expect(block.firstElementChild!.tagName).toBe("H4");
+      const rows = [...block.children].slice(1);
+      expect(rows.every((r) => r.className.includes("odd:bg-muted/40"))).toBe(true);
+    }
+  });
+
+  it("credits JustWatch once, at the foot of the Now available block", async () => {
+    renderFeed(
+      oneDay(
+        withEvents("a", "A Film", evt("a1", "now_available", "Now streaming on X.")),
+        withEvents(
+          "b",
+          "B Film",
+          evt("b1", "now_available", "Now streaming on Y."),
+          evt("b2", "casting", "Someone joins."),
+        ),
+      ),
+    );
+    await screen.findByText(/June 23, 2026/);
+
+    const credits = screen.getAllByText(/Availability from JustWatch/);
+    expect(credits).toHaveLength(1);
+    const block = screen.getByRole("heading", { level: 4, name: "Now available" }).parentElement!;
+    expect(block.lastElementChild).toContainElement(credits[0]);
+  });
+
+  it("leaves In the news as film rows with their own credit", async () => {
+    renderFeed(
+      oneDay(
+        dayItem("news", {
+          film_title: "News Film",
+          news_backed: true,
+          event_types: ["now_available"],
+          events: [evt("n1", "now_available", "Now streaming on Z.")],
+        }),
+      ),
+    );
+    await screen.findByText(/June 23, 2026/);
+
+    expect(screen.queryAllByRole("heading", { level: 4 })).toHaveLength(0);
+    expect(within(screen.getByText(/Now streaming on Z/)).getByText("Now available")).toBeTruthy();
+    expect(screen.getAllByText(/Availability from JustWatch/)).toHaveLength(1);
+  });
+
+  it("files a no-events fallback row under its types, header only, without badges", async () => {
+    renderFeed(
+      oneDay(dayItem("legacy", { film_title: "Legacy", event_types: ["trailer", "casting"] })),
+    );
+    await screen.findByText(/June 23, 2026/);
+
+    expect(headings(4)).toEqual(["Trailer", "Cast"]);
+    expect(filmsUnder("Trailer")).toEqual([expect.stringMatching(/^Legacy/)]);
+    expect(filmsUnder("Cast")).toEqual([expect.stringMatching(/^Legacy/)]);
+    expect(screen.queryByText("Casting")).toBeNull();
   });
 });
 

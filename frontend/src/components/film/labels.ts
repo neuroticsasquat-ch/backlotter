@@ -1,4 +1,5 @@
 import type { ArcStage } from "@/api/types";
+import type { UpdateType } from "@/lib/feed-groups";
 
 /** The canonical arc, ascending — mirrors the backend's derivation order. */
 export const ARC_STAGES: readonly ArcStage[] = ["announced", "shooting", "wrapped", "released"];
@@ -56,6 +57,21 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
  *  It names provenance — no trade outlet has covered the beat yet — never truth: "unconfirmed"
  *  belongs to the card's confidence badge alone (NEU-1406). */
 export const NOT_YET_REPORTED_LABEL = "Not yet reported";
+
+/** The heading over each update type in the grouped feed's Not yet reported section (NR-3).
+ *  A heading names a kind, not a beat, so these are not `EVENT_TYPE_LABELS`: "Trailer" here and
+ *  a beat pill's own wording are free to differ. The order is `UPDATE_TYPES`'s, not this map's. */
+export const UPDATE_TYPE_LABELS: Record<UpdateType, string> = {
+  now_available: "Now available",
+  trailer: "Trailer",
+  release_date: "Release date",
+  production_status: "Production status",
+  cast: "Cast",
+  crew: "Crew",
+  studios: "Studios",
+  franchise: "Franchise",
+  other: "Other updates",
+};
 
 /** The one line that says what the "In the news" / NOT_YET_REPORTED_LABEL split means, once per
  *  page: the global feed, the signed-in timeline and the film page. Built from the heading

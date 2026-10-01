@@ -1,7 +1,8 @@
 import type { FeedDayItem } from "@/api/types";
-import { groupByDay, splitByNewsBacked } from "@/lib/feed-groups";
+import { groupByDay, groupByUpdateType, splitByNewsBacked } from "@/lib/feed-groups";
 import { FeedDayCard } from "@/components/feed/FeedDayCard";
 import { FeedDayPosters } from "@/components/feed/FeedDayPosters";
+import { UpdateTypeGroups } from "@/components/feed/UpdateTypeGroups";
 import { NOT_YET_REPORTED_LABEL } from "@/components/film/labels";
 
 // Every section opens with a rule and real space: the sub-heading otherwise lands between two
@@ -13,7 +14,9 @@ const SECTION_BREAK = "border-t border-border pt-4 [&:not(:first-child)]:mt-5";
 
 /**
  * The day-by-day body of a grouped feed: one section per day, each split into its news-backed
- * and not-yet-reported halves above a strip of that day's posters.
+ * and not-yet-reported halves above a strip of that day's posters. In the news is one row per
+ * film; Not yet reported is laid out by update type (NR-1). This is the one place that decides
+ * which section is grouped — `groupByUpdateType` and `UpdateTypeGroups` take any rows.
  *
  * Shared by the global feed and the signed-in timeline, which render the same DTO — `/me/timeline`
  * answers with `/feed/grouped`'s exact shape (NEU-1351), so the two differ in what they fetch and
@@ -25,12 +28,6 @@ export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
     <div className="mt-6 space-y-8">
       {groups.map((group) => {
         const { newsBacked, tmdbOnly } = splitByNewsBacked(group.items);
-        // A day renders only the sections that have items — an empty one is silence, never a
-        // placeholder line (NEU-1467).
-        const sections = [
-          { key: "news", label: "In the news", items: newsBacked },
-          { key: "tmdb", label: NOT_YET_REPORTED_LABEL, items: tmdbOnly },
-        ];
         return (
           <section key={group.dayKey}>
             <h2 className="text-sm font-medium text-muted-foreground">
@@ -43,13 +40,16 @@ export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
                   next to it and read as a label for an unrelated film. */}
               <FeedDayPosters items={group.items} />
               <div className="min-w-0 flex-1">
-                {sections.map((section) => (
-                  <SectionWrapper key={section.key} section={section}>
-                    {section.items.map((item) => (
-                      <FeedDayCard key={item.film_ref} item={item} />
-                    ))}
-                  </SectionWrapper>
-                ))}
+                {/* A day renders only the sections that have items — an empty one is
+                    silence, never a placeholder line (NEU-1467). */}
+                <SectionWrapper label="In the news" empty={newsBacked.length === 0}>
+                  {newsBacked.map((item) => (
+                    <FeedDayCard key={item.film_ref} item={item} />
+                  ))}
+                </SectionWrapper>
+                <SectionWrapper label={NOT_YET_REPORTED_LABEL} empty={tmdbOnly.length === 0}>
+                  <UpdateTypeGroups groups={groupByUpdateType(tmdbOnly)} />
+                </SectionWrapper>
               </div>
             </div>
           </section>
@@ -59,21 +59,24 @@ export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
   );
 }
 
-/** Wraps a day section: a static heading with its movie count, then the rows, always expanded.
- *  A section with no items renders nothing — no heading, no "None today" (NEU-1467). */
+/** Wraps a day section: a bare static heading, then the rows, always expanded. A section with
+ *  no items renders nothing — no heading, no "None today" (NEU-1467). The heading carries no
+ *  movie count (NR-6): under update types a film can appear more than once, so a count of rows
+ *  would no longer be a count of films. */
 function SectionWrapper({
-  section,
+  label,
+  empty,
   children,
 }: {
-  section: { key: string; label: string; items: unknown[] };
+  label: string;
+  empty: boolean;
   children: React.ReactNode;
 }) {
-  const count = section.items.length;
-  if (count === 0) return null;
+  if (empty) return null;
   return (
     <div className={SECTION_BREAK}>
       <h3 className="px-2 pb-1.5 text-xs font-semibold tracking-wide text-foreground/80">
-        {`${section.label} (${count} movie${count === 1 ? "" : "s"})`}
+        {label}
       </h3>
       {children}
     </div>

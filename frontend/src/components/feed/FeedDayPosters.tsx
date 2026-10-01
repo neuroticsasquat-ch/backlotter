@@ -7,8 +7,9 @@ import type { FeedDayItem } from "@/api/types";
  *  its film.
  *
  *  Ordered by `dayPosterLeads`: news-backed films first, then TMDB-only ones, so the strip agrees
- *  with the sections below it. Backend order within a day is by popularity, not by section, so
- *  taking it raw put the day's most popular film here — TMDB-only often enough to read as a rule.
+ *  with the sections below it. Backend order within a day is by significance, not by section, so
+ *  taking it raw put the film with the day's most significant beat here — TMDB-only often enough
+ *  to read as a rule.
  *
  *  Posters are a fixed width and the row is clipped, so the number on screen is however many fit:
  *  about four on a phone, more on a wide viewport. The gradient mask fades the clipped edge rather
