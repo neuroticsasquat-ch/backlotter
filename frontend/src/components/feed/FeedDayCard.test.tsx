@@ -136,7 +136,7 @@ describe("FeedDayCard", () => {
         },
       ],
     });
-    expect(screen.getByText("Trailer")).toBeInTheDocument();
+    expect(screen.getByText("New trailer")).toBeInTheDocument();
     expect(screen.getByText("Casting")).toBeInTheDocument();
   });
 
@@ -160,7 +160,7 @@ describe("FeedDayCard", () => {
       ],
     });
     expect(screen.getByText("Release date")).toBeInTheDocument();
-    expect(screen.queryByText("Trailer")).toBeNull();
+    expect(screen.queryByText("New trailer")).toBeNull();
   });
 
   it("falls back to beat labels on a row that arrives with no events", () => {
@@ -176,7 +176,7 @@ describe("FeedDayCard", () => {
     expect(screen.queryByText("Date set.")).toBeNull();
     expect(screen.getByRole("link").parentElement!.querySelector("p")).toBeNull();
     // Nor any beat the row does not carry.
-    expect(screen.queryByText("Trailer")).toBeNull();
+    expect(screen.queryByText("New trailer")).toBeNull();
     expect(screen.queryByText("Casting")).toBeNull();
   });
 
@@ -292,7 +292,7 @@ describe("FeedDayCard", () => {
         },
       ],
     });
-    expect(screen.getByText("Trailer").className).toContain("mr-1");
+    expect(screen.getByText("New trailer").className).toContain("mr-1");
   });
 
   it("wraps a long title instead of truncating it", () => {
@@ -323,7 +323,7 @@ describe("FeedDayCard", () => {
         },
       ],
     });
-    expect(screen.getByText("Trailer")).toBeInTheDocument();
+    expect(screen.getByText("New trailer")).toBeInTheDocument();
     expect(screen.getByText("The official trailer was released.")).toBeInTheDocument();
   });
 

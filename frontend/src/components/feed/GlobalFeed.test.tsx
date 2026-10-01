@@ -495,6 +495,7 @@ describe("Not yet reported by update type", () => {
     expect(headings(4)).toEqual(["Trailer", "Cast"]);
     expect(filmsUnder("Trailer")).toEqual([expect.stringMatching(/^Legacy/)]);
     expect(filmsUnder("Cast")).toEqual([expect.stringMatching(/^Legacy/)]);
+    expect(screen.queryByText("New trailer")).toBeNull();
     expect(screen.queryByText("Casting")).toBeNull();
   });
 });

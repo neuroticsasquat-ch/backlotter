@@ -2,12 +2,41 @@ import { describe, expect, it } from "vitest";
 
 import type { ArcStage } from "@/api/types";
 import {
+  EVENT_TYPE_LABELS,
   NOT_YET_REPORTED_LABEL,
   SECTION_SPLIT_EXPLAINER,
   arcStageLabel,
   confidenceLabel,
   eventTypeLabel,
 } from "./labels";
+
+/** A copy of the backend's `DIGEST_BEAT_LABELS` (`app/services/digest_sender.py`). The digest
+ *  mail and the card describe the same beat, so the two maps must be equal key-for-key (NR-14).
+ *  When the backend map changes, change this copy and `EVENT_TYPE_LABELS` together. */
+const DIGEST_BEAT_LABELS = {
+  release_date: "Release date",
+  now_available: "Now available",
+  trailer: "New trailer",
+  announced: "Announced",
+  casting: "Casting",
+  crew_attached: "Crew attached",
+  cast_removed: "Cast departure",
+  crew_removed: "Crew departure",
+  company_attached: "Studio attached",
+  company_removed: "Studio removed",
+  collection_attached: "Franchise attached",
+  collection_removed: "Franchise removed",
+  canceled: "Canceled",
+  production_start: "Production started",
+  production_wrap: "Production wrapped",
+  first_look: "First look",
+};
+
+describe("EVENT_TYPE_LABELS", () => {
+  it("equals the digest's beat labels, key for key", () => {
+    expect(EVENT_TYPE_LABELS).toEqual(DIGEST_BEAT_LABELS);
+  });
+});
 
 describe("eventTypeLabel", () => {
   it("maps first_look to a friendly label", () => {
@@ -39,6 +68,12 @@ describe("eventTypeLabel", () => {
 
   it("still title-cases a beat it has never heard of", () => {
     expect(eventTypeLabel("reshoots_started")).toBe("Reshoots Started");
+  });
+
+  it("reads a pre-split credit removal through the fallback", () => {
+    // NR-14: `credit_removed` is retired by the backend migration (NR-12) and has no entry. A
+    // stray one during the deploy window reads plainly rather than vanishing.
+    expect(eventTypeLabel("credit_removed")).toBe("Credit Removed");
   });
 });
 
