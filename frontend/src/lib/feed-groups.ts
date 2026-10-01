@@ -1,4 +1,5 @@
 import type { FeedDayItem, FilmEvent } from "@/api/types";
+import { UPDATE_TYPE_LABELS } from "@/components/film/labels";
 import { dayKey, formatDayHeading } from "@/lib/format";
 
 export interface FeedDayGroup {
@@ -10,10 +11,11 @@ export interface FeedDayGroup {
 }
 
 /**
- * Bucket a backend-ordered grouped feed (`day DESC, last_created_at DESC, slug ASC`) into per-day
- * sections. Each item is already one (film, day) row carrying a "YYYY-MM-DD" `day`, so we bucket on
- * that string directly. Preserving the backend order means groups come out newest-day-first with a
- * deterministic within-day order — no sorting, no `Date.now()`, so SSR and client output match.
+ * Bucket a backend-ordered grouped feed (`day DESC`, then significance, then natural title) into
+ * per-day sections. Each item is already one (film, day) row carrying a "YYYY-MM-DD" `day`, so we
+ * bucket on that string directly. Preserving the backend order means groups come out
+ * newest-day-first with a deterministic within-day order — no sorting, no `Date.now()`, so SSR and
+ * client output match.
  */
 export function groupByDay(items: FeedDayItem[]): FeedDayGroup[] {
   const groups: FeedDayGroup[] = [];
@@ -65,6 +67,98 @@ export function splitByNewsBacked(items: FeedDayItem[]): FeedDaySplit {
   return { newsBacked, tmdbOnly };
 }
 
+/**
+ * The update types a grouped section is laid out by, most significant first (NR-3). A
+ * hand-written list rather than a derivation from the backend's arc ranking (`_EVENT_STAGE`):
+ * Crew, Studios and Franchise tie there, and their order is a product choice (people before
+ * organisations); `canceled` ranks highest there, yet a reader looks for a cancellation where a
+ * film's status lives. Other updates trails, and takes any type the map below does not know.
+ */
+export const UPDATE_TYPES = [
+  "now_available",
+  "trailer",
+  "release_date",
+  "production_status",
+  "cast",
+  "crew",
+  "studios",
+  "franchise",
+  "other",
+] as const;
+
+export type UpdateType = (typeof UPDATE_TYPES)[number];
+
+/** Which update type each known `event_type` files under. A `Map`, so an `event_type` that
+ *  happens to name an `Object.prototype` member falls through to Other updates like any other. */
+const UPDATE_TYPE_OF_EVENT = new Map<string, UpdateType>([
+  ["now_available", "now_available"],
+  ["trailer", "trailer"],
+  ["release_date", "release_date"],
+  ["production_start", "production_status"],
+  ["production_wrap", "production_status"],
+  ["canceled", "production_status"],
+  ["casting", "cast"],
+  ["cast_removed", "cast"],
+  ["crew_attached", "crew"],
+  ["crew_removed", "crew"],
+  ["company_attached", "studios"],
+  ["company_removed", "studios"],
+  ["collection_attached", "franchise"],
+  ["collection_removed", "franchise"],
+]);
+
+function updateTypeOf(eventType: string): UpdateType {
+  return UPDATE_TYPE_OF_EVENT.get(eventType) ?? "other";
+}
+
+export interface UpdateTypeRow {
+  /** The whole feed row, so the film's full header renders under every heading it appears in. */
+  item: FeedDayItem;
+  /** Only this heading's events, in the backend's order. Empty for a no-events fallback row. */
+  events: FilmEvent[];
+}
+
+export interface UpdateTypeGroup {
+  key: UpdateType;
+  label: string;
+  rows: UpdateTypeRow[];
+}
+
+/**
+ * Lay a day's feed rows out by update type: headings in `UPDATE_TYPES` order, each holding one
+ * row per film that changed that way, each row holding only that heading's events (NR-3, NR-4).
+ * A film with changes of two types sits under both. Headings with nothing under them are left
+ * out, and films keep the order they came in, so the caller's natural-title sort survives.
+ *
+ * Section-agnostic on purpose (NR-7): it never reads `news_backed` and leaves events, sources
+ * included, untouched — `FeedDayGroups` alone decides which section is grouped. A row that
+ * arrives with no events (the NEU-1212 fallback) is filed under each of its `event_types`.
+ */
+export function groupByUpdateType(items: FeedDayItem[]): UpdateTypeGroup[] {
+  // Keyed by the row object, not `film_ref`: a caller passing both of a day's sections would
+  // hand in the same film twice, and those are two rows, not one.
+  const byType = new Map<UpdateType, Map<FeedDayItem, UpdateTypeRow>>();
+  const rowFor = (type: UpdateType, item: FeedDayItem): UpdateTypeRow => {
+    let rows = byType.get(type);
+    if (!rows) byType.set(type, (rows = new Map()));
+    let row = rows.get(item);
+    if (!row) rows.set(item, (row = { item, events: [] }));
+    return row;
+  };
+  for (const item of items) {
+    if (item.events.length > 0) {
+      for (const event of item.events)
+        rowFor(updateTypeOf(event.event_type), item).events.push(event);
+    } else {
+      for (const eventType of item.event_types) rowFor(updateTypeOf(eventType), item);
+    }
+  }
+  return UPDATE_TYPES.flatMap((key) => {
+    const rows = byType.get(key);
+    return rows ? [{ key, label: UPDATE_TYPE_LABELS[key], rows: [...rows.values()] }] : [];
+  });
+}
+
 export interface EventDayGroup {
   /** UTC "YYYY-MM-DD" — a stable React key for the day section. */
   dayKey: string;
@@ -105,8 +199,8 @@ export const MAX_DAY_POSTERS = 8;
  *
  * Ordered through `splitByNewsBacked` rather than by taking the backend's order directly, so the
  * strip agrees with the sections the reader sees below it. Backend order within a day is by
- * popularity, not by section, so the raw first item is simply the day's most popular film — which
- * is a TMDB-only one often enough to read as a rule.
+ * significance, not by section, so the raw first item is simply the film with the day's most
+ * significant beat — which is a TMDB-only one often enough to read as a rule.
  *
  * Films without a poster are dropped rather than held as blanks. A pure function of its input —
  * no `Date.now()` — so SSR and client output match, same contract as `groupByDay`.

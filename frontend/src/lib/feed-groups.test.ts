@@ -3,6 +3,8 @@ import {
   MAX_DAY_POSTERS,
   dayPosterLeads,
   groupByDay,
+  UPDATE_TYPES,
+  groupByUpdateType,
   groupEventsByDay,
   splitByNewsBacked,
 } from "@/lib/feed-groups";
@@ -234,5 +236,185 @@ describe("dayPosterLeads", () => {
   it("caps after dedup", () => {
     const items = Array.from({ length: 20 }, (_, i) => poster(`film-${i % 8}`));
     expect(dayPosterLeads(items)).toHaveLength(8);
+  });
+});
+
+describe("groupByUpdateType", () => {
+  function typed(event_id: string, event_type: string, overrides: Partial<FilmEvent> = {}) {
+    return { ...event("2026-06-23T10:00:00Z", event_id), event_id, event_type, ...overrides };
+  }
+
+  function row(film_ref: string, ...events: FilmEvent[]): FeedDayItem {
+    const types = [...new Set(events.map((e) => e.event_type))];
+    return item("2026-06-23", film_ref, { events, event_types: types, top_event_type: types[0] });
+  }
+
+  /** `[heading, [film, [event ids]]]` — the shape a reader sees, without the payloads. */
+  function outline(items: FeedDayItem[]) {
+    return groupByUpdateType(items).map((group) => [
+      group.label,
+      group.rows.map((r) => [r.item.film_ref, r.events.map((e) => e.event_id)]),
+    ]);
+  }
+
+  it("pins the heading order as a literal (NR-3)", () => {
+    // Not derivable from the backend's `_EVENT_STAGE`: Crew, Studios and Franchise tie at
+    // `announced`, and `canceled` outranks everything yet files under Production status.
+    expect(UPDATE_TYPES).toEqual([
+      "now_available",
+      "trailer",
+      "release_date",
+      "production_status",
+      "cast",
+      "crew",
+      "studios",
+      "franchise",
+      "other",
+    ]);
+  });
+
+  it("files every mapped event_type under its heading, in the fixed order", () => {
+    const types = [
+      "collection_removed",
+      "collection_attached",
+      "company_removed",
+      "company_attached",
+      "crew_removed",
+      "crew_attached",
+      "cast_removed",
+      "casting",
+      "canceled",
+      "production_wrap",
+      "production_start",
+      "release_date",
+      "trailer",
+      "now_available",
+    ];
+    const items = types.map((t) => row(t, typed(t, t)));
+    expect(outline(items)).toEqual([
+      ["Now available", [["now_available", ["now_available"]]]],
+      ["Trailer", [["trailer", ["trailer"]]]],
+      ["Release date", [["release_date", ["release_date"]]]],
+      [
+        "Production status",
+        [
+          ["canceled", ["canceled"]],
+          ["production_wrap", ["production_wrap"]],
+          ["production_start", ["production_start"]],
+        ],
+      ],
+      [
+        "Cast",
+        [
+          ["cast_removed", ["cast_removed"]],
+          ["casting", ["casting"]],
+        ],
+      ],
+      [
+        "Crew",
+        [
+          ["crew_removed", ["crew_removed"]],
+          ["crew_attached", ["crew_attached"]],
+        ],
+      ],
+      [
+        "Studios",
+        [
+          ["company_removed", ["company_removed"]],
+          ["company_attached", ["company_attached"]],
+        ],
+      ],
+      [
+        "Franchise",
+        [
+          ["collection_removed", ["collection_removed"]],
+          ["collection_attached", ["collection_attached"]],
+        ],
+      ],
+    ]);
+  });
+
+  it("files any unmapped type under a trailing Other updates heading", () => {
+    // `credit_removed` lands here between a frontend deploy and the backend migration (NR-12),
+    // and the story-only `announced` / `first_look` would if they ever reached this section.
+    const items = [
+      row("old", typed("e1", "credit_removed")),
+      row("story", typed("e2", "first_look")),
+      row("cast", typed("e3", "casting")),
+      // Not a key a plain-object lookup would miss: an inherited property must not map.
+      row("proto", typed("e4", "constructor")),
+    ];
+    expect(outline(items)).toEqual([
+      ["Cast", [["cast", ["e3"]]]],
+      [
+        "Other updates",
+        [
+          ["old", ["e1"]],
+          ["story", ["e2"]],
+          ["proto", ["e4"]],
+        ],
+      ],
+    ]);
+  });
+
+  it("lists a two-type film under both headings, each row holding only that heading's events", () => {
+    const blade = row(
+      "blade",
+      typed("cast-1", "casting"),
+      typed("start", "production_start"),
+      typed("cast-2", "cast_removed"),
+    );
+    expect(outline([blade])).toEqual([
+      ["Production status", [["blade", ["start"]]]],
+      ["Cast", [["blade", ["cast-1", "cast-2"]]]],
+    ]);
+    // The row carries the whole item, so it can render the film's full header.
+    expect(groupByUpdateType([blade])[0].rows[0].item).toBe(blade);
+  });
+
+  it("keeps the input order of films under a heading and of events within a row", () => {
+    // The caller hands in `splitByNewsBacked`'s natural-title order; the grouping is stable.
+    const items = [
+      row("a-film", typed("a2", "casting"), typed("a1", "casting")),
+      row("m-film", typed("m1", "casting")),
+      row("z-film", typed("z1", "release_date"), typed("z2", "casting")),
+    ];
+    expect(outline(items)).toEqual([
+      ["Release date", [["z-film", ["z1"]]]],
+      [
+        "Cast",
+        [
+          ["a-film", ["a2", "a1"]],
+          ["m-film", ["m1"]],
+          ["z-film", ["z2"]],
+        ],
+      ],
+    ]);
+  });
+
+  it("files a no-events fallback row under each of its event_types, with no event lines", () => {
+    const fallback = item("2026-06-23", "old-backend", {
+      events: [],
+      event_types: ["casting", "cast_removed", "trailer"],
+    });
+    expect(outline([fallback])).toEqual([
+      ["Trailer", [["old-backend", []]]],
+      ["Cast", [["old-backend", []]]],
+    ]);
+  });
+
+  it("never reads news_backed, and keeps an event's sources", () => {
+    const source = { url: "https://x.test/1", source: "X", title: "One", published_at: null };
+    const reported = {
+      ...row("reported", typed("e1", "trailer", { sources: [source] })),
+      news_backed: true,
+    };
+    const [group] = groupByUpdateType([reported]);
+    expect(group.key).toBe("trailer");
+    expect(group.rows[0].events[0].sources).toEqual([source]);
+  });
+
+  it("returns no headings for no items", () => {
+    expect(groupByUpdateType([])).toEqual([]);
   });
 });

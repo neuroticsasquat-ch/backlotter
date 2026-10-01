@@ -39,13 +39,8 @@ export function FeedDayCard({ item }: { item: FeedDayItem }) {
   // has no per-film watch link to pass — that is the film page's `where_to_watch.link`.
   const showAttribution = item.event_types.includes("now_available");
   return (
-    <div className="block rounded px-2 py-1.5 text-sm odd:bg-muted/40 hover:bg-muted">
-      <Link
-        to={`/film/${item.film_ref}`}
-        className="block -indent-3 pl-3 font-medium text-foreground hover:text-foreground"
-      >
-        {item.film_title}
-        <span className="font-normal text-muted-foreground"> ({filmParenthetical(item)})</span>
+    <div className={FEED_ROW}>
+      <FeedRowTitle item={item}>
         {item.events.length === 0 &&
           item.event_types.length > 0 &&
           item.event_types.map((eventType) => (
@@ -56,14 +51,8 @@ export function FeedDayCard({ item }: { item: FeedDayItem }) {
               {eventTypeLabel(eventType)}
             </span>
           ))}
-      </Link>
-      {item.events.length > 0 && (
-        <div className="mt-1 space-y-1.5 pl-3">
-          {item.events.map((event) => (
-            <FeedEvent key={event.event_id} event={event} filmRef={item.film_ref} />
-          ))}
-        </div>
-      )}
+      </FeedRowTitle>
+      <FeedEvents events={item.events} filmRef={item.film_ref} />
       {showAttribution && (
         <div className="mt-1 pl-3">
           <JustWatchAttribution />
@@ -73,18 +62,74 @@ export function FeedDayCard({ item }: { item: FeedDayItem }) {
   );
 }
 
+/** A feed row's container. Zebra-striped by `odd:` on its own parent, so the stripe restarts
+ *  under every heading that opens a new list. */
+export const FEED_ROW = "block rounded px-2 py-1.5 text-sm odd:bg-muted/40 hover:bg-muted";
+
+/** A feed row's header: the film title and its parenthetical, linked to the film page.
+ *  `children` render inside the link, after the parenthetical (the fallback beat badges). */
+export function FeedRowTitle({
+  item,
+  children,
+}: {
+  item: FeedDayItem;
+  children?: React.ReactNode;
+}) {
+  return (
+    <Link
+      to={`/film/${item.film_ref}`}
+      className="block -indent-3 pl-3 font-medium text-foreground hover:text-foreground"
+    >
+      {item.film_title}
+      <span className="font-normal text-muted-foreground"> ({filmParenthetical(item)})</span>
+      {children}
+    </Link>
+  );
+}
+
+/** A feed row's event lines, or nothing for a row with none. `showBeat` is off under an
+ *  update-type heading, which already names the beat (NR-5). */
+export function FeedEvents({
+  events,
+  filmRef,
+  showBeat = true,
+}: {
+  events: FilmEvent[];
+  filmRef: string;
+  showBeat?: boolean;
+}) {
+  if (events.length === 0) return null;
+  return (
+    <div className="mt-1 space-y-1.5 pl-3">
+      {events.map((event) => (
+        <FeedEvent key={event.event_id} event={event} filmRef={filmRef} showBeat={showBeat} />
+      ))}
+    </div>
+  );
+}
+
 /** One event line on a feed row. Carries the D-9 confidence badge and, on a
  *  superseded event, the D-2 "later retracted" marker — linked to the film page, since the
  *  retraction is a different day's card and so never on this row. No first-seen line: the feed
  *  is a publication log (ADR-0016), so its heading already says when this was published. */
-function FeedEvent({ event, filmRef }: { event: FilmEvent; filmRef: string }) {
+function FeedEvent({
+  event,
+  filmRef,
+  showBeat,
+}: {
+  event: FilmEvent;
+  filmRef: string;
+  showBeat: boolean;
+}) {
   const confidence = confidenceLabel(event.confidence);
   return (
     <div>
       <p className="text-xs leading-relaxed text-foreground">
-        <span className={`mr-1 bg-muted text-muted-foreground ${PILL}`}>
-          {eventTypeLabel(event.event_type)}
-        </span>
+        {showBeat && (
+          <span className={`mr-1 bg-muted text-muted-foreground ${PILL}`}>
+            {eventTypeLabel(event.event_type)}
+          </span>
+        )}
         <span className={`mr-1 ${CONFIDENCE_PILL[confidence]} ${PILL}`}>{confidence}</span>
         {event.summary}
         {event.summary_edited ? (
