@@ -141,9 +141,9 @@ describe("EventTimeline", () => {
     expect(screen.queryByRole("button", { name: /not yet reported/i })).not.toBeInTheDocument();
   });
 
-  it("keeps a confirmed badge under Not yet reported, and unconfirmed under In the news", async () => {
-    // The heading names provenance and the badge names truth, so neither overrides the other
-    // (NEU-1406): the catalog beats a reader most wants to trust are minted confirmed.
+  it("qualifies the Not yet reported heading instead of badging its events", async () => {
+    // Per-event badges under Not yet reported read as an unexplained mix, so the heading says
+    // "(unconfirmed)" once; In the news keeps its badges.
     renderTimeline([
       {
         day: "2026-06-01",
@@ -166,8 +166,12 @@ describe("EventTimeline", () => {
         ],
       },
     ]);
-    const tmdbSection = (await screen.findByText("Not yet reported")).parentElement!;
-    expect(within(tmdbSection).getByText("confirmed")).toBeInTheDocument();
+    const tmdbHeading = await screen.findByRole("heading", {
+      level: 4,
+      name: "Not yet reported (unconfirmed)",
+    });
+    const tmdbSection = tmdbHeading.parentElement!;
+    expect(within(tmdbSection).queryByText("confirmed")).toBeNull();
     expect(within(tmdbSection).queryByText("unconfirmed")).toBeNull();
     const newsSection = screen.getByText("In the news").parentElement!;
     expect(within(newsSection).getByText("unconfirmed")).toBeInTheDocument();
