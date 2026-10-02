@@ -322,6 +322,24 @@ export interface FeedDayItem {
   // The events on this (film, day), with summaries and sources — matches the EventOut
   // shape from the film detail page.
   events: FilmEvent[];
+  // The followed entity this timeline row reached its reader through (FB-12): null on a
+  // title-reach row and on every global-feed row. Optional as well as nullable on purpose
+  // (FB-9) — a backend older than the field ships none, and a row without it is a title row,
+  // which is what lets this frontend deploy first.
+  via?: FeedVia | null;
+}
+
+/** The followed entity a timeline row reached its reader through (FB-12, ADR-0022). Mirrors the
+ *  backend `FeedVia`. `entity_type` is the follow graph's word (`company` is a studio,
+ *  `franchise` a TMDB collection); `entity_id` is the follow graph's id text, compared as a
+ *  string. `name` and `ref` are null together for an entity the catalog can no longer name, and
+ *  the row still ships (FB-10). */
+export interface FeedVia {
+  entity_type: "person" | "company" | "franchise";
+  entity_id: string;
+  name: string | null;
+  // `<id>-<slug>`, as the entity pages' routes take it, so a link to it never 301s.
+  ref: string | null;
 }
 
 export interface FeedDayResponse {

@@ -1,5 +1,5 @@
-import type { ArcStage } from "@/api/types";
-import type { UpdateType } from "@/lib/feed-groups";
+import type { ArcStage, FeedVia } from "@/api/types";
+import type { EntityUpdateType, FollowBlock, UpdateType } from "@/lib/feed-groups";
 
 /** The canonical arc, ascending — mirrors the backend's derivation order. */
 export const ARC_STAGES: readonly ArcStage[] = ["announced", "shooting", "wrapped", "released"];
@@ -84,6 +84,43 @@ export const UPDATE_TYPE_LABELS: Record<UpdateType, string> = {
   studios: "Studios",
   franchise: "Franchise",
   other: "Other updates",
+};
+
+/** The heading over each update type under an entity block's Not yet reported (FB-4). A second
+ *  map beside `UPDATE_TYPE_LABELS`, never merged with it: `casting` is Cast under Films and
+ *  Attached under People. "Attached" / "Detached" are the words the studio and franchise beats
+ *  already use. The order is `ENTITY_UPDATE_TYPES`'s, not this map's. */
+export const ENTITY_UPDATE_TYPE_LABELS: Record<EntityUpdateType, string> = {
+  attached: "Attached",
+  detached: "Detached",
+  canceled: "Canceled",
+  other: "Other updates",
+};
+
+/** The heading over each follow block on a timeline day (FB-1). The order is `FOLLOW_BLOCKS`'s.
+ *  "Studios" is screen vocabulary for the follow graph's `company` (EF-19). */
+export const FOLLOW_BLOCK_LABELS: Record<FollowBlock, string> = {
+  films: "Films",
+  people: "People",
+  studios: "Studios",
+  franchises: "Franchises",
+};
+
+/** An entity row's headline when the catalog can no longer name the entity (`via.name` null,
+ *  FB-10). Rendered unlinked — `via.ref` is null with it. */
+export const ENTITY_FALLBACK_NAMES: Record<FeedVia["entity_type"], string> = {
+  person: "A person you follow",
+  company: "A studio you follow",
+  franchise: "A franchise you follow",
+};
+
+/** The route an entity row's headline links under, `${segment}/${via.ref}`. The follow graph's
+ *  `company` and `franchise` are the `/studio` and `/franchise` pages (EF-19), as the digest's
+ *  `_FOLLOWING_ROUTES` maps them. */
+export const ENTITY_ROUTE_SEGMENTS: Record<FeedVia["entity_type"], string> = {
+  person: "/person",
+  company: "/studio",
+  franchise: "/franchise",
 };
 
 /** The one line that says what the "In the news" / NOT_YET_REPORTED_LABEL split means, once per
