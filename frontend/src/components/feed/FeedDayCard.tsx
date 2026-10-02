@@ -120,17 +120,21 @@ export function FeedEvents({
 /** One event line on a feed row. Carries the D-9 confidence badge and, on a
  *  superseded event, the D-2 "later retracted" marker — linked to the film page, since the
  *  retraction is a different day's card and so never on this row. No first-seen line: the feed
- *  is a publication log (ADR-0016), so its heading already says when this was published. */
-function FeedEvent({
+ *  is a publication log (ADR-0016), so its heading already says when this was published.
+ *  `lead` renders after the pills and before the summary — an entity row's line opens with the
+ *  film it is about (FB-3), which a film row's line never needs. */
+export function FeedEvent({
   event,
   filmRef,
   showBeat,
   showConfidence,
+  lead,
 }: {
   event: FilmEvent;
   filmRef: string;
   showBeat: boolean;
   showConfidence: boolean;
+  lead?: React.ReactNode;
 }) {
   const confidence = confidenceLabel(event.confidence);
   return (
@@ -144,6 +148,7 @@ function FeedEvent({
         {showConfidence && (
           <span className={`mr-1 ${CONFIDENCE_PILL[confidence]} ${PILL}`}>{confidence}</span>
         )}
+        {lead}
         {event.summary}
         {event.summary_edited ? (
           <span className={`ml-1 bg-muted text-muted-foreground ${PILL}`}>edited</span>

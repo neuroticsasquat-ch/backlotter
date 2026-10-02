@@ -16,9 +16,9 @@ const SECTION_BREAK = "[&:not(:first-child)]:mt-6";
  * film; Not yet reported is laid out by update type (NR-1). This is the one place that decides
  * which section is grouped — `groupByUpdateType` and `UpdateTypeGroups` take any rows.
  *
- * Shared by the global feed and the signed-in timeline, which render the same DTO — `/me/timeline`
- * answers with `/feed/grouped`'s exact shape (NEU-1351), so the two differ in what they fetch and
- * in their heading, never in how a day looks.
+ * The global feed's alone. The signed-in timeline renders the same DTO but lays each day out by
+ * follow block, through `TimelineDayGroups` (FB-8); it borrows `SectionWrapper` from here, a
+ * heading level down.
  */
 export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
   const groups = groupByDay(items);
@@ -64,22 +64,25 @@ export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
 /** Wraps a day section: a static heading, then the rows, always expanded. A section with no
  *  items renders nothing — no heading, no "None today" (NEU-1467). The heading carries no movie
  *  count (NR-6): under update types a film can appear more than once, so a count of rows would
- *  no longer be a count of films. */
-function SectionWrapper({
+ *  no longer be a count of films. An h3 under the feed's day, an h4 under the timeline's follow
+ *  block (FB-1). */
+export function SectionWrapper({
   label,
   qualifier,
   empty,
+  headingAs = "h3",
   children,
 }: {
   label: string;
   qualifier?: string;
   empty: boolean;
+  headingAs?: "h3" | "h4";
   children: React.ReactNode;
 }) {
   if (empty) return null;
   return (
     <div className={SECTION_BREAK}>
-      <SectionHeading as="h3" label={label} qualifier={qualifier} />
+      <SectionHeading as={headingAs} label={label} qualifier={qualifier} />
       {children}
     </div>
   );
