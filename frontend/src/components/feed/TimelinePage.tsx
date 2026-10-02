@@ -6,7 +6,8 @@ import type { FeedDayItem, FeedDayResponse } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { groupByDay } from "@/lib/feed-groups";
 import { DAYS_PER_PAGE } from "@/lib/global-feed";
-import { FeedDayGroups, ViewMoreButton } from "@/components/feed/FeedDayGroups";
+import { ViewMoreButton } from "@/components/feed/FeedDayGroups";
+import { TimelineDayGroups } from "@/components/feed/TimelineDayGroups";
 import { SECTION_SPLIT_EXPLAINER } from "@/components/film/labels";
 import { PendingImportNotice } from "@/components/onboarding/PendingImportNotice";
 
@@ -19,8 +20,9 @@ import { PendingImportNotice } from "@/components/onboarding/PendingImportNotice
  * requested on the strength of a hint (D-1468.7). One component for both states is what keeps the
  * skeleton the same element when the account lands, rather than a remount of identical markup.
  *
- * Days render through the same `FeedDayGroups` the global feed uses — the endpoint answers with
- * `/feed/grouped`'s exact shape, so there is nothing here to translate.
+ * The endpoint answers with `/feed/grouped`'s shape plus each row's reach (`via`, FB-12), and
+ * days render through `TimelineDayGroups`, which lays each one out by follow block — the global
+ * feed's `FeedDayGroups` knows nothing of reach (FB-8).
  */
 export function TimelinePage() {
   const { refresh } = useAuth();
@@ -76,7 +78,7 @@ export function TimelinePage() {
         <EmptyTimeline />
       ) : (
         <>
-          <FeedDayGroups items={items} />
+          <TimelineDayGroups items={items} />
           <ViewMoreButton hasMore={hasMore} loading={loading} onClick={loadMore} />
         </>
       )}
