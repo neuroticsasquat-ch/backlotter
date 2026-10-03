@@ -6,6 +6,8 @@ import { WORDMARK } from "@/components/layout/nav-items";
  * Shows the wordmark + copyright and the required TMDB attribution.
  */
 export function GlobalFooter() {
+  // Hoisting this out of render would freeze it at 1970 on Workers, where module-scope Date reads the epoch.
+  // eslint-disable-next-line react/purity -- the copyright year is meant to be read at render time
   const year = new Date().getUTCFullYear();
 
   return (
