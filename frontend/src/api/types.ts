@@ -322,6 +322,24 @@ export interface FeedDayItem {
   // The events on this (film, day), with summaries and sources — matches the EventOut
   // shape from the film detail page.
   events: FilmEvent[];
+  // The followed entity this timeline row reached its reader through (FB-12): null on a
+  // title-reach row and on every global-feed row. Optional as well as nullable on purpose
+  // (FB-9) — a backend older than the field ships none, and a row without it is a title row,
+  // which is what lets this frontend deploy first.
+  via?: FeedVia | null;
+}
+
+/** The followed entity a timeline row reached its reader through (FB-12, ADR-0022). Mirrors the
+ *  backend `FeedVia`. `entity_type` is the follow graph's word (`company` is a studio,
+ *  `franchise` a TMDB collection); `entity_id` is the follow graph's id text, compared as a
+ *  string. `name` and `ref` are null together for an entity the catalog can no longer name, and
+ *  the row still ships (FB-10). */
+export interface FeedVia {
+  entity_type: "person" | "company" | "franchise";
+  entity_id: string;
+  name: string | null;
+  // `<id>-<slug>`, as the entity pages' routes take it, so a link to it never 301s.
+  ref: string | null;
 }
 
 export interface FeedDayResponse {
@@ -628,22 +646,23 @@ export type ImportJobStatus = "queued" | "running" | "awaiting_review" | "succee
 export interface ImportUnmatched {
   name: string;
   year: number | null;
-  kind: "watchlist" | "rating" | "tmdb_missing";
+  // `outside_window` is a title the import declined as too old to follow (NEU-1505): matched,
+  // or certainly matchable, but released more than a year ago, so it was never fetched.
+  kind: "watchlist" | "rating" | "tmdb_missing" | "outside_window";
 }
 
 /** One film on an import's review list (EF-22), as the backend's `ImportCandidateOut` sends it.
  *
- *  `selected` is the tick the list opens with. A row with a `skip_reason` is unticked and not
- *  selectable — the confirm ignores its id — and is listed so the user sees what the import
- *  declined: a film outside the alert window (EF-21). `title` is the catalog's rather than the
- *  export's, so a wrong match is visible before it becomes a follow. */
+ *  `selected` is the tick the list opens with. Every row is followable (NEU-1505): a film outside
+ *  the alert window (EF-21) is declined before it gets here, and reported in `unmatched` as
+ *  `outside_window` instead. `title` is the catalog's rather than the export's, so a wrong match
+ *  is visible before it becomes a follow. */
 export interface ImportCandidate {
   film_id: string;
   tmdb_id: number;
   title: string;
   headline_release: HeadlineRelease | null;
   selected: boolean;
-  skip_reason: "outside_window" | null;
 }
 
 /** One row of `app.import_job`, as `GET /me/import/{id}` answers it. Mirrors the backend

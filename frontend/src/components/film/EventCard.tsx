@@ -23,8 +23,17 @@ const CONFIDENCE_PILL = {
 /** One event on the film page's timeline.
  *  `day` is the "YYYY-MM-DD" heading the card sits under. When the beat's `occurred_at` falls
  *  outside it the card discloses "first seen <date>" (D-9, the ADR-0016 residual) — a backdated
- *  beat otherwise carries no hint of the gap. Omitted, nothing is disclosed. */
-export function EventCard({ event, day }: { event: FilmEvent; day?: string }) {
+ *  beat otherwise carries no hint of the gap. Omitted, nothing is disclosed.
+ *  `showConfidence` is off under Not yet reported, whose heading says "(unconfirmed)" instead. */
+export function EventCard({
+  event,
+  day,
+  showConfidence = true,
+}: {
+  event: FilmEvent;
+  day?: string;
+  showConfidence?: boolean;
+}) {
   const { user } = useAuth();
   const revalidator = useRevalidator();
   const [busy, setBusy] = useState(false);
@@ -66,7 +75,9 @@ export function EventCard({ event, day }: { event: FilmEvent; day?: string }) {
         <span className={`mr-2 bg-muted text-muted-foreground ${PILL}`}>
           {eventTypeLabel(event.event_type)}
         </span>
-        <span className={`mr-2 ${CONFIDENCE_PILL[confidence]} ${PILL}`}>{confidence}</span>
+        {showConfidence && (
+          <span className={`mr-2 ${CONFIDENCE_PILL[confidence]} ${PILL}`}>{confidence}</span>
+        )}
         {displaySummary}
         {isEdited ? (
           <span className={`ml-2 bg-muted text-muted-foreground ${PILL}`}>edited</span>

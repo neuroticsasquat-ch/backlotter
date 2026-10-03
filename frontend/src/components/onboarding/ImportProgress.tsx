@@ -84,6 +84,11 @@ function RunningProgress({ job }: { job: ImportJob }) {
 }
 
 function SucceededReport({ job }: { job: ImportJob }) {
+  // Declined as too old (NEU-1505) is a count, not a list: those films were matched, and there
+  // is nothing for the user to go and find by hand. Everything else keeps its named list.
+  const tooOld = job.unmatched.filter((row) => row.kind === "outside_window").length;
+  const unmatched = job.unmatched.filter((row) => row.kind !== "outside_window");
+
   return (
     <>
       <p className="text-sm font-medium text-foreground">
@@ -96,7 +101,13 @@ function SucceededReport({ job }: { job: ImportJob }) {
       <p className="mt-1 text-sm text-muted-foreground">
         {job.follows_created} {job.follows_created === 1 ? "film" : "films"} followed.
       </p>
-      {job.unmatched.length > 0 && <UnmatchedList unmatched={job.unmatched} source={job.source} />}
+      {tooOld > 0 && (
+        <p className="mt-1 text-sm text-muted-foreground">
+          {tooOld} {tooOld === 1 ? "title was" : "titles were"} released more than a year ago and{" "}
+          {tooOld === 1 ? "was" : "were"} not imported.
+        </p>
+      )}
+      {unmatched.length > 0 && <UnmatchedList unmatched={unmatched} source={job.source} />}
     </>
   );
 }

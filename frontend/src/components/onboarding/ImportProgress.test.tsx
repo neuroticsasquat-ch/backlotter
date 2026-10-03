@@ -22,13 +22,8 @@ function renderReview(job: ImportJob) {
 
 const IN_A = makeCandidate({ film_id: "a", title: "Arrival Two" });
 const IN_B = makeCandidate({ film_id: "b", title: "Before Dawn" });
-const OLD = makeCandidate({
-  film_id: "c",
-  title: "Old Classic",
-  headline_release: { date: "2001-05-01", kind: "released", country: "US", bucket: "wide" },
-  selected: false,
-  skip_reason: "outside_window",
-});
+const OLD = { name: "Old Classic", year: 2001, kind: "outside_window" } as const;
+const NOBODY_HAS = { name: "A Film Nobody Has", year: 2027, kind: "watchlist" } as const;
 
 const reviewJob = (overrides: Partial<ImportJob> = {}) =>
   makeImportJob({
@@ -36,8 +31,8 @@ const reviewJob = (overrides: Partial<ImportJob> = {}) =>
     rows_total: 4,
     rows_done: 4,
     watchlist_created: 2,
-    candidates: [IN_A, OLD, IN_B],
-    unmatched: [{ name: "A Film Nobody Has", year: 1994, kind: "watchlist" }],
+    candidates: [IN_A, IN_B],
+    unmatched: [OLD, NOBODY_HAS],
     ...overrides,
   });
 
@@ -103,6 +98,46 @@ describe("ImportProgress", () => {
     expect(screen.getByText("Untitled Project")).toBeInTheDocument();
   });
 
+  // NEU-1505: a film declined as too old was matched, so there is nothing to go and find by
+  // hand — it is a count beside the list, never a row in it.
+  it("counts the titles declined as too old apart from the ones it could not place", () => {
+    render(
+      <ImportProgress
+        job={makeImportJob({
+          status: "succeeded",
+          unmatched: [
+            { name: "Mank", year: 2020, kind: "outside_window" },
+            { name: "The Killer", year: 2023, kind: "outside_window" },
+            NOBODY_HAS,
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByText("2 titles were released more than a year ago and were not imported."),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/1 title we could not match/i)).toBeInTheDocument();
+    expect(screen.getByText("A Film Nobody Has")).toBeInTheDocument();
+    expect(screen.queryByText("Mank")).not.toBeInTheDocument();
+  });
+
+  it("shows no could-not-match list when every left-out title was too old", () => {
+    render(
+      <ImportProgress
+        job={makeImportJob({
+          status: "succeeded",
+          unmatched: [{ name: "Mank", year: 2020, kind: "outside_window" }],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByText("1 title was released more than a year ago and was not imported."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/could not match/i)).not.toBeInTheDocument();
+  });
+
   // A job fails before it has a list to confirm, and follows nothing until one is (EF-22).
   it("shows a failed job's cause and says nothing was followed", () => {
     render(<ImportProgress job={makeImportJob({ status: "failed", error: "TMDB timed out" })} />);
@@ -133,41 +168,54 @@ describe("ImportProgress", () => {
       expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     });
 
-    it("greys the skipped rows, unticked and untickable, with their reason", () => {
+    // NEU-1505, D-1505.3: an import never lists a film it cannot follow.
+    it("lists only the films it can follow, every one of them tickable", () => {
       renderReview(reviewJob());
 
-      const old = screen.getByRole("checkbox", { name: /old classic/i });
-      expect(old).not.toBeChecked();
-      expect(old).toBeDisabled();
-      // The date stays beside the reason: it is what shows a wrong match.
+      const boxes = screen.getAllByRole("checkbox");
+      expect(boxes).toHaveLength(2);
+      boxes.forEach((box) => expect(box).toBeEnabled());
+      expect(screen.queryByText("Old Classic")).not.toBeInTheDocument();
+      expect(screen.queryByText("A Film Nobody Has")).not.toBeInTheDocument();
       expect(
-        screen.getByText("Opened May 1, 2001 · Wide · US · Already released more than a year ago"),
+        screen.getByText(/upcoming and recently released films from your watchlist/i),
       ).toBeInTheDocument();
-
-      const unmatched = screen.getByRole("checkbox", { name: /a film nobody has/i });
-      expect(unmatched).not.toBeChecked();
-      expect(unmatched).toBeDisabled();
-      expect(screen.getByText("Not found on TMDB")).toBeInTheDocument();
+      expect(screen.getByText(/nothing is followed until you confirm/i)).toBeInTheDocument();
     });
 
-    it("counts the ticked rows against every row listed", async () => {
+    it("says in one line what it left out", () => {
       renderReview(reviewJob());
 
-      expect(screen.getByText("2 of 4 selected")).toBeInTheDocument();
-      await userEvent.click(screen.getByRole("checkbox", { name: /arrival two/i }));
-      expect(screen.getByText("1 of 4 selected")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "We left out 1 title released more than a year ago and 1 we could not match.",
+        ),
+      ).toBeInTheDocument();
     });
 
-    it("selects none and all — of the selectable rows only", async () => {
+    it("says nothing about leaving out when nothing was", () => {
+      renderReview(reviewJob({ unmatched: [] }));
+
+      expect(screen.queryByText(/we left out/i)).not.toBeInTheDocument();
+    });
+
+    it("counts the ticked rows against the candidates only", async () => {
+      renderReview(reviewJob());
+
+      expect(screen.getByText("2 of 2 selected")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("checkbox", { name: /arrival two/i }));
+      expect(screen.getByText("1 of 2 selected")).toBeInTheDocument();
+    });
+
+    it("selects none and all", async () => {
       renderReview(reviewJob());
 
       await userEvent.click(screen.getByRole("button", { name: /select none/i }));
-      expect(screen.getByText("0 of 4 selected")).toBeInTheDocument();
+      expect(screen.getByText("0 of 2 selected")).toBeInTheDocument();
       expect(screen.getByRole("checkbox", { name: /arrival two/i })).not.toBeChecked();
 
       await userEvent.click(screen.getByRole("button", { name: /select all/i }));
-      expect(screen.getByText("2 of 4 selected")).toBeInTheDocument();
-      expect(screen.getByRole("checkbox", { name: /old classic/i })).not.toBeChecked();
+      expect(screen.getByText("2 of 2 selected")).toBeInTheDocument();
     });
 
     // Moving on to the report is the poll cache's job, so `Welcome.test.tsx` covers it.
