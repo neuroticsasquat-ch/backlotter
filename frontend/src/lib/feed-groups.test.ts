@@ -4,12 +4,15 @@ import {
   ENTITY_UPDATE_TYPES,
   MAX_DAY_POSTERS,
   dayPosterLeads,
+  filmsInReadingOrder,
   groupByDay,
   groupByEntity,
   groupByFollowBlock,
   UPDATE_TYPES,
   groupByUpdateType,
   groupEventsByDay,
+  layoutFeedDay,
+  layoutTimelineDay,
   rowKey,
   splitByNewsBacked,
 } from "@/lib/feed-groups";
@@ -168,79 +171,6 @@ describe("groupEventsByDay", () => {
     const groups = groupEventsByDay([event("2026-06-23T23:30:00Z", "late evening UTC")]);
     expect(groups[0].dayKey).toBe("2026-06-23");
     expect(groups[0].heading).toContain("June 23, 2026");
-  });
-});
-
-describe("dayPosterLeads", () => {
-  /** Local helper: unlike the shared `item`, these default to *having* a poster. */
-  function poster(film_ref: string, overrides: Partial<FeedDayItem> = {}): FeedDayItem {
-    return item("2026-06-23", film_ref, { poster_path: `/${film_ref}.jpg`, ...overrides });
-  }
-
-  it("puts news-backed films ahead of TMDB-only ones, alphabetically within each kind", () => {
-    // Backend order within a day is by popularity, so the two kinds arrive interleaved.
-    const leads = dayPosterLeads([
-      poster("primetime"),
-      poster("animals", { news_backed: true }),
-      poster("dorothy"),
-      poster("charlie", { news_backed: true }),
-    ]);
-    // News-backed first, alphabetically: animals then charlie. Then TMDB-only: dorothy then primetime.
-    expect(leads.map((i) => i.film_ref)).toEqual(["animals", "charlie", "dorothy", "primetime"]);
-  });
-
-  it("partitions alphabetically within each kind", () => {
-    const leads = dayPosterLeads([
-      poster("less-popular", { news_backed: true }),
-      poster("popular", { news_backed: true }),
-    ]);
-    // Alphabetical: less-popular before popular
-    expect(leads.map((i) => i.film_ref)).toEqual(["less-popular", "popular"]);
-  });
-
-  it("drops films with no poster rather than holding a blank slot", () => {
-    const leads = dayPosterLeads([
-      poster("no-poster", { news_backed: true, poster_path: null }),
-      poster("has-poster"),
-    ]);
-    expect(leads.map((i) => i.film_ref)).toEqual(["has-poster"]);
-  });
-
-  it("caps the strip so a backfill day does not load dozens of images", () => {
-    const many = Array.from({ length: 40 }, (_, i) => poster(`film-${i}`));
-    expect(dayPosterLeads(many)).toHaveLength(MAX_DAY_POSTERS);
-  });
-
-  it("returns nothing for a day whose films all lack posters", () => {
-    expect(dayPosterLeads([poster("x", { poster_path: null })])).toEqual([]);
-  });
-
-  it("deduplicates same film appearing in both news and TMDB sections", () => {
-    const leads = dayPosterLeads([poster("batman", { news_backed: true }), poster("batman")]);
-    expect(leads).toHaveLength(1);
-    expect(leads[0].film_ref).toBe("batman");
-    expect(leads[0].news_backed).toBe(true);
-  });
-
-  it("keeps first (news-backed) copy of a film in both sections", () => {
-    const leads = dayPosterLeads([
-      poster("batman", { news_backed: true }),
-      poster("batman"),
-      poster("superman", { news_backed: true }),
-      poster("superman"),
-    ]);
-    expect(leads.map((i) => i.film_ref)).toEqual(["batman", "superman"]);
-    expect(leads.every((i) => i.news_backed)).toBe(true);
-  });
-
-  it("does not affect distinct films", () => {
-    const leads = dayPosterLeads([poster("a"), poster("b"), poster("c")]);
-    expect(leads.map((i) => i.film_ref)).toEqual(["a", "b", "c"]);
-  });
-
-  it("caps after dedup", () => {
-    const items = Array.from({ length: 20 }, (_, i) => poster(`film-${i % 8}`));
-    expect(dayPosterLeads(items)).toHaveLength(8);
   });
 });
 
@@ -751,5 +681,134 @@ describe("rowKey", () => {
     expect(rowKey(item("2026-06-23", "dune"))).toBe("title:dune");
     expect(rowKey(reached("dune", via("person", "137427")))).toBe("person:137427:dune");
     expect(rowKey(reached("dune", via("company", "923")))).toBe("company:923:dune");
+  });
+});
+
+describe("layoutFeedDay", () => {
+  it("lays every row out in one Films block, In the news before Not yet reported", () => {
+    const day = layoutFeedDay([
+      item("2026-06-23", "tmdb"),
+      item("2026-06-23", "reported", { news_backed: true }),
+    ]);
+    expect(day.blocks.map((block) => [block.key, block.label])).toEqual([["films", "Films"]]);
+    const [news, notYetReported] = day.blocks[0].sections;
+    expect(news).toEqual({ section: "news", kind: "films", rows: [expect.anything()] });
+    expect(news.section === "news" && news.rows[0].film_ref).toBe("reported");
+    expect(notYetReported.section).toBe("not_yet_reported");
+  });
+
+  it("ignores `via`: the feed has no follows, so no row sprouts an entity block", () => {
+    const day = layoutFeedDay([reached("dune", via("person", "1")), reached("rama", null)]);
+    expect(day.blocks.map((block) => block.key)).toEqual(["films"]);
+    expect(filmsInReadingOrder(day).map((i) => i.film_ref)).toEqual(["dune", "rama"]);
+  });
+
+  it("holds no empty section, and no block for no rows", () => {
+    const day = layoutFeedDay([item("2026-06-23", "tmdb")]);
+    expect(day.blocks[0].sections.map((section) => section.section)).toEqual(["not_yet_reported"]);
+    expect(layoutFeedDay([])).toEqual({ blocks: [] });
+  });
+});
+
+describe("layoutTimelineDay", () => {
+  it("lays rows out by follow block, entity blocks merged per entity", () => {
+    const studio = via("company", "923");
+    const day = layoutTimelineDay([
+      reached("rama", studio, [typedEvent("r1", "company_attached")]),
+      reached("dune", null),
+      reached("arrival", studio, [typedEvent("a1", "company_attached")], { news_backed: true }),
+    ]);
+    expect(day.blocks.map((block) => block.key)).toEqual(["films", "studios"]);
+    const [news, notYetReported] = day.blocks[1].sections;
+    expect(news).toMatchObject({ section: "news", kind: "entities" });
+    expect(notYetReported).toMatchObject({
+      section: "not_yet_reported",
+      kind: "entities",
+      groups: [{ key: "attached", label: "Attached", rows: [{ key: "company:923" }] }],
+    });
+  });
+
+  it("leaves out an entity block whose rows carry no lines", () => {
+    // A no-events fallback row has nothing for `groupByEntity` to draw.
+    const day = layoutTimelineDay([reached("rama", via("person", "1"), [])]);
+    expect(day).toEqual({ blocks: [] });
+  });
+});
+
+describe("filmsInReadingOrder", () => {
+  const refs = (items: FeedDayItem[]) => items.map((i) => i.film_ref);
+
+  it("reads Not yet reported update type by update type, not by title", () => {
+    const day = layoutFeedDay([
+      reached("aardvark", null, [typedEvent("a", "casting")]),
+      reached("zebra", null, [typedEvent("z", "release_date")]),
+    ]);
+    expect(refs(filmsInReadingOrder(day))).toEqual(["zebra", "aardvark"]);
+  });
+
+  it("lists a film once per appearance: under two update types, twice", () => {
+    const day = layoutFeedDay([
+      reached("heat", null, [typedEvent("h1", "release_date"), typedEvent("h2", "casting")]),
+    ]);
+    expect(refs(filmsInReadingOrder(day))).toEqual(["heat", "heat"]);
+  });
+
+  it("reads the Films block before a People block's In the news", () => {
+    const day = layoutTimelineDay([
+      reached("news", via("person", "1"), undefined, { news_backed: true }),
+      reached("catalog", null),
+    ]);
+    expect(refs(filmsInReadingOrder(day))).toEqual(["catalog", "news"]);
+  });
+
+  it("reads an entity row line by line, in film-title order", () => {
+    const person = via("person", "1");
+    const day = layoutTimelineDay([reached("yankee", person), reached("bravo", person)]);
+    expect(refs(filmsInReadingOrder(day))).toEqual(["bravo", "yankee"]);
+  });
+});
+
+describe("dayPosterLeads", () => {
+  /** A title row with a poster; unlike the shared `item`, these default to *having* one. */
+  function poster(film_ref: string, overrides: Partial<FeedDayItem> = {}): FeedDayItem {
+    return reached(film_ref, null, undefined, { poster_path: `/${film_ref}.jpg`, ...overrides });
+  }
+  const leads = (day: Parameters<typeof dayPosterLeads>[0], limit?: number) =>
+    dayPosterLeads(day, limit).map((i) => i.film_ref);
+
+  it("puts each film at its first appearance in reading order", () => {
+    const day = layoutTimelineDay([
+      poster("news", { via: via("person", "1"), news_backed: true }),
+      poster("dune"),
+      poster("dune", { via: via("person", "1") }),
+    ]);
+    expect(leads(day)).toEqual(["dune", "news"]);
+  });
+
+  it("leads with In the news on the feed, because that section comes first", () => {
+    const day = layoutFeedDay([poster("primetime"), poster("animals", { news_backed: true })]);
+    expect(leads(day)).toEqual(["animals", "primetime"]);
+  });
+
+  it("skips films with no poster rather than holding a blank slot", () => {
+    const day = layoutFeedDay([poster("a-no-art", { poster_path: null }), poster("b-art")]);
+    expect(leads(day)).toEqual(["b-art"]);
+  });
+
+  it("caps the strip, after de-duplicating, so a backfill day does not load dozens of images", () => {
+    const many = Array.from({ length: 20 }, (_, i) =>
+      poster(`film-${i}`, {
+        // Two update types each: every film is met twice.
+        events: [typedEvent(`${i}-d`, "release_date"), typedEvent(`${i}-c`, "casting")],
+        event_types: ["release_date", "casting"],
+      }),
+    );
+    expect(leads(layoutFeedDay(many))).toHaveLength(MAX_DAY_POSTERS);
+    expect(new Set(leads(layoutFeedDay(many))).size).toBe(MAX_DAY_POSTERS);
+    expect(leads(layoutFeedDay(many), 3)).toEqual(["film-0", "film-1", "film-10"]);
+  });
+
+  it("returns nothing for a day whose films all lack posters", () => {
+    expect(leads(layoutFeedDay([poster("x", { poster_path: null })]))).toEqual([]);
   });
 });

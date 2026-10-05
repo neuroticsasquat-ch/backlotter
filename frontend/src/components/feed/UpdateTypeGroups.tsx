@@ -5,25 +5,25 @@ import { JustWatchAttribution } from "@/components/film/JustWatchAttribution";
 
 /**
  * A day section laid out by update type: a heading per update type, then its rows (NR-3, NR-4).
- * Takes the grouped headings rather than a section, so it renders whatever `groupByUpdateType`
- * was handed — today only Not yet reported (NR-7), under whichever map the caller chose (FB-4).
+ * Takes the grouped headings of a day layout's Not yet reported section (NR-7), under whichever
+ * map laid it out (FB-4).
  *
  * The heading is an h4 on the feed, whose sections are h3s, and an h5 on the timeline, where a
  * follow block sits between the day and the section (FB-1). What sits under each heading is the
- * caller's `renderGroup`: by default, film rows (`FilmUpdateTypeRows`) — the feed's layout and
- * the timeline's Films block; an entity block passes its own. Each heading opens a new list, so
+ * caller's `renderGroup`: film rows (`FilmUpdateTypeRows`) for the feed and the timeline's Films
+ * block, entity rows for an entity block. Each heading opens a new list, so
  * the zebra stripe restarts under it. Groups sit well apart, so a heading reads as the start of
  * its block rather than the tail of the one above; the first (the section's first `div`, after
  * its section heading) keeps a small gap under that heading.
  */
-export function UpdateTypeGroups<K extends string>({
+export function UpdateTypeGroups<G extends { key: string; label: string }>({
   groups,
   headingAs: Heading = "h4",
-  renderGroup = FilmUpdateTypeRows,
+  renderGroup,
 }: {
-  groups: UpdateTypeGroup<K>[];
+  groups: G[];
   headingAs?: "h4" | "h5";
-  renderGroup?: (group: UpdateTypeGroup<K>) => React.ReactNode;
+  renderGroup: (group: G) => React.ReactNode;
 }) {
   return groups.map((group) => (
     <div key={group.key} className="mt-6 first-of-type:mt-3">
@@ -43,7 +43,7 @@ export function UpdateTypeGroups<K extends string>({
  * JustWatch credit appears once, beneath the Now available block, the only heading whose bodies
  * name providers (NR-8) — and only here, so it never fires under an entity block.
  */
-function FilmUpdateTypeRows<K extends string>(group: UpdateTypeGroup<K>) {
+export function FilmUpdateTypeRows<K extends string>(group: UpdateTypeGroup<K>) {
   return (
     <>
       {group.rows.map(({ item, events }) => (
