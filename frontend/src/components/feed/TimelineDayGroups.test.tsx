@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { dayItem } from "@/test/feed-fixtures";
 import type { FeedDayItem, FeedVia, FilmEvent } from "@/api/types";
 import { TimelineDayGroups } from "@/components/feed/TimelineDayGroups";
+import { MAX_DAY_POSTERS } from "@/lib/feed-groups";
+import { dayFilmLinks, stripFromBody } from "@/test/poster-strip";
 
 /** Renders the timeline's day body on its own, inside a router for its links. The page around
  *  it — empty state, lapsed panel, paging — is `TimelinePage`'s and is covered through the home
@@ -175,6 +177,69 @@ describe("timeline day by follow block", () => {
     expect(screen.getAllByRole("img", { name: "Dune Part Three poster" })).toHaveLength(1);
     // An entity-only film still has its poster in the strip (FB-7).
     expect(screen.getByRole("img", { name: "Rendezvous with Rama poster" })).toBeInTheDocument();
+  });
+});
+
+describe("timeline poster strip (NEU-1533)", () => {
+  const poster = (film_ref: string) => ({ poster_path: `/${film_ref}.jpg` });
+
+  it("orders the strip as the day reads, block by block, and the body agrees", () => {
+    renderDays([
+      // Films, Not yet reported: Release date, then Production status, then Cast — not by title.
+      row("alpha", "Alpha", null, [evt("al-cast", "casting", "A joins.")], poster("alpha")),
+      // Under Release date and Cast: one poster, at Release date.
+      row(
+        "zeta",
+        "Zeta",
+        null,
+        [evt("ze-date", "release_date", "Z moved."), evt("ze-cast", "casting", "Z joins.")],
+        poster("zeta"),
+      ),
+      row("dune-3", "Dune Part Three", null, [cancel], poster("dune-3")),
+      // People, In the news: after every Films row, though it is news-backed.
+      row("beta", "Beta", villeneuve, [evt("be-cast", "casting", "B joins.")], {
+        ...poster("beta"),
+        news_backed: true,
+      }),
+      // Reached by title too: one poster, at its Films position.
+      row("dune-3", "Dune Part Three", villeneuve, [cancel], poster("dune-3")),
+      // Studios: one entity row, two lines, in film-title order.
+      row(
+        "yankee",
+        "Yankee",
+        legendary,
+        [evt("ya-co", "company_attached", "Y.")],
+        poster("yankee"),
+      ),
+      row("bravo", "Bravo", legendary, [evt("br-co", "company_attached", "B.")], poster("bravo")),
+      row("no-art", "No Art", legendary, [evt("na-co", "company_attached", "N.")]),
+    ]);
+    const day = screen.getByText(/June 23, 2026/).closest("section")!;
+
+    const { strip, body } = dayFilmLinks(day);
+    expect(strip).toEqual([
+      "/film/zeta",
+      "/film/dune-3",
+      "/film/alpha",
+      "/film/beta",
+      "/film/bravo",
+      "/film/yankee",
+    ]);
+    expect(strip).toEqual(stripFromBody(body, ["/film/no-art"], MAX_DAY_POSTERS));
+  });
+
+  it("gives an entity-only day its strip (FB-7)", () => {
+    renderDays([
+      row(
+        "rama",
+        "Rendezvous with Rama",
+        duneSaga,
+        [evt("ra-co", "collection_attached", "R.")],
+        poster("rama"),
+      ),
+    ]);
+    const day = screen.getByText(/June 23, 2026/).closest("section")!;
+    expect(dayFilmLinks(day).strip).toEqual(["/film/rama"]);
   });
 });
 

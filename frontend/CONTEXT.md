@@ -81,6 +81,18 @@ _Avoid_: category, event type (that is the beat's own classification, one level 
 (a beat is one development; an update type is a heading over many), section (that is the
 provenance split, In the news / Not yet reported, one level coarser), subgroup.
 
+**Poster strip**:
+The row of posters under a day heading on the grouped feed and the timeline, and over a day
+(or the week) of the digest: one poster per film that has one, at most eight, each linking to
+its film. Its order is the day's **reading order**: a film's poster sits where the film first
+appears when the day is read top to bottom, follow block by follow block, In the news before
+Not yet reported, update type by update type, row by row, and line by line within an entity
+row. A film that appears twice has one poster, at its first appearance. The strip has no order
+of its own: whatever rearranges the rows rearranges the strip.
+_Avoid_: lead posters, day leads (the code's old name for a rule the strip no longer has),
+news-first (true on the grouped feed only as a consequence of section order, and not on the
+timeline), thumbnail row, carousel (it clips; it does not scroll).
+
 ### The timeline
 
 **Follow block**:
