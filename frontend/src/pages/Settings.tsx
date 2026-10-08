@@ -449,8 +449,8 @@ function CalendarSection() {
         Calendar
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Subscribe your calendar to the release dates of the films you follow — in theaters, digital
-        and disc, each as an all-day event that moves when the date does.
+        Subscribe your calendar to the release dates of the films you follow — in theaters and at
+        home, each as an all-day event that moves when the date does.
       </p>
 
       {isLoading && <p className="mt-3 text-sm text-muted-foreground">Loading…</p>}

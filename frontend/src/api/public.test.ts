@@ -164,7 +164,7 @@ const sampleCalendar: CalendarResponse = {
 };
 
 describe("getCalendar", () => {
-  it("returns the typed response on 200 and sends default limit=100 and offset=0", async () => {
+  it("returns the typed response on 200 and sends the kind, default limit=100 and offset=0", async () => {
     let captured: URL | undefined;
     server.use(
       http.get(`${BACKEND}/calendar`, ({ request }) => {
@@ -172,10 +172,11 @@ describe("getCalendar", () => {
         return HttpResponse.json(sampleCalendar);
       }),
     );
-    const calendar = await getCalendar(BACKEND);
+    const calendar = await getCalendar(BACKEND, { kind: "theatrical" });
     expect(calendar.total).toBe(1);
     expect(calendar.items[0].film_ref).toBe("the-odyssey-2026");
     expect(calendar.items[0].release_type).toBe("wide");
+    expect(captured?.searchParams.get("kind")).toBe("theatrical");
     expect(captured?.searchParams.get("limit")).toBe("100");
     expect(captured?.searchParams.get("offset")).toBe("0");
   });
@@ -188,7 +189,8 @@ describe("getCalendar", () => {
         return HttpResponse.json({ ...sampleCalendar, limit: 50, offset: 10 });
       }),
     );
-    const calendar = await getCalendar(BACKEND, { limit: 50, offset: 10 });
+    const calendar = await getCalendar(BACKEND, { kind: "home", limit: 50, offset: 10 });
+    expect(captured?.searchParams.get("kind")).toBe("home");
     expect(calendar.limit).toBe(50);
     expect(calendar.offset).toBe(10);
     expect(captured?.searchParams.get("limit")).toBe("50");
@@ -197,7 +199,7 @@ describe("getCalendar", () => {
 
   it("throws on a 500", async () => {
     server.use(http.get(`${BACKEND}/calendar`, () => new HttpResponse(null, { status: 500 })));
-    await expect(getCalendar(BACKEND)).rejects.toThrow(/failed: 5\d\d/);
+    await expect(getCalendar(BACKEND, { kind: "theatrical" })).rejects.toThrow(/failed: 5\d\d/);
   });
 });
 
@@ -340,7 +342,7 @@ describe("SSR signing headers", () => {
 
   it("forwards them on getCalendar", async () => {
     const headers = captureHeaders("/calendar", sampleCalendar);
-    await getCalendar(BACKEND, { headers: signed });
+    await getCalendar(BACKEND, { kind: "theatrical", headers: signed });
     expect(headers()?.get("X-Backlotter-Origin")).toBe("s3cret");
     expect(headers()?.get("X-Backlotter-Client-IP")).toBe("203.0.113.7");
   });
@@ -388,7 +390,7 @@ describe("a relative base URL, as the dev proxy hands it to the browser", () => 
 
   it.each([
     ["the feed", () => getFeedGrouped("/api"), "/api/feed/grouped"],
-    ["the calendar", () => getCalendar("/api"), "/api/calendar"],
+    ["the calendar", () => getCalendar("/api", { kind: "theatrical" }), "/api/calendar"],
     ["people search", () => getPeopleSearch("/api", "nolan"), "/api/people/search"],
     ["company search", () => getCompaniesSearch("/api", "a24"), "/api/companies/search"],
     ["collection search", () => getCollectionsSearch("/api", "star"), "/api/collections/search"],
@@ -428,7 +430,7 @@ describe("a relative base URL, as the dev proxy hands it to the browser", () => 
       }),
     );
 
-    await getCalendar("/api/");
+    await getCalendar("/api/", { kind: "theatrical" });
 
     expect(new URL(seen ?? "").pathname).toBe("/api/calendar");
   });
@@ -442,7 +444,7 @@ describe("a relative base URL, as the dev proxy hands it to the browser", () => 
       }),
     );
 
-    await getCalendar("/");
+    await getCalendar("/", { kind: "theatrical" });
 
     expect(new URL(seen ?? "").pathname).toBe("/calendar");
   });
@@ -465,7 +467,7 @@ describe("a relative base URL, as the dev proxy hands it to the browser", () => 
       }),
     );
 
-    await getCalendar("https://gateway.example/api");
+    await getCalendar("https://gateway.example/api", { kind: "theatrical" });
 
     expect(new URL(seen ?? "").pathname).toBe("/api/calendar");
   });

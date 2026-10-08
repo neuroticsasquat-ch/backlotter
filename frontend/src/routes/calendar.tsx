@@ -8,12 +8,13 @@ import { buildMeta } from "@/lib/seo";
 import { DATES_PER_PAGE } from "@/lib/calendar";
 import { CalendarView } from "@/components/calendar/CalendarView";
 
-/** The all-releases calendar, server-rendered for everyone. It stays anonymous and cacheable
- *  whoever is looking (D-12): the reader's own calendar is a client-side fetch inside
- *  `CalendarView`, after the account lands. */
+/** The all-releases calendar, In theaters, server-rendered for everyone. It stays anonymous and
+ *  cacheable whoever is looking (D-12): the reader's own calendar, and the At home kind, are
+ *  client-side fetches inside `CalendarView` (D-1542.3). */
 export async function loader({ request, context }: Route.LoaderArgs) {
   const { env } = context.get(cloudflareContext);
   const calendar = await getCalendar(env.API_BASE_URL, {
+    kind: "theatrical",
     limit: DATES_PER_PAGE,
     headers: ssrOriginHeaders(env, request),
   });
@@ -24,7 +25,7 @@ export function meta({ location }: Route.MetaArgs): Route.MetaDescriptors {
   return buildMeta({
     title: "Release Calendar",
     description:
-      "Upcoming movie releases by date — limited and wide theatrical openings plus US digital and physical home releases for every film we track.",
+      "Upcoming movie releases by date — limited and wide theatrical openings and US digital home releases for every film we track.",
     pathname: location.pathname,
     type: "website",
   });

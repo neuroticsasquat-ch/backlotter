@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import { toast } from "sonner";
 import { useAuth } from "@/components/AuthContext";
 import type { FollowTarget } from "@/lib/film-entities";
+import type { CalendarKind } from "@/lib/calendar";
 import { ApiError, apiFetch } from "./client";
 import {
   followsKey,
@@ -100,8 +101,15 @@ export function useTimeline({ limit, offset }: { limit: number; offset: number }
 /** One page of the reader's **My films** release calendar (NEU-1411, EF-14): `GET /calendar`'s
  *  exact shape, narrowed to the films they follow. `limit`/`offset` count distinct release
  *  dates rather than film rows, as the public route's do, so a page is a span of dates. */
-export const fetchMyFilmsCalendar = ({ limit, offset }: { limit: number; offset: number }) =>
-  apiFetch<CalendarResponse>(`/me/calendar?limit=${limit}&offset=${offset}`);
+export const fetchMyFilmsCalendar = ({
+  kind,
+  limit,
+  offset,
+}: {
+  kind: CalendarKind;
+  limit: number;
+  offset: number;
+}) => apiFetch<CalendarResponse>(`/me/calendar?kind=${kind}&limit=${limit}&offset=${offset}`);
 
 /** The **My films** tab of `/calendar`, mounted once the account resolves as entitled.
  *
@@ -109,11 +117,19 @@ export const fetchMyFilmsCalendar = ({ limit, offset }: { limit: number; offset:
  *  follows it, comes back, and the calendar they return to has to show it. The follow
  *  mutations invalidate `followsKey`, a prefix of this key, which covers the case where they
  *  never leave the page. */
-export function useMyFilmsCalendar({ limit, offset }: { limit: number; offset: number }) {
+export function useMyFilmsCalendar({
+  kind,
+  limit,
+  offset,
+}: {
+  kind: CalendarKind;
+  limit: number;
+  offset: number;
+}) {
   const enabled = useFollowGraphEnabled();
   return useQuery({
-    queryKey: myFilmsCalendarPageKey(limit, offset),
-    queryFn: () => fetchMyFilmsCalendar({ limit, offset }),
+    queryKey: myFilmsCalendarPageKey(kind, limit, offset),
+    queryFn: () => fetchMyFilmsCalendar({ kind, limit, offset }),
     enabled,
     staleTime: 60_000,
     refetchOnMount: "always",

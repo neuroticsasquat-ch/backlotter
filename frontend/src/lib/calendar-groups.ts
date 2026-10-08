@@ -3,7 +3,7 @@ import { formatDayHeading } from "@/lib/format";
 import { releaseBucketLabel } from "@/components/calendar/release-labels";
 
 export interface CalendarBucketGroup {
-  bucket: string; // "premiere" | "limited" | "wide"
+  bucket: string; // "limited" | "wide" | "digital"
   label: string; // releaseBucketLabel(bucket)
   films: CalendarItem[];
 }

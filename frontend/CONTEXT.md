@@ -22,6 +22,8 @@ director, a studio or a franchise puts nothing on it: an entity follow delivers 
 attachments and detachments, not its films. The backend glossary defines the set and the date
 rule; on the web it is the first tab an entitled reader lands on, and it never exists for
 anyone else. Its subscribed form is the **iCal feed**, which holds the same films and dates.
+It has both **calendar kinds**, and the iCal feed is their union: one subscription, theatrical
+and digital dates together (D-1542.4).
 _Avoid_: watchlist calendar (the old name, retired with the watchlist), my calendar (the nav
 item is "Calendar"; the tab is "My films"), follow calendar, personal calendar, subscription
 calendar (that is the iCal feed).
@@ -30,9 +32,21 @@ calendar (that is the iCal feed).
 One of the two views an **entitled** reader can switch between under the Calendar heading:
 "My films" and "All releases". A reader without a grant has no tabs at all: not a locked
 tab, not a disabled one, just the all-releases calendar. The tab is a view on the page, not a
-place; it is never a URL.
+place; it is never a URL. The **calendar kind** cuts across it: switching tab keeps the kind.
 _Avoid_: mode, filter (the my-films calendar is a different set, not the same set filtered
 on the client), locked tab.
+
+**Calendar kind**:
+Which of the two calendars the page is showing: **In theaters** (the US theatrical arc, wide
+and limited) or **At home** (the US digital date). One segmented control under the heading,
+for every reader — anonymous ones included — and below the tab strip for an entitled one. It
+is shared across the tabs, so My films and All releases each have both kinds. A view on the
+page, not a place (never a URL), and not a preference (never remembered): the page opens on In
+theaters, which is what the server renders. The At home kind holds the announced digital date
+and nothing observed; a `now_available` observation is a feed card, never a calendar entry. It
+renders without the bucket heading, since it has one bucket (NEU-1542).
+_Avoid_: filter, mode, category, "rent/buy/stream view" (the ticket's phrase; the view holds one
+announced date, not three observations), "digital tab" (it is not a tab).
 
 ### The feed and the film page
 
@@ -92,6 +106,14 @@ of its own: whatever rearranges the rows rearranges the strip.
 _Avoid_: lead posters, day leads (the code's old name for a rule the strip no longer has),
 news-first (true on the grouped feed only as a consequence of section order, and not on the
 timeline), thumbnail row, carousel (it clips; it does not scroll).
+
+**Where to watch** (retired):
+D-29's film-page box of current US carriers, removed by NEU-1542 (backend ADR-0023) because it
+promised an accuracy across time the site does not provide. The phrase survives only as the
+**Where to watch (TMDB)** chip beside IMDb and TMDB, which links out to TMDB's watch page once
+the film has a US date behind it. `now_available` cards keep their JustWatch credit.
+_Avoid_: providers box, availability box, describing anything on the site as "where to watch"
+data.
 
 ### The timeline
 

@@ -8,13 +8,13 @@ import { buildMeta } from "@/lib/seo";
 import { posterUrl } from "@/lib/poster";
 import { filmCompanies } from "@/lib/film-entities";
 import { truncate } from "@/lib/format";
+import { isWatchable, todayUtc } from "@/lib/film-release";
 import { FilmHeader } from "@/components/film/FilmHeader";
 import { FilmCredits } from "@/components/film/FilmCredits";
 import { FilmCrew } from "@/components/film/FilmCrew";
 import { FilmPlot } from "@/components/film/FilmPlot";
 import { ProductionCompanies } from "@/components/film/ProductionCompanies";
 import { ReleaseDates } from "@/components/film/ReleaseDates";
-import { WhereToWatch } from "@/components/film/WhereToWatch";
 import { EventTimeline } from "@/components/film/EventTimeline";
 import type { FilmEvent } from "@/api/types";
 
@@ -38,7 +38,10 @@ export async function loader({ params, request, context }: Route.LoaderArgs) {
     url.pathname = `/film/${film.ref}`;
     throw redirect(url.toString(), 301);
   }
-  return { film };
+  // Decided here rather than in render so the server and the hydrating client agree: "today"
+  // is read once, on the side that rendered the document (D-1542.8).
+  const watchable = isWatchable(film.release_dates, todayUtc());
+  return { film, watchable };
 }
 
 export function meta({ loaderData, location }: Route.MetaArgs): Route.MetaDescriptors {
@@ -69,13 +72,12 @@ export function meta({ loaderData, location }: Route.MetaArgs): Route.MetaDescri
 }
 
 export default function FilmPage({ loaderData }: Route.ComponentProps) {
-  const { film } = loaderData;
+  const { film, watchable } = loaderData;
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
-      <FilmHeader film={film} />
+      <FilmHeader film={film} watchable={watchable} />
       <div className="mt-6">
         <ReleaseDates dates={film.release_dates} />
-        <WhereToWatch box={film.where_to_watch} />
         <FilmPlot overview={film.overview} />
         <FilmCredits cast={film.cast} />
         <FilmCrew crew={film.crew} />

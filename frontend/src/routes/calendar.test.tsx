@@ -58,10 +58,9 @@ const calendarTwoDates: CalendarResponse = {
   offset: 0,
 };
 
-/** One date carrying all four buckets, in the order the backend returns them: wide, limited,
- *  then the US home release (D-26). The page groups by adjacency, so the fixture's order is the
- *  rendered order. */
-const calendarWithHomeRelease: CalendarResponse = {
+/** One date carrying both theatrical buckets, in the order the backend returns them: wide, then
+ *  limited. The page groups by adjacency, so the fixture's order is the rendered order. */
+const calendarWideAndLimited: CalendarResponse = {
   items: [
     {
       film_ref: "the-odyssey-2026",
@@ -80,18 +79,7 @@ const calendarWithHomeRelease: CalendarResponse = {
       release_year: 2026,
       poster_path: null,
       release_date: "2026-07-04",
-      release_type: "digital",
-      director: null,
-      stars: [],
-      genres: [],
-    },
-    {
-      film_ref: "avatar-3-2026",
-      film_title: "Avatar 3",
-      release_year: 2025,
-      poster_path: null,
-      release_date: "2026-07-04",
-      release_type: "physical",
+      release_type: "limited",
       director: null,
       stars: [],
       genres: [],
@@ -146,9 +134,17 @@ describe("calendar route loader", () => {
     expect(captured?.get("X-Backlotter-Client-IP")).toBeNull();
   });
 
-  it("fetches the calendar from the backend", async () => {
-    server.use(http.get(`${BACKEND}/calendar`, () => HttpResponse.json(calendarTwoDates)));
+  it("fetches the In theaters calendar from the backend", async () => {
+    let captured: URL | undefined;
+    server.use(
+      http.get(`${BACKEND}/calendar`, ({ request }) => {
+        captured = new URL(request.url);
+        return HttpResponse.json(calendarTwoDates);
+      }),
+    );
     const data = await callLoader();
+    // The document is the theatrical calendar; At home is a browser fetch (D-1542.3).
+    expect(captured?.searchParams.get("kind")).toBe("theatrical");
     expect(data.calendar.total).toBe(2);
     expect(data.calendar.items[0].film_ref).toBe("the-odyssey-2026");
   });
@@ -160,7 +156,9 @@ describe("calendar route meta", () => {
       location: { pathname: "/calendar" },
     } as unknown as Parameters<typeof meta>[0]);
     expect(tags.some((t) => "title" in t && /Release Calendar/.test(String(t.title)))).toBe(true);
-    expect(tags.some((t) => "name" in t && t.name === "description")).toBe(true);
+    const description = tags.find((t) => "name" in t && t.name === "description");
+    expect(description).toBeDefined();
+    expect(String((description as { content: string }).content)).not.toMatch(/physical/i);
     expect(tags.some((t) => "tagName" in t && t.tagName === "link" && t.rel === "canonical")).toBe(
       true,
     );
@@ -229,15 +227,13 @@ describe("calendar route render", () => {
     expect(timeEls[timeEls.length - 1].textContent).toMatch(/July 11, 2026/);
   });
 
-  it("renders the home-release buckets with their own labels, in backend order", async () => {
-    const { container } = renderCalendar(() => ({ calendar: calendarWithHomeRelease }));
+  it("renders the theatrical buckets with their own labels, in backend order", async () => {
+    const { container } = renderCalendar(() => ({ calendar: calendarWideAndLimited }));
 
     expect(await screen.findByText(/July 4, 2026/)).toBeInTheDocument();
-    expect(screen.getByText("Digital")).toBeInTheDocument();
-    expect(screen.getByText("Physical")).toBeInTheDocument();
     // Each bucket is its own sub-group under the shared date, ordered as the backend sent them.
     const groupLabels = Array.from(container.querySelectorAll("h5")).map((el) => el.textContent);
-    expect(groupLabels).toEqual(["Wide", "Digital", "Physical"]);
+    expect(groupLabels).toEqual(["Wide", "Limited"]);
     expect(screen.getByRole("link", { name: /Dune Part Three/ })).toHaveAttribute(
       "href",
       "/film/dune-3-2026",
@@ -253,9 +249,11 @@ describe("calendar route render", () => {
       offset: 0,
     };
     let captured: Headers | undefined;
+    let kind: string | null = null;
     server.use(
       http.get(`${BACKEND}/calendar`, ({ request }) => {
         captured = request.headers;
+        kind = new URL(request.url).searchParams.get("kind");
         return HttpResponse.json({
           items: [calendarTwoDates.items[2]],
           total: 2,
@@ -270,6 +268,7 @@ describe("calendar route render", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /view more/i }));
     expect(await screen.findByText(/July 11, 2026/)).toBeInTheDocument();
+    expect(kind).toBe("theatrical");
     // Browser-side paging is already per-visitor: it must never send the SSR signing headers.
     expect(captured?.get("X-Backlotter-Origin")).toBeNull();
     expect(captured?.get("X-Backlotter-Client-IP")).toBeNull();
@@ -278,7 +277,32 @@ describe("calendar route render", () => {
   it("shows the empty state when there are no releases", async () => {
     const emptyCalendar: CalendarResponse = { items: [], total: 0, limit: 100, offset: 0 };
     renderCalendar(() => ({ calendar: emptyCalendar }));
-    expect(await screen.findByText(/no upcoming releases yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no upcoming theatrical releases yet/i)).toBeInTheDocument();
+  });
+
+  it("renders the At home calendar without a bucket heading under each date", async () => {
+    let kind: string | null = null;
+    server.use(
+      http.get(`${BACKEND}/calendar`, ({ request }) => {
+        kind = new URL(request.url).searchParams.get("kind");
+        return HttpResponse.json({
+          items: [{ ...calendarTwoDates.items[2], release_type: "digital" }],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        } satisfies CalendarResponse);
+      }),
+    );
+    const { container } = renderCalendar(() => ({ calendar: calendarWideAndLimited }));
+    await screen.findByText(/July 4, 2026/);
+
+    await userEvent.click(screen.getByRole("radio", { name: "At home" }));
+
+    expect(await screen.findByRole("link", { name: /Avatar 3/ })).toBeVisible();
+    expect(kind).toBe("home");
+    // The only h5s on the page are the hidden theatrical panel's; "Digital" never renders.
+    for (const heading of container.querySelectorAll("h5")) expect(heading).not.toBeVisible();
+    expect(screen.queryByText("Digital")).toBeNull();
   });
 
   it("renders year and month headings for multi-month data", async () => {

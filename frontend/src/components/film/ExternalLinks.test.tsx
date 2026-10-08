@@ -18,4 +18,19 @@ describe("ExternalLinks", () => {
     expect(screen.queryByRole("link", { name: /imdb/i })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /tmdb/i })).toBeInTheDocument();
   });
+
+  it("adds TMDB's watch page as a third chip once the film is out (D-1542.8)", () => {
+    render(<ExternalLinks tmdbId={12345} imdbId="tt1234567" watchable />);
+    const watch = screen.getByRole("link", { name: "Where to watch (TMDB)" });
+    expect(watch).toHaveAttribute("href", "https://www.themoviedb.org/movie/12345/watch?locale=US");
+    expect(watch).toHaveAttribute("target", "_blank");
+    expect(watch).toHaveAttribute("rel", "noopener noreferrer");
+    // It links out to TMDB's page and hosts no provider data, so it credits nobody.
+    expect(screen.queryByText(/JustWatch/)).not.toBeInTheDocument();
+  });
+
+  it("has no watch chip before the film is out", () => {
+    render(<ExternalLinks tmdbId={12345} imdbId="tt1234567" />);
+    expect(screen.queryByRole("link", { name: /where to watch/i })).not.toBeInTheDocument();
+  });
 });
