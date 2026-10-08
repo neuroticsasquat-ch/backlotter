@@ -1,5 +1,10 @@
 # NEU-1412 — Tabbed calendar: the reader's watchlist by default, all releases alongside
 
+> **Note (2026-10-08, NEU-1542):** D-1412.1 (the tab is state, never a URL or a preference) and
+> D-1412.2 (panels stay mounted and `hidden`) now also govern the **calendar kind** control —
+> In theaters / At home — which cuts across both tabs. See
+> `docs/specs/NEU-1542-calendar-split-and-initial-release-only.md`.
+
 **Ticket:** [NEU-1412](https://linear.app/neuroticsasquatch/issue/NEU-1412/tabbed-calendar-the-readers-watchlist-by-default-all-releases)
 **Project:** bl: Consumer Pivot (no milestone) · **Related:** NEU-1410 (page heading is "Calendar", merged PR #152)
 **Blocked by:** NEU-1411 (`GET /me/calendar`, **Done**, backend PR #346, spec `../backend/docs/specs/NEU-1411-me-calendar-json.md`) · **Blocks:** nothing

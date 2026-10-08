@@ -7,3 +7,11 @@
 // should reach into a route to page itself; `lib/calendar-groups.ts` is left alone because it
 // is about shaping a response, not about asking for one.
 export const DATES_PER_PAGE = 20;
+
+/**
+ * Which of the two calendars a reader is looking at (NEU-1542, D-1542.2): **In theaters** — the
+ * US theatrical arc, wide and limited — or **At home**, the US digital date. The backend's
+ * `kind` query parameter on `GET /calendar` and `GET /me/calendar`, so the API layer and the
+ * view share one spelling.
+ */
+export type CalendarKind = "theatrical" | "home";

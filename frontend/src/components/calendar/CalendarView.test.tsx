@@ -1,5 +1,5 @@
 import { createRoutesStub } from "react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
@@ -12,6 +12,7 @@ import {
   failingMyFilmsCalendarHandler,
   lockedMyFilmsCalendarHandler,
   myFilmsCalendarHandler,
+  publicCalendarHandler,
 } from "@/test/msw/calendar";
 import type { CalendarItem, CalendarResponse } from "@/api/types";
 import { AuthProvider, useAuth } from "@/components/AuthContext";
@@ -122,14 +123,19 @@ const allReleasesTab = () => screen.getByRole("tab", { name: "All releases" });
  *  requests a switch cost and at which offsets. Pages by date over the fixture, as
  *  `myFilmsCalendarHandler` does — spelled out here because the record is the point. */
 function countingMyFilmsCalendar(items: CalendarItem[]) {
-  const calls: { limit: string | null; offset: string | null; credentials: RequestCredentials }[] =
-    [];
+  const calls: {
+    kind: string | null;
+    limit: string | null;
+    offset: string | null;
+    credentials: RequestCredentials;
+  }[] = [];
   const dates = [...new Set(items.map((i) => i.release_date))];
   const handler = http.get(`${base}/me/calendar`, ({ request }) => {
     const url = new URL(request.url);
     const limit = Number(url.searchParams.get("limit") ?? 20);
     const offset = Number(url.searchParams.get("offset") ?? 0);
     calls.push({
+      kind: url.searchParams.get("kind"),
       limit: url.searchParams.get("limit"),
       offset: url.searchParams.get("offset"),
       credentials: request.credentials,
@@ -328,7 +334,9 @@ describe("calendar view — the three My films states", () => {
     server.use(meHandler({ entitled: true }), emptyMyFilmsCalendarHandler());
     renderCalendar();
 
-    expect(await screen.findByText(/none of the films you follow has a date yet/i)).toBeVisible();
+    expect(
+      await screen.findByText(/none of the films you follow has a theatrical date yet/i),
+    ).toBeVisible();
     expect(screen.queryByText(/couldn't load your films calendar/i)).toBeNull();
     expect(screen.getByRole("link", { name: /get started/i })).toHaveAttribute("href", "/welcome");
 
@@ -342,7 +350,7 @@ describe("calendar view — the three My films states", () => {
     renderCalendar();
 
     expect(await screen.findByText(/couldn't load your films calendar/i)).toBeVisible();
-    expect(screen.queryByText(/none of the films you follow has a date yet/i)).toBeNull();
+    expect(screen.queryByText(/none of the films you follow/i)).toBeNull();
     expect(screen.queryByRole("link", { name: /get started/i })).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: /browse all releases/i }));
@@ -380,7 +388,208 @@ describe("calendar view — the three My films states", () => {
     await waitFor(() => expect(tabStrip()).toBeNull());
     expect(screen.getByText("Public Odyssey")).toBeVisible();
     expect(screen.queryByText(/couldn't load your films calendar/i)).toBeNull();
-    expect(screen.queryByText(/none of the films you follow has a date yet/i)).toBeNull();
+    expect(screen.queryByText(/none of the films you follow/i)).toBeNull();
     expect(meCalls).toBeGreaterThan(1);
+  });
+});
+
+const kindControl = () => screen.queryByRole("radiogroup", { name: "Calendar kind" });
+const inTheaters = () => screen.getByRole("radio", { name: "In theaters" });
+const atHome = () => screen.getByRole("radio", { name: "At home" });
+
+/** The At home rows the browser fetches. Titles unlike every other fixture's, so a
+ *  `getByText` says which panel it found. */
+const publicHomeItems = [
+  item({
+    film_ref: "home-heat",
+    film_title: "Home Heat",
+    release_date: "2026-08-15",
+    release_type: "digital",
+  }),
+];
+
+/** A `/calendar` handler that records the `kind` of every request, so a test can prove which
+ *  fetches a switch cost. Pages over the fixture by kind, as `publicCalendarHandler` does. */
+function countingPublicCalendar(items: CalendarItem[]) {
+  const calls: { kind: string | null; offset: string | null }[] = [];
+  const paged = publicCalendarHandler(items);
+  const handler = http.get(`${base}/calendar`, (info) => {
+    const url = new URL(info.request.url);
+    calls.push({ kind: url.searchParams.get("kind"), offset: url.searchParams.get("offset") });
+    return (paged as unknown as { resolver: (i: typeof info) => Response }).resolver(info);
+  });
+  return { calls, handler };
+}
+
+describe("calendar view — the calendar kind (NEU-1542)", () => {
+  it.each([
+    ["an anonymous visitor", () => unauthMeHandler(), "anonymous"],
+    ["a reader without a grant", () => meHandler({ entitled: false }), "locked"],
+  ] as const)("renders the kind control for %s, opening on In theaters", async (_, me, state) => {
+    server.use(me());
+    renderCalendar();
+
+    await accountResolvedAs(state);
+    expect(kindControl()).toBeInTheDocument();
+    expect(inTheaters()).toHaveAttribute("aria-checked", "true");
+    expect(atHome()).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("Public Odyssey")).toBeVisible();
+  });
+
+  it("renders the kind control below the tab strip for an entitled reader", async () => {
+    server.use(meHandler({ entitled: true }), myFilmsCalendarHandler(myFilmsItems));
+    renderCalendar();
+
+    await screen.findByText("Mine Dune");
+    expect(kindControl()).toBeInTheDocument();
+    expect(inTheaters()).toHaveAttribute("aria-checked", "true");
+    // Document order: the tabs, then the kind control.
+    expect(
+      tabStrip()!.compareDocumentPosition(kindControl()!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("fetches At home once, renders it without a bucket heading, and switches back for free", async () => {
+    const counted = countingPublicCalendar(publicHomeItems);
+    server.use(unauthMeHandler(), counted.handler);
+    const { container } = renderCalendar();
+    await accountResolvedAs("anonymous");
+    expect(counted.calls).toEqual([]);
+
+    await userEvent.click(atHome());
+
+    expect(await screen.findByText("Home Heat")).toBeVisible();
+    expect(screen.getByText("Public Odyssey")).not.toBeVisible();
+    expect(screen.queryByText("Digital")).toBeNull();
+    for (const heading of container.querySelectorAll("h5")) expect(heading).not.toBeVisible();
+
+    await userEvent.click(inTheaters());
+    expect(screen.getByText("Public Odyssey")).toBeVisible();
+    expect(screen.getByText("Home Heat")).not.toBeVisible();
+    await userEvent.click(atHome());
+    expect(screen.getByText("Home Heat")).toBeVisible();
+
+    // One request, for page one of At home; the server-rendered theatrical page cost nothing.
+    expect(counted.calls).toEqual([{ kind: "home", offset: "0" }]);
+  });
+
+  it("keeps the kind across a tab switch, and asks My films for that kind", async () => {
+    const homeMine = item({
+      film_ref: "mine-home",
+      film_title: "Mine At Home",
+      release_date: "2026-10-01",
+      release_type: "digital",
+    });
+    const kinds: (string | null)[] = [];
+    const paged = myFilmsCalendarHandler([...myFilmsItems, homeMine]);
+    server.use(
+      meHandler({ entitled: true }),
+      publicCalendarHandler(publicHomeItems),
+      http.get(`${base}/me/calendar`, (info) => {
+        kinds.push(new URL(info.request.url).searchParams.get("kind"));
+        return (paged as unknown as { resolver: (i: typeof info) => Response }).resolver(info);
+      }),
+    );
+    renderCalendar();
+    await screen.findByText("Mine Dune");
+
+    await userEvent.click(atHome());
+    expect(await screen.findByText("Mine At Home")).toBeVisible();
+    expect(screen.getByText("Mine Dune")).not.toBeVisible();
+
+    await userEvent.click(allReleasesTab());
+    expect(atHome()).toHaveAttribute("aria-checked", "true");
+    expect(await screen.findByText("Home Heat")).toBeVisible();
+
+    await userEvent.click(myFilmsTab());
+    expect(screen.getByText("Mine At Home")).toBeVisible();
+    expect(kinds).toEqual(["theatrical", "home"]);
+  });
+
+  it("keeps a kind's paging progress across a round trip through the other kind", async () => {
+    const counted = countingMyFilmsCalendar(twentyOneDates);
+    server.use(meHandler({ entitled: true }), counted.handler, publicCalendarHandler([]));
+    renderCalendar();
+
+    await screen.findByText("Mine Film 0", {}, { timeout: 3000 });
+    await userEvent.click(screen.getByRole("button", { name: /view more/i }));
+    await screen.findByText("Mine Film 20", {}, { timeout: 3000 });
+
+    await userEvent.click(atHome());
+    expect(screen.getByText("Mine Film 20")).not.toBeVisible();
+    await waitFor(() => expect(counted.calls.some((c) => c.kind === "home")).toBe(true));
+    await userEvent.click(inTheaters());
+
+    expect(screen.getByText("Mine Film 20")).toBeVisible();
+    // The theatrical pages were fetched once each; the round trip refetched neither.
+    const offsets = (kind: string) =>
+      counted.calls.filter((c) => c.kind === kind).map((c) => c.offset);
+    expect(offsets("theatrical")).toEqual(["0", "20"]);
+    expect(offsets("home")).toEqual(["0"]);
+  });
+
+  it("shows an inline retry when At home fails to load, leaving the theatrical page alone", async () => {
+    let fail = true;
+    const paged = publicCalendarHandler(publicHomeItems);
+    server.use(
+      unauthMeHandler(),
+      http.get(`${base}/calendar`, (info) =>
+        fail
+          ? HttpResponse.json({ detail: "server_error" }, { status: 500 })
+          : (paged as unknown as { resolver: (i: typeof info) => Response }).resolver(info),
+      ),
+    );
+    renderCalendar();
+    await accountResolvedAs("anonymous");
+
+    await userEvent.click(atHome());
+    expect(await screen.findByText(/couldn't load home releases just now/i)).toBeVisible();
+
+    await userEvent.click(inTheaters());
+    expect(screen.getByText("Public Odyssey")).toBeVisible();
+
+    await userEvent.click(atHome());
+    fail = false;
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Home Heat")).toBeVisible();
+  });
+
+  it("keeps a loaded At home page when a later refetch of it fails", async () => {
+    let fail = false;
+    const paged = publicCalendarHandler(publicHomeItems);
+    server.use(
+      unauthMeHandler(),
+      http.get(`${base}/calendar`, (info) =>
+        fail
+          ? HttpResponse.json({ detail: "server_error" }, { status: 500 })
+          : (paged as unknown as { resolver: (i: typeof info) => Response }).resolver(info),
+      ),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Stub = createRoutesStub([
+      { path: "/calendar", Component: () => <CalendarView calendar={publicCalendar} /> },
+      { path: "/film/:slug", Component: () => null },
+    ]);
+    render(
+      <QueryClientProvider client={qc}>
+        <AuthProvider>
+          <Stub initialEntries={["/calendar"]} />
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+
+    await userEvent.click(await screen.findByRole("radio", { name: "At home" }));
+    expect(await screen.findByText("Home Heat")).toBeVisible();
+
+    fail = true;
+    // React Query notifies its observers on a timer, so let that tick land inside `act` too.
+    await act(async () => {
+      await qc.refetchQueries({ queryKey: ["calendar", "home"] });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(qc.getQueryState(["calendar", "home", 20])?.status).toBe("error");
+
+    expect(screen.getByText("Home Heat")).toBeVisible();
+    expect(screen.queryByText(/couldn't load home releases/i)).toBeNull();
   });
 });

@@ -173,7 +173,8 @@ export interface ReleaseDate {
   country: string; // ISO 3166-1 (e.g. "US")
   release_type: number; // TMDB type 1..6; FE renders type_label, not this
   // Human label from the backend, one short word per display bucket: "Limited" | "Wide" |
-  // "Digital" | "Physical". The two home-release labels are US-only (D-26).
+  // "Digital" — or "" for the primary-date fallback row. Digital is US-only (D-26); physical
+  // is no longer displayable (NEU-1542).
   type_label: string;
   date: string; // ISO datetime (timestamptz, e.g. "2026-06-25T00:00:00Z")
   certification: string | null; // e.g. "PG-13"; may be "" → treat as absent
@@ -202,39 +203,6 @@ export interface FilmDayGroup {
   heading: string; // "Monday, June 23, 2026"
   news_events: FilmEvent[];
   tmdb_events: FilmEvent[];
-}
-
-/** One service carrying a film, as TMDB (sourcing JustWatch) names it. `id` is TMDB's
- *  `provider_id` — JustWatch's id space — exposed so a client can key a logo cache on it; it is
- *  not a follow-graph entity and no route accepts it. */
-export interface WatchProvider {
-  id: number;
-  name: string;
-  logo_path: string | null; // raw TMDB path; FE builds the URL via logoUrl()
-}
-
-/**
- * The current US where-to-watch box (D-29) — a snapshot, never a history.
- *
- * Bucketed by how a reader pays rather than by service, because that is the decision the box
- * answers. Each bucket is always present and may be empty, so the component renders whichever
- * sections have providers without guarding three keys.
- *
- * Named `...Box` rather than `WhereToWatch` so the component of that name can import it without
- * shadowing itself; the backend calls it `WhereToWatchOut`.
- *
- * `link` and `attribution` are TMDB's terms, not decoration: the terms for
- * `/movie/{id}/watch/providers` require crediting JustWatch wherever the data renders and
- * linking back to TMDB's own watch page. Render the attribution whenever any provider renders.
- * `link` is nullable only because TMDB itself omits it for some regions.
- */
-export interface WhereToWatchBox {
-  region: string; // "US" in v1
-  flatrate: WatchProvider[]; // subscription — rendered as "Stream"
-  rent: WatchProvider[];
-  buy: WatchProvider[];
-  link: string | null; // TMDB's per-film watch page
-  attribution: "JustWatch";
 }
 
 export interface FilmDetail {
@@ -284,12 +252,6 @@ export interface FilmDetail {
   alternative_titles: string[];
   cast: CastMember[];
   crew: CrewMember[];
-  // `null` — not an empty box — when no poll has found the film anywhere (D-29). The two are
-  // different answers: an empty box would claim we looked and it is nowhere, which is only true
-  // for a film the providers poll actually reaches. Optional for the same reason as the entity
-  // ids above — an older backend deploy omits the key entirely, so the page must render without
-  // it and light up when it arrives.
-  where_to_watch?: WhereToWatchBox | null;
 }
 
 export interface FeedDayItem {
@@ -374,9 +336,9 @@ export interface CalendarItem {
   release_year: number | null;
   poster_path: string | null; // raw TMDB path; FE builds the URL via posterUrl()
   release_date: string; // "YYYY-MM-DD" (US date)
-  // Display bucket: "limited" | "wide" | "digital" | "physical" — rendered via
-  // releaseBucketLabel. The two home-release buckets are US-only and arrived with D-26;
-  // premiere (TMDB type 1) is excluded backend-side and never reaches the calendar.
+  // Display bucket: "limited" | "wide" | "digital" — rendered via releaseBucketLabel. The
+  // home-release bucket is US-only (D-26; physical dropped by NEU-1542); premiere (TMDB type 1)
+  // is excluded backend-side and never reaches the calendar.
   release_type: string;
   director: string | null; // credited director(s), joined with ", "
   stars: string[]; // first 3 billed cast names

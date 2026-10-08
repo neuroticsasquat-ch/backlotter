@@ -142,7 +142,7 @@ describe("timeline fetcher", () => {
 });
 
 describe("My films calendar", () => {
-  it("asks for one page of the reader's own calendar by date", async () => {
+  it("asks for one page of the reader's own calendar of one kind, by date", async () => {
     let url: URL | undefined;
     server.use(
       http.get(`${base}/me/calendar`, ({ request }) => {
@@ -151,9 +151,10 @@ describe("My films calendar", () => {
       }),
     );
 
-    await fetchMyFilmsCalendar({ limit: 20, offset: 1 });
+    await fetchMyFilmsCalendar({ kind: "home", limit: 20, offset: 1 });
 
     expect(url?.pathname).toBe("/me/calendar");
+    expect(url?.searchParams.get("kind")).toBe("home");
     expect(url?.searchParams.get("limit")).toBe("20");
     expect(url?.searchParams.get("offset")).toBe("1");
   });
@@ -172,7 +173,7 @@ describe("My films calendar", () => {
       ),
     );
 
-    const page = await fetchMyFilmsCalendar({ limit: 20, offset: 0 });
+    const page = await fetchMyFilmsCalendar({ kind: "theatrical", limit: 20, offset: 0 });
 
     expect(page).toMatchObject({ total: 1, limit: 20, offset: 0 });
     expect(page.items[0]).toMatchObject({ film_ref: "a-film", release_date: "2026-07-04" });
@@ -183,7 +184,19 @@ describe("My films calendar", () => {
     // refetches with no extra wiring, and a re-read of `/me` drops it with the list it is a
     // view of (D-1412.3). That prefix moved from the watchlist to the follows when EF-14
     // retired the watchlist, and the calendar is a view of the title follows now.
-    expect(myFilmsCalendarPageKey(20, 0).slice(0, followsKey.length)).toEqual([...followsKey]);
+    for (const kind of ["theatrical", "home"] as const) {
+      expect(myFilmsCalendarPageKey(kind, 20, 0).slice(0, followsKey.length)).toEqual([
+        ...followsKey,
+      ]);
+    }
+  });
+
+  it("keys each calendar kind's pages apart", () => {
+    // Both kinds are mounted at once once the reader has opened both (D-1542.3); one key for
+    // both would hand the At home panel the In theaters page.
+    expect(myFilmsCalendarPageKey("theatrical", 20, 0)).not.toEqual(
+      myFilmsCalendarPageKey("home", 20, 0),
+    );
   });
 });
 

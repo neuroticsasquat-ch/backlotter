@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { ReleaseDates } from "@/components/film/ReleaseDates";
 import type { ReleaseDate } from "@/api/types";
 
-/** Three US rows — theatrical plus both home-release buckets (D-26) — and one GB
- *  (origin-country) theatrical row. `type_label` is the backend's own short bucket label, the
+/** Three US rows — the theatrical arc plus the home release, digital (D-26; physical is no
+ *  longer displayable, NEU-1542) — and one GB (origin-country) theatrical row. `type_label` is the backend's own short bucket label, the
  *  string `public.release` emits for each TMDB type. */
 const multiCountryDates: ReleaseDate[] = [
   {
@@ -23,9 +23,9 @@ const multiCountryDates: ReleaseDate[] = [
   },
   {
     country: "US",
-    release_type: 5,
-    type_label: "Physical",
-    date: "2026-09-08T00:00:00Z",
+    release_type: 2,
+    type_label: "Limited",
+    date: "2026-06-10T00:00:00Z",
     certification: null,
   },
   {
@@ -62,11 +62,11 @@ describe("ReleaseDates", () => {
       expect(screen.getByRole("heading", { name: /release dates/i })).toBeInTheDocument();
     });
 
-    it("shows type_label for each row, home-release buckets included", () => {
+    it("shows type_label for each row, the home release included", () => {
       render(<ReleaseDates dates={multiCountryDates} />);
       expect(screen.getAllByText("Wide")).toHaveLength(2);
       expect(screen.getByText("Digital")).toBeInTheDocument();
-      expect(screen.getByText("Physical")).toBeInTheDocument();
+      expect(screen.getByText("Limited")).toBeInTheDocument();
     });
 
     it("shows UTC-formatted date in a <time dateTime={iso}> element", () => {

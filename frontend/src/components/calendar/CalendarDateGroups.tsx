@@ -9,8 +9,17 @@ import { CalendarFilmRow } from "@/components/calendar/CalendarFilmRow";
  * Shared by the all-releases calendar and the reader's My films calendar, which render the
  * same DTO — `/me/calendar` answers with `/calendar`'s exact shape (NEU-1411) — so the two
  * differ in what they fetch and never in how a date looks.
+ *
+ * `bucketHeadings={false}` drops the bucket `h5` and lists a date's films straight under it:
+ * the At home calendar has one bucket, and "Digital" under every date is noise (D-1542.3).
  */
-export function CalendarDateGroups({ items }: { items: CalendarItem[] }) {
+export function CalendarDateGroups({
+  items,
+  bucketHeadings = true,
+}: {
+  items: CalendarItem[];
+  bucketHeadings?: boolean;
+}) {
   const years = nestByYearMonth(groupByReleaseDate(items));
   return (
     <>
@@ -30,9 +39,11 @@ export function CalendarDateGroups({ items }: { items: CalendarItem[] }) {
                   <div className="mt-2 space-y-3 border-l-2 border-border pl-3">
                     {group.buckets.map((bucket) => (
                       <div key={bucket.bucket}>
-                        <h5 className="mb-1 text-xs font-medium text-muted-foreground">
-                          {bucket.label}
-                        </h5>
+                        {bucketHeadings && (
+                          <h5 className="mb-1 text-xs font-medium text-muted-foreground">
+                            {bucket.label}
+                          </h5>
+                        )}
                         <div>
                           {bucket.films.map((f) => (
                             <CalendarFilmRow item={f} key={f.film_ref} />

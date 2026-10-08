@@ -25,7 +25,7 @@ import { TrailerEmbed } from "./TrailerEmbed";
  *  {@link FOLLOW_CUE} beneath it (EF-16). The collection keeps its labelled row, but the row
  *  is a link now: a person, studio or franchise is followed from its own page, which is the
  *  one place that can show what the follow would deliver (EF-18). */
-export function FilmHeader({ film }: { film: FilmDetail }) {
+export function FilmHeader({ film, watchable = false }: { film: FilmDetail; watchable?: boolean }) {
   const poster = posterUrl(film.poster_path, "w342");
   const runtime = film.runtime != null && film.runtime > 0 ? formatRuntime(film.runtime) : null;
   const rating = pickRating(film.release_dates);
@@ -178,7 +178,7 @@ export function FilmHeader({ film }: { film: FilmDetail }) {
         )}
       </dl>
       <div className="mt-4">
-        <ExternalLinks tmdbId={film.tmdb_id} imdbId={film.imdb_id} />
+        <ExternalLinks tmdbId={film.tmdb_id} imdbId={film.imdb_id} watchable={watchable} />
       </div>
     </header>
   );
