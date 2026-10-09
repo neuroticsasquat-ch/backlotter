@@ -379,6 +379,14 @@ describe("calendar route render", () => {
     expect(captured?.get("X-Backlotter-Client-IP")).toBeNull();
   });
 
+  it("says the dates are US ones, directly under the heading (ADR-0024)", async () => {
+    renderCalendar(() => ({ calendar: calendarTwoDates, kind: "theatrical" }));
+    const heading = await screen.findByRole("heading", { level: 1, name: "Calendar" });
+    expect(heading.nextElementSibling).toHaveTextContent(
+      "US release dates, in theaters and at home.",
+    );
+  });
+
   it("shows the empty state when there are no releases", async () => {
     const emptyCalendar: CalendarResponse = { items: [], total: 0, limit: 100, offset: 0 };
     renderCalendar(() => ({ calendar: emptyCalendar, kind: "theatrical" }));

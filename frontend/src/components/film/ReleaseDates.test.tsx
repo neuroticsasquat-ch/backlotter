@@ -102,6 +102,15 @@ describe("ReleaseDates", () => {
     });
   });
 
+  describe("scope caption (ADR-0024)", () => {
+    it("states the US scope and its one exception under the heading", () => {
+      render(<ReleaseDates dates={multiCountryDates} />);
+      expect(
+        screen.getByText("US dates, plus theatrical dates in the film's own country."),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe("with a single country", () => {
     it("renders a section heading", () => {
       render(<ReleaseDates dates={singleCountryDates} />);
@@ -119,6 +128,7 @@ describe("ReleaseDates", () => {
       const { container } = render(<ReleaseDates dates={[]} />);
       expect(container.firstChild).toBeNull();
       expect(screen.queryByRole("heading", { name: /release dates/i })).toBeNull();
+      expect(screen.queryByText(/US dates, plus theatrical dates/)).toBeNull();
     });
   });
 });
