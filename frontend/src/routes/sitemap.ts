@@ -30,7 +30,8 @@ export async function loader({ context }: Route.LoaderArgs) {
       headers: { "Content-Type": "application/xml; charset=utf-8" },
     });
   }
-  const body = injectFeRoutes(await upstream.text(), ["/calendar"]);
+  // The two public calendar addresses; the My films ones canonical to these (NEU-1544).
+  const body = injectFeRoutes(await upstream.text(), ["/calendar", "/calendar/at-home"]);
   return new Response(body, {
     status: upstream.status,
     headers: {

@@ -31,8 +31,11 @@ calendar (that is the iCal feed).
 **Calendar tab**:
 One of the two views an **entitled** reader can switch between under the Calendar heading:
 "My films" and "All releases". A reader without a grant has no tabs at all: not a locked
-tab, not a disabled one, just the all-releases calendar. The tab is a view on the page, not a
-place; it is never a URL. The **calendar kind** cuts across it: switching tab keeps the kind.
+tab, not a disabled one, just the all-releases calendar. Each tab has an address: the
+all-releases tab is `/calendar` (for everyone, entitled readers included), the My films tab is
+`/calendar/my-films`, and the nav sends an entitled reader to the latter (NEU-1544, ADR-0002).
+A reader without a grant who lands on a My films address is moved to its public twin. The
+**calendar kind** cuts across it: switching tab keeps the kind.
 _Avoid_: mode, filter (the my-films calendar is a different set, not the same set filtered
 on the client), locked tab.
 
@@ -40,9 +43,11 @@ on the client), locked tab.
 Which of the two calendars the page is showing: **In theaters** (the US theatrical arc, wide
 and limited) or **At home** (the US digital date). One segmented control under the heading,
 for every reader — anonymous ones included — and below the tab strip for an entitled one. It
-is shared across the tabs, so My films and All releases each have both kinds. A view on the
-page, not a place (never a URL), and not a preference (never remembered): the page opens on In
-theaters, which is what the server renders. The At home kind holds the announced digital date
+is shared across the tabs, so My films and All releases each have both kinds. Each kind has an
+address — In theaters carries no segment, At home is `/at-home` under the tab's path
+(`/calendar/at-home`, `/calendar/my-films/at-home`; NEU-1544, ADR-0002) — but it is never a
+preference (never remembered): without a segment the page opens on In theaters, and the server
+renders whichever kind the address names. The At home kind holds the announced digital date
 and nothing observed; a `now_available` observation is a feed card, never a calendar entry. It
 renders without the bucket heading, since it has one bucket (NEU-1542).
 _Avoid_: filter, mode, category, "rent/buy/stream view" (the ticket's phrase; the view holds one

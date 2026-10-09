@@ -1,8 +1,8 @@
-import { createRoutesStub } from "react-router";
+import { createRoutesStub, useLocation, useNavigate, useParams } from "react-router";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
 import { env } from "@/env";
@@ -14,9 +14,11 @@ import {
   myFilmsCalendarHandler,
   publicCalendarHandler,
 } from "@/test/msw/calendar";
-import type { CalendarItem, CalendarResponse } from "@/api/types";
+import type { AuthedUser, CalendarItem, CalendarResponse } from "@/api/types";
 import { AuthProvider, useAuth } from "@/components/AuthContext";
 import { CalendarView } from "@/components/calendar/CalendarView";
+import { parseCalendarPath, type CalendarKind } from "@/lib/calendar";
+import { writeTimelineHint } from "@/lib/timeline-hint";
 
 const base = env.apiBaseUrl;
 
@@ -88,32 +90,64 @@ function AuthProbe() {
 const accountResolvedAs = (state: "anonymous" | "locked" | "entitled") =>
   screen.findByText(`account ${state}`);
 
-/** `/calendar` with the providers the public layout gives it, so the island can resolve `me`
- *  the way it does in the app. */
-function renderCalendar(calendar: CalendarResponse = publicCalendar) {
+/** The calendar route as the app mounts it: one `calendar/*` element across all four addresses,
+ *  reading its view from the splat, with `calendar` standing in for what the loader fetched for
+ *  the address the page was entered at (`seededKind`). It also echoes the URL and offers a Back,
+ *  so a test can assert where a link or a redirect left the reader. */
+function CalendarAt({
+  calendar,
+  seededKind,
+}: {
+  calendar: CalendarResponse;
+  seededKind: CalendarKind;
+}) {
+  const params = useParams();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const address = parseCalendarPath(params["*"]);
+  return (
+    <main>
+      <h1>Calendar</h1>
+      <AuthProbe />
+      <p data-testid="location">{pathname}</p>
+      <button type="button" onClick={() => void navigate(-1)}>
+        Back
+      </button>
+      {address && <CalendarView address={address} seededKind={seededKind} calendar={calendar} />}
+    </main>
+  );
+}
+
+/** A calendar address with the providers the public layout gives it, so the island can resolve
+ *  `me` the way it does in the app. `/elsewhere` sits before it in the history, so a test can
+ *  tell a pushed entry from a replaced one. */
+function renderCalendar(calendar: CalendarResponse = publicCalendar, path = "/calendar") {
+  const seededKind = parseCalendarPath(path.replace(/^\/calendar\/?/, ""))!.kind;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const Stub = createRoutesStub([
     {
-      path: "/calendar",
-      Component: () => (
-        <main>
-          <h1>Calendar</h1>
-          <AuthProbe />
-          <CalendarView calendar={calendar} />
-        </main>
-      ),
+      path: "/calendar/*",
+      Component: () => <CalendarAt calendar={calendar} seededKind={seededKind} />,
     },
+    { path: "/elsewhere", Component: () => <h1>Elsewhere</h1> },
     { path: "/film/:slug", Component: () => null },
     { path: "/welcome", Component: () => <h1>Welcome</h1> },
   ]);
   return render(
     <QueryClientProvider client={qc}>
       <AuthProvider>
-        <Stub initialEntries={["/calendar"]} />
+        <Stub initialEntries={["/elsewhere", path]} initialIndex={1} />
       </AuthProvider>
     </QueryClientProvider>,
   );
 }
+
+/** Where the reader is now. */
+const currentPath = () => screen.getByTestId("location").textContent;
+const goBack = () => userEvent.click(screen.getByRole("button", { name: "Back" }));
+
+/** What the nav sends an entitled reader to (D-1544.1). */
+const MY_FILMS = "/calendar/my-films";
 
 const tabStrip = () => screen.queryByRole("tablist", { name: "Calendar view" });
 const myFilmsTab = () => screen.getByRole("tab", { name: "My films" });
@@ -197,7 +231,7 @@ describe("calendar view — no tabs for anyone without a grant", () => {
 describe("calendar view — entitled", () => {
   it("opens on the reader's films, with the all-releases panel mounted and hidden", async () => {
     server.use(meHandler({ entitled: true }), myFilmsCalendarHandler(myFilmsItems));
-    const { container } = renderCalendar();
+    const { container } = renderCalendar(publicCalendar, MY_FILMS);
 
     expect(await screen.findByText("Mine Dune")).toBeVisible();
     expect(screen.getByText("Mine Sinners")).toBeVisible();
@@ -214,7 +248,7 @@ describe("calendar view — entitled", () => {
 
   it("wires each tab to its own panel", async () => {
     server.use(meHandler({ entitled: true }), myFilmsCalendarHandler(myFilmsItems));
-    const { container } = renderCalendar();
+    const { container } = renderCalendar(publicCalendar, MY_FILMS);
 
     await screen.findByText("Mine Dune");
     for (const tab of [myFilmsTab(), allReleasesTab()]) {
@@ -235,7 +269,7 @@ describe("calendar view — entitled", () => {
         return HttpResponse.json(publicCalendar);
       }),
     );
-    renderCalendar();
+    renderCalendar(publicCalendar, MY_FILMS);
 
     await screen.findByText("Mine Dune");
     await userEvent.click(allReleasesTab());
@@ -264,7 +298,7 @@ describe("calendar view — entitled", () => {
         } satisfies CalendarResponse);
       }),
     );
-    renderCalendar(pagedPublicCalendar);
+    renderCalendar(pagedPublicCalendar, MY_FILMS);
 
     await screen.findByText("Mine Dune");
     await userEvent.click(allReleasesTab());
@@ -295,7 +329,7 @@ describe("calendar view — entitled", () => {
         } satisfies CalendarResponse);
       }),
     );
-    renderCalendar();
+    renderCalendar(publicCalendar, MY_FILMS);
 
     expect(await screen.findByText("Mine Film 0", {}, { timeout: 3000 })).toBeVisible();
     expect(screen.queryByText("Mine Film 20")).toBeNull();
@@ -311,7 +345,7 @@ describe("calendar view — entitled", () => {
   it("keeps paging progress across a tab switch, and pays for each page once", async () => {
     const counted = countingMyFilmsCalendar(twentyOneDates);
     server.use(meHandler({ entitled: true }), counted.handler);
-    renderCalendar();
+    renderCalendar(publicCalendar, MY_FILMS);
 
     await screen.findByText("Mine Film 0", {}, { timeout: 3000 });
     await userEvent.click(screen.getByRole("button", { name: /view more/i }));
@@ -332,7 +366,7 @@ describe("calendar view — entitled", () => {
 describe("calendar view — the three My films states", () => {
   it("reads no dated follows as empty, and offers the other tab and onboarding", async () => {
     server.use(meHandler({ entitled: true }), emptyMyFilmsCalendarHandler());
-    renderCalendar();
+    renderCalendar(publicCalendar, MY_FILMS);
 
     expect(
       await screen.findByText(/none of the films you follow has a theatrical date yet/i),
@@ -340,25 +374,32 @@ describe("calendar view — the three My films states", () => {
     expect(screen.queryByText(/couldn't load your films calendar/i)).toBeNull();
     expect(screen.getByRole("link", { name: /get started/i })).toHaveAttribute("href", "/welcome");
 
-    await userEvent.click(screen.getByRole("button", { name: /browse all releases/i }));
+    // A link to the same kind under All releases: the other calendar is at another address.
+    const browse = screen.getByRole("link", { name: /browse all releases/i });
+    expect(browse).toHaveAttribute("href", "/calendar");
+    await userEvent.click(browse);
+    expect(currentPath()).toBe("/calendar");
     expect(allReleasesTab()).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Public Odyssey")).toBeVisible();
   });
 
   it("reads a failed load as unavailable, without the onboarding link", async () => {
     server.use(meHandler({ entitled: true }), failingMyFilmsCalendarHandler());
-    renderCalendar();
+    renderCalendar(publicCalendar, MY_FILMS);
 
     expect(await screen.findByText(/couldn't load your films calendar/i)).toBeVisible();
     expect(screen.queryByText(/none of the films you follow/i)).toBeNull();
     expect(screen.queryByRole("link", { name: /get started/i })).toBeNull();
 
-    await userEvent.click(screen.getByRole("button", { name: /browse all releases/i }));
+    const browse = screen.getByRole("link", { name: /browse all releases/i });
+    expect(browse).toHaveAttribute("href", "/calendar");
+    await userEvent.click(browse);
+    expect(currentPath()).toBe("/calendar");
     expect(allReleasesTab()).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Public Odyssey")).toBeVisible();
   });
 
-  it("drops the tabs when the grant lapsed mid-session, showing no error copy on the way", async () => {
+  it("drops the tabs and the address when the grant lapsed mid-session, showing no error copy on the way", async () => {
     let meCalls = 0;
     server.use(
       http.get(`${base}/me`, () => {
@@ -377,7 +418,7 @@ describe("calendar view — the three My films states", () => {
       }),
       lockedMyFilmsCalendarHandler(),
     );
-    renderCalendar();
+    renderCalendar(publicCalendar, MY_FILMS);
 
     // The tabs are up first, on the cached grant — then the 403 provokes the re-read that
     // takes them away again.
@@ -386,6 +427,9 @@ describe("calendar view — the three My films states", () => {
 
     await accountResolvedAs("locked");
     await waitFor(() => expect(tabStrip()).toBeNull());
+    // Replaced onto the public twin, so the URL no longer names a view the reader lost
+    // (D-1544.2).
+    await waitFor(() => expect(currentPath()).toBe("/calendar"));
     expect(screen.getByText("Public Odyssey")).toBeVisible();
     expect(screen.queryByText(/couldn't load your films calendar/i)).toBeNull();
     expect(screen.queryByText(/none of the films you follow/i)).toBeNull();
@@ -438,7 +482,7 @@ describe("calendar view — the calendar kind (NEU-1542)", () => {
 
   it("renders the kind control below the tab strip for an entitled reader", async () => {
     server.use(meHandler({ entitled: true }), myFilmsCalendarHandler(myFilmsItems));
-    renderCalendar();
+    renderCalendar(publicCalendar, MY_FILMS);
 
     await screen.findByText("Mine Dune");
     expect(kindControl()).toBeInTheDocument();
@@ -490,7 +534,7 @@ describe("calendar view — the calendar kind (NEU-1542)", () => {
         return (paged as unknown as { resolver: (i: typeof info) => Response }).resolver(info);
       }),
     );
-    renderCalendar();
+    renderCalendar(publicCalendar, MY_FILMS);
     await screen.findByText("Mine Dune");
 
     await userEvent.click(atHome());
@@ -509,7 +553,7 @@ describe("calendar view — the calendar kind (NEU-1542)", () => {
   it("keeps a kind's paging progress across a round trip through the other kind", async () => {
     const counted = countingMyFilmsCalendar(twentyOneDates);
     server.use(meHandler({ entitled: true }), counted.handler, publicCalendarHandler([]));
-    renderCalendar();
+    renderCalendar(publicCalendar, MY_FILMS);
 
     await screen.findByText("Mine Film 0", {}, { timeout: 3000 });
     await userEvent.click(screen.getByRole("button", { name: /view more/i }));
@@ -567,7 +611,10 @@ describe("calendar view — the calendar kind (NEU-1542)", () => {
     );
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const Stub = createRoutesStub([
-      { path: "/calendar", Component: () => <CalendarView calendar={publicCalendar} /> },
+      {
+        path: "/calendar/*",
+        Component: () => <CalendarAt calendar={publicCalendar} seededKind="theatrical" />,
+      },
       { path: "/film/:slug", Component: () => null },
     ]);
     render(
@@ -591,5 +638,185 @@ describe("calendar view — the calendar kind (NEU-1542)", () => {
 
     expect(screen.getByText("Home Heat")).toBeVisible();
     expect(screen.queryByText(/couldn't load home releases/i)).toBeNull();
+  });
+});
+
+/** The At home rows the loader server-renders for an At home address. */
+const publicHomeCalendar: CalendarResponse = {
+  items: publicHomeItems,
+  total: 1,
+  limit: 20,
+  offset: 0,
+};
+
+describe("calendar view — every view is an address (NEU-1544)", () => {
+  it("reads the tab and the kind from the address", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      myFilmsCalendarHandler([
+        ...myFilmsItems,
+        item({
+          film_ref: "mine-home",
+          film_title: "Mine At Home",
+          release_date: "2026-10-01",
+          release_type: "digital",
+        }),
+      ]),
+    );
+    renderCalendar(publicHomeCalendar, "/calendar/my-films/at-home");
+
+    expect(await screen.findByText("Mine At Home")).toBeVisible();
+    expect(myFilmsTab()).toHaveAttribute("aria-selected", "true");
+    expect(atHome()).toHaveAttribute("aria-checked", "true");
+    expect(inTheaters()).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("server-renders the At home address from the loader's rows, with no browser fetch", async () => {
+    const counted = countingPublicCalendar(publicHomeItems);
+    server.use(unauthMeHandler(), counted.handler);
+    renderCalendar(publicHomeCalendar, "/calendar/at-home");
+
+    await accountResolvedAs("anonymous");
+    expect(tabStrip()).toBeNull();
+    expect(atHome()).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Home Heat")).toBeVisible();
+    // The seeded panel is the loader's kind, not hardcoded In theaters.
+    expect(counted.calls).toEqual([]);
+  });
+
+  it("fetches In theaters from the browser when the page was entered At home", async () => {
+    const counted = countingPublicCalendar(publicCalendar.items);
+    server.use(unauthMeHandler(), counted.handler);
+    renderCalendar(publicHomeCalendar, "/calendar/at-home");
+    await accountResolvedAs("anonymous");
+
+    await userEvent.click(inTheaters());
+
+    expect(currentPath()).toBe("/calendar");
+    expect(await screen.findByText("Public Odyssey")).toBeVisible();
+    expect(screen.getByText("Home Heat")).not.toBeVisible();
+    expect(counted.calls).toEqual([{ kind: "theatrical", offset: "0" }]);
+  });
+
+  it("makes every tab and kind a link that keeps the other axis", async () => {
+    server.use(meHandler({ entitled: true }), myFilmsCalendarHandler(myFilmsItems));
+    renderCalendar(publicHomeCalendar, "/calendar/my-films/at-home");
+    await screen.findByRole("tablist", { name: "Calendar view" });
+
+    for (const control of [myFilmsTab(), allReleasesTab(), inTheaters(), atHome()]) {
+      expect(control.tagName).toBe("A");
+    }
+    expect(myFilmsTab()).toHaveAttribute("href", "/calendar/my-films/at-home");
+    expect(allReleasesTab()).toHaveAttribute("href", "/calendar/at-home");
+    expect(inTheaters()).toHaveAttribute("href", "/calendar/my-films");
+    expect(atHome()).toHaveAttribute("href", "/calendar/my-films/at-home");
+
+    await userEvent.click(allReleasesTab());
+    expect(currentPath()).toBe("/calendar/at-home");
+    expect(allReleasesTab()).toHaveAttribute("aria-selected", "true");
+    expect(atHome()).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("pushes each switch, so Back retraces them", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      myFilmsCalendarHandler(myFilmsItems),
+      publicCalendarHandler(publicHomeItems),
+    );
+    renderCalendar();
+    await screen.findByRole("tablist", { name: "Calendar view" });
+    // `/calendar` is All releases for everyone, an entitled reader included (D-1544.1).
+    expect(allReleasesTab()).toHaveAttribute("aria-selected", "true");
+
+    await userEvent.click(atHome());
+    expect(currentPath()).toBe("/calendar/at-home");
+    await userEvent.click(myFilmsTab());
+    expect(currentPath()).toBe("/calendar/my-films/at-home");
+
+    await goBack();
+    expect(currentPath()).toBe("/calendar/at-home");
+    expect(allReleasesTab()).toHaveAttribute("aria-selected", "true");
+    await goBack();
+    expect(currentPath()).toBe("/calendar");
+    expect(inTheaters()).toHaveAttribute("aria-checked", "true");
+    await goBack();
+    expect(screen.getByRole("heading", { name: "Elsewhere" })).toBeInTheDocument();
+  });
+
+  it("sends Browse all releases to the same kind under All releases", async () => {
+    server.use(
+      meHandler({ entitled: true }),
+      emptyMyFilmsCalendarHandler(),
+      publicCalendarHandler(publicHomeItems),
+    );
+    renderCalendar(publicHomeCalendar, "/calendar/my-films/at-home");
+
+    await screen.findByText(/none of the films you follow has a home release date yet/i);
+    const browse = screen.getByRole("link", { name: /browse all releases/i });
+    expect(browse).toHaveAttribute("href", "/calendar/at-home");
+    await userEvent.click(browse);
+    expect(currentPath()).toBe("/calendar/at-home");
+    expect(screen.getByText("Home Heat")).toBeVisible();
+  });
+});
+
+describe("calendar view — a My films address without a grant (D-1544.2)", () => {
+  it.each([
+    ["an anonymous visitor", () => unauthMeHandler(), "anonymous"],
+    ["a reader without a grant", () => meHandler({ entitled: false }), "locked"],
+  ] as const)("replaces %s onto the public twin", async (_, me, state) => {
+    server.use(me(), publicCalendarHandler(publicHomeItems));
+    renderCalendar(publicHomeCalendar, "/calendar/my-films/at-home");
+
+    await accountResolvedAs(state);
+    await waitFor(() => expect(currentPath()).toBe("/calendar/at-home"));
+    expect(tabStrip()).toBeNull();
+    expect(screen.getByText("Home Heat")).toBeVisible();
+
+    // Replaced, not pushed: Back leaves the calendar instead of bouncing off the redirect.
+    await goBack();
+    expect(screen.getByRole("heading", { name: "Elsewhere" })).toBeInTheDocument();
+  });
+
+  it("waits for a slow /me rather than reading its first render as anonymous", async () => {
+    server.use(
+      http.get(`${base}/me`, async () => {
+        await delay(50);
+        return HttpResponse.json({
+          id: "u1",
+          email: "a@b.com",
+          display_name: "Test User",
+          is_admin: false,
+          email_verified: true,
+          entitled: true,
+          created_at: new Date().toISOString(),
+          csrf_token: "test-csrf",
+        });
+      }),
+      myFilmsCalendarHandler(myFilmsItems),
+    );
+    renderCalendar(publicHomeCalendar, "/calendar/my-films/at-home");
+
+    expect(await screen.findByRole("tablist", { name: "Calendar view" })).toBeInTheDocument();
+    expect(currentPath()).toBe("/calendar/my-films/at-home");
+    expect(myFilmsTab()).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("does not redirect a hinted reader while /me is in flight", async () => {
+    writeTimelineHint({ entitled: true } as AuthedUser);
+    let answered = false;
+    server.use(
+      http.get(`${base}/me`, async () => {
+        await delay(50);
+        answered = true;
+        return HttpResponse.json({ detail: "auth_required" }, { status: 401 });
+      }),
+    );
+    renderCalendar(publicHomeCalendar, "/calendar/my-films/at-home");
+
+    expect(currentPath()).toBe("/calendar/my-films/at-home");
+    await waitFor(() => expect(answered).toBe(true));
+    // Once it settles as anonymous, the hint was wrong and the page moves.
+    await waitFor(() => expect(currentPath()).toBe("/calendar/at-home"));
   });
 });

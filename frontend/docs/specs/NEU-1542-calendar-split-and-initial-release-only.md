@@ -1,5 +1,11 @@
 # NEU-1542 — The calendar splits by where you watch, physical leaves the model, and the where-to-watch box goes (frontend)
 
+> **Note (2026-10-09, NEU-1544):** D-1542.3's "never a URL" is amended — the kind is now a path
+> segment (`/calendar/at-home`, `/calendar/my-films/at-home`) and the kind control is links; it
+> is still never remembered. The loader fetches the kind the address names, so the server
+> document for `/calendar/at-home` is the home calendar. See
+> `docs/adr/0002-calendar-views-are-paths.md` and `docs/specs/NEU-1544-calendar-views-are-paths.md`.
+
 **Ticket:** [NEU-1542](https://linear.app/neuroticsasquatch/issue/NEU-1542) (no priority)
 **Project:** bl: Maintenance (no milestone, no project spec)
 **Target repos:** upcoming-movies-frontend (this file) **and** upcoming-movies-backend. The

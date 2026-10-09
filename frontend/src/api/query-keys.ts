@@ -54,8 +54,9 @@ export const myFilmsCalendarKey = [...followsKey, "calendar"] as const;
 export const myFilmsCalendarPageKey = (kind: CalendarKind, limit: number, offset: number) =>
   [...myFilmsCalendarKey, kind, limit, offset] as const;
 
-/** The first page of a public calendar kind fetched in the browser — At home, the first time a
- *  reader picks it (NEU-1542, D-1542.3). The In theaters page is the loader's and is never
- *  cached here. Outside `["me"]`: it is the same for everyone. */
+/** The first page of a public calendar kind fetched in the browser — the kind the page was not
+ *  entered at, the first time a reader picks it (NEU-1542, D-1542.3). The loader's kind is
+ *  whichever the address named (NEU-1544), and its page is never cached here. Outside `["me"]`:
+ *  it is the same for everyone. */
 export const publicCalendarFirstPageKey = (kind: CalendarKind, limit: number) =>
   ["calendar", kind, limit] as const;
