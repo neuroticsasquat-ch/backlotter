@@ -35,7 +35,9 @@ export function GlobalFooter() {
           >
             The Movie Database (TMDB)
           </a>
-          . This product uses the TMDB API but is not endorsed or certified by TMDB.
+          . This product uses the TMDB API but is not endorsed or certified by TMDB.{" "}
+          {/* The product is US-market (backend/docs/adr/0024-the-product-is-us-market.md). */}
+          Release dates and availability are for the US.
         </p>
         <nav aria-label="Legal" className="flex gap-4">
           <Link

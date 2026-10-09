@@ -185,6 +185,14 @@ describe("Settings", () => {
   });
 
   describe("calendar (D-34)", () => {
+    it("says the feed carries US release dates (ADR-0024)", async () => {
+      renderPage({ entitled: true }, settingsHandlers({ ical_token: "tok-mine" }));
+
+      expect(
+        await screen.findByText(/subscribe your calendar to the US release dates/i),
+      ).toBeInTheDocument();
+    });
+
     it("shows the tokenised webcal link and offers it to a calendar app", async () => {
       renderPage({ entitled: true }, settingsHandlers({ ical_token: "tok-mine" }));
 

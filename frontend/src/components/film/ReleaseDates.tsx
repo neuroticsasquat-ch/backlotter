@@ -8,6 +8,11 @@ export function ReleaseDates({ dates }: { dates: ReleaseDate[] }) {
   return (
     <section className="border-t border-border pb-4 pt-3">
       <h2 className="text-lg font-semibold">Release dates</h2>
+      {/* Names the one exception to the US-market rule
+          (backend/docs/adr/0024-the-product-is-us-market.md). */}
+      <p className="mt-1 text-sm text-muted-foreground">
+        US dates, plus theatrical dates in the film&apos;s own country.
+      </p>
       <ul className="mt-3 space-y-2">
         {dates.map((d) => (
           <li

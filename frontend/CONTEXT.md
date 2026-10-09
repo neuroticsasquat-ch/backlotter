@@ -9,6 +9,13 @@ adds or presents differently. When a term appears in both, the backend's definit
 
 ### The calendar
 
+**Primary region**:
+The one region the product serves — the United States (backend ADR-0024). Both calendars, the
+iCal feed, the slate and the settings copy are scoped to it and say so once. The film page's
+release list is the one surface that also shows another country: a film's theatrical dates in
+its own country, each tagged with that country. The backend glossary owns the definition.
+_Avoid_: home region, default region, locale, US market.
+
 **All-releases calendar**:
 The public release calendar: every tracked film reaching a US release date, upcoming-only,
 paged by date. It is the calendar an anonymous visitor sees, the one the server renders, and

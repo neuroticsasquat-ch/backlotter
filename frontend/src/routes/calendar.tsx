@@ -85,6 +85,11 @@ export default function CalendarPage({ loaderData, params }: Route.ComponentProp
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-2xl font-semibold">Calendar</h1>
+      {/* Out here, not in CalendarView, so it is server-rendered and shared by both tabs and kinds.
+          The product is US-market (backend/docs/adr/0024-the-product-is-us-market.md). */}
+      <p className="mt-1 text-sm text-muted-foreground">
+        US release dates, in theaters and at home.
+      </p>
       <CalendarView address={address} seededKind={loaderData.kind} calendar={loaderData.calendar} />
     </main>
   );
