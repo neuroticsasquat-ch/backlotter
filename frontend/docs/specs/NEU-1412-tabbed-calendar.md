@@ -1,5 +1,10 @@
 # NEU-1412 — Tabbed calendar: the reader's watchlist by default, all releases alongside
 
+> **Note (2026-10-09, NEU-1544):** D-1412.1 is amended — the tab is now a path (`/calendar` is
+> All releases for everyone, `/calendar/my-films` the entitled tab) and the tab strip is links.
+> D-1412.2 to D-1412.5 stand. See `docs/adr/0002-calendar-views-are-paths.md` and
+> `docs/specs/NEU-1544-calendar-views-are-paths.md`.
+
 > **Note (2026-10-08, NEU-1542):** D-1412.1 (the tab is state, never a URL or a preference) and
 > D-1412.2 (panels stay mounted and `hidden`) now also govern the **calendar kind** control —
 > In theaters / At home — which cuts across both tabs. See

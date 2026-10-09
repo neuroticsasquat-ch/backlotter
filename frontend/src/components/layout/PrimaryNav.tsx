@@ -1,5 +1,5 @@
-import { NavLink } from "react-router";
 import { useFollowAccess } from "@/components/follow/access";
+import { NavItemLink } from "@/components/layout/NavItemLink";
 import { navItemsFor } from "@/components/layout/nav-items";
 
 /** Inline primary navigation for wide viewports. Hidden below md, where the hamburger
@@ -20,17 +20,14 @@ export function PrimaryNav() {
       <ul className="flex items-center gap-4">
         {navItemsFor(access).map((item) => (
           <li key={item.href} className="shrink-0">
-            <NavLink
-              to={item.href}
-              end={item.href === "/"}
+            <NavItemLink
+              item={item}
               className={({ isActive }) =>
                 isActive
                   ? "whitespace-nowrap text-sm font-medium text-foreground"
                   : "whitespace-nowrap text-sm text-muted-foreground transition-colors hover:text-foreground"
               }
-            >
-              {item.label}
-            </NavLink>
+            />
           </li>
         ))}
       </ul>

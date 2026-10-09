@@ -59,6 +59,10 @@ describe("NavMenu", () => {
     const myFeed = await screen.findByRole("link", { name: /^my feed$/i });
     expect(myFeed).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: /^all updates$/i })).toHaveAttribute("href", "/feed");
+    expect(screen.getByRole("link", { name: /^calendar$/i })).toHaveAttribute(
+      "href",
+      "/calendar/my-films",
+    );
     expect(screen.queryByRole("link", { name: /^updates$/i })).toBeNull();
   });
 

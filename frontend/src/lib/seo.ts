@@ -25,6 +25,13 @@ export interface SeoInput {
    * paginated route MUST set this, or the canonical points back to page 1 and fights rel=prev/next.
    */
   search?: string;
+  /**
+   * The pathname the canonical `<link>` and og:url name, when the page is a copy of another
+   * address's document — the My films calendars, whose server render is their public twin's
+   * (NEU-1544). Defaults to `pathname`. A canonical alone is the signal for that; pairing it
+   * with `noindex` is the contradictory combination search engines warn against.
+   */
+  canonicalPathname?: string;
   /** Optional absolute or site-relative image → og:image + twitter:image. */
   image?: string;
   /** og:type. Defaults to "website". */
@@ -37,7 +44,10 @@ export function buildMeta(input: SeoInput): MetaDescriptor[] {
     ? `${input.title} — ${TITLE_BRAND}`
     : `${TITLE_TAGLINE} — ${TITLE_BRAND}`;
   const description = input.description ?? DEFAULT_DESCRIPTION;
-  const url = new URL(input.pathname + (input.search ?? ""), env.publicSiteUrl).toString();
+  const url = new URL(
+    (input.canonicalPathname ?? input.pathname) + (input.search ?? ""),
+    env.publicSiteUrl,
+  ).toString();
 
   const descriptors: MetaDescriptor[] = [
     { title },

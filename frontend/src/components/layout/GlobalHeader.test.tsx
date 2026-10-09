@@ -10,12 +10,12 @@ import { GlobalHeader } from "@/components/layout/GlobalHeader";
 
 /** The providers `PublicLayout` supplies in the app. `PrimaryNav` needs them now that the
  *  nav depends on whether the reader has a timeline (NEU-1407). */
-function renderHeader() {
+function renderHeader(path = "/") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <AuthProvider>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[path]}>
           <GlobalHeader />
         </MemoryRouter>
       </AuthProvider>
@@ -71,7 +71,28 @@ describe("GlobalHeader", () => {
         "href",
         "/feed",
       );
+      // `/calendar` is All releases for everyone; the reader's own films have their own address.
+      expect(within(primaryNav()).getByRole("link", { name: /^calendar$/i })).toHaveAttribute(
+        "href",
+        "/calendar/my-films",
+      );
     });
+
+    // The item links to one calendar address and is the current page on all four (NEU-1544).
+    it.each(["/calendar", "/calendar/at-home", "/calendar/my-films", "/calendar/my-films/at-home"])(
+      "marks Calendar current for an entitled account at %s",
+      async (path) => {
+        server.use(meHandler({ entitled: true }));
+        renderHeader(path);
+
+        await within(primaryNav()).findByRole("link", { name: /^my feed$/i });
+        const calendar = within(primaryNav()).getByRole("link", { name: /^calendar$/i });
+        expect(calendar).toHaveAttribute("aria-current", "page");
+        expect(within(primaryNav()).getByRole("link", { name: /^my feed$/i })).not.toHaveAttribute(
+          "aria-current",
+        );
+      },
+    );
 
     it("collapses them for a signed-in account without a grant", async () => {
       server.use(meHandler({ entitled: false }));

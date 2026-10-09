@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
-import { NavLink, useLocation } from "react-router";
+import { useLocation } from "react-router";
 import { useFollowAccess } from "@/components/follow/access";
+import { NavItemLink } from "@/components/layout/NavItemLink";
 import { navItemsFor } from "@/components/layout/nav-items";
 import HeaderAccount from "@/components/layout/HeaderAccount";
 
@@ -60,9 +61,7 @@ export function NavMenu() {
           <ul className="flex flex-col">
             {navItemsFor(access).map((item) => (
               <li key={item.href}>
-                <NavLink to={item.href} end={item.href === "/"} className={linkClass}>
-                  {item.label}
-                </NavLink>
+                <NavItemLink item={item} className={linkClass} />
               </li>
             ))}
           </ul>

@@ -37,6 +37,18 @@ describe("buildMeta", () => {
     expect(ogUrl?.content).toMatch(/\/search\?page=2$/);
   });
 
+  it("points the canonical and og:url at canonicalPathname when the page copies another's document", () => {
+    const tags = buildMeta({ pathname: "/calendar/my-films", canonicalPathname: "/calendar" });
+    const canonical = tags.find((t) => "tagName" in t && t.tagName === "link") as
+      { tagName: "link"; rel: string; href: string } | undefined;
+    expect(canonical?.href).toMatch(/\/calendar$/);
+    const ogUrl = tags.find((t) => "property" in t && t.property === "og:url") as
+      { content: string } | undefined;
+    expect(ogUrl?.content).toMatch(/\/calendar$/);
+    // No noindex: a canonical is the one correct signal for a copy.
+    expect(tags.some((t) => "name" in t && t.name === "robots")).toBe(false);
+  });
+
   it("falls back to the site name and default description when omitted", () => {
     const tags = buildMeta({ pathname: "/" });
     expect(tags).toContainEqual({ title: "production log — backlotter" });
