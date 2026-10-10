@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 import { FeedDayPosters } from "@/components/feed/FeedDayPosters";
-import { MAX_DAY_POSTERS } from "@/lib/feed-groups";
+import { MAX_DAY_POSTERS, layoutFeedDay } from "@/lib/feed-groups";
 import type { FeedDayItem } from "@/api/types";
 
 function item(film_ref: string, overrides: Partial<FeedDayItem> = {}): FeedDayItem {
@@ -24,17 +24,19 @@ function item(film_ref: string, overrides: Partial<FeedDayItem> = {}): FeedDayIt
   };
 }
 
+/** The strip over the feed's layout of `items`. Which order that layout reads in is
+ *  `feed-groups.test.ts`'s and the renderers' tests'; these cover what the strip draws. */
 function renderStrip(items: FeedDayItem[]) {
   return render(
     <MemoryRouter>
-      <FeedDayPosters items={items} />
+      <FeedDayPosters day={layoutFeedDay(items)} />
     </MemoryRouter>,
   );
 }
 
 describe("FeedDayPosters", () => {
-  it("leads with a news-backed film even when a TMDB-only one is more popular", () => {
-    // Backend order is by popularity, so the TMDB-only film arrives first.
+  it("leads with the film the reader meets first, In the news before Not yet reported", () => {
+    // Backend order is by significance, so the TMDB-only film arrives first.
     renderStrip([item("primetime"), item("animals", { news_backed: true })]);
     expect(screen.getAllByRole("img")[0]).toHaveAccessibleName("animals poster");
   });

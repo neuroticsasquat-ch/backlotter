@@ -16,7 +16,9 @@ describe("releaseBucketLabel", () => {
     expect(releaseBucketLabel("digital")).toBe("Digital");
   });
 
-  it('returns "Physical" for "physical" bucket', () => {
+  // NEU-1542 dropped physical from the buckets; a stray one (an older backend mid-deploy)
+  // still renders, through the title-case fallback.
+  it("title-cases an unknown bucket such as physical", () => {
     expect(releaseBucketLabel("physical")).toBe("Physical");
   });
 

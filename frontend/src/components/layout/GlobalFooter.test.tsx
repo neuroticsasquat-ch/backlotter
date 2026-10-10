@@ -35,6 +35,13 @@ describe("GlobalFooter", () => {
     expect(tmdb.getAttribute("rel")).toContain("noopener");
   });
 
+  it("says release dates and availability are for the US (ADR-0024)", () => {
+    renderFooter();
+    expect(
+      screen.getByText(/release dates and availability are for the US\./i),
+    ).toBeInTheDocument();
+  });
+
   it("no longer renders a footer navigation menu", () => {
     renderFooter();
     expect(screen.queryByRole("navigation", { name: /footer navigation/i })).toBeNull();

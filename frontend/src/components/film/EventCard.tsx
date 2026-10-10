@@ -45,8 +45,8 @@ export function EventCard({
   const showFirstSeen = day !== undefined && dayKey(event.occurred_at) !== day;
   // A now_available body names the providers a poll found the film on (D-28), which makes this
   // card a surface where provider names render — and TMDB's terms want JustWatch credited on
-  // every one of them, not just the where-to-watch box. No link: the box gets TMDB's per-film
-  // watch page from `where_to_watch.link`, and an event carries no such field.
+  // every one of them. No link: an event carries no watch-page field (the film page's header
+  // links TMDB's watch page itself, NEU-1542).
   const showAttribution = event.event_type === "now_available";
 
   async function run(action: () => Promise<unknown>, ok: string) {

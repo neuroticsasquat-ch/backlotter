@@ -369,31 +369,137 @@ export function groupEventsByDay(events: FilmEvent[]): EventDayGroup[] {
   return groups;
 }
 
-/** How many posters the day's strip renders at most. The desktop column clips to the event
- *  list's height, so the true count is whatever fits — this is only a ceiling that stops a
- *  backfill day (ADR-0016 notes those run to 70+ rows) from loading dozens of images to clip
- *  all but a few. Eight stacked posters cover roughly fourteen feed rows. */
+/** How many posters the day's strip renders at most. The row clips to whatever fits its width,
+ *  so the true count on screen is smaller — this is only a ceiling that stops a backfill day
+ *  (ADR-0016 notes those run to 70+ rows) from loading dozens of images to clip all but a few. */
 export const MAX_DAY_POSTERS = 8;
 
+/** A day section's rows, as its renderer draws them. The section is In the news or Not yet
+ *  reported; the kind is what a row is — a film (`FeedDayCard`, or a film row under an update
+ *  type) in the Films block, an entity (`EntityRow`) in People, Studios and Franchises. */
+export type FilmSectionLayout =
+  | { section: "news"; kind: "films"; rows: FeedDayItem[] }
+  | { section: "not_yet_reported"; kind: "films"; groups: UpdateTypeGroup[] };
+
+export interface EntityUpdateTypeGroup {
+  key: EntityUpdateType;
+  label: string;
+  /** This heading's rows merged per entity, as `groupByEntity` hands them back. */
+  rows: EntityRow[];
+}
+
+export type EntitySectionLayout =
+  | { section: "news"; kind: "entities"; rows: EntityRow[] }
+  | { section: "not_yet_reported"; kind: "entities"; groups: EntityUpdateTypeGroup[] };
+
+export type SectionLayout = FilmSectionLayout | EntitySectionLayout;
+
+export interface BlockLayout<S extends SectionLayout = SectionLayout> {
+  key: FollowBlock;
+  label: string;
+  /** Only sections with rows (NEU-1467), In the news before Not yet reported. */
+  sections: S[];
+}
+
 /**
- * The films whose posters lead a feed day, news-backed first and at most `limit` of them.
- *
- * Ordered through `splitByNewsBacked` rather than by taking the backend's order directly, so the
- * strip agrees with the sections the reader sees below it. Backend order within a day is by
- * significance, not by section, so the raw first item is simply the film with the day's most
- * significant beat — which is a TMDB-only one often enough to read as a rule.
- *
- * Films without a poster are dropped rather than held as blanks. A pure function of its input —
- * no `Date.now()` — so SSR and client output match, same contract as `groupByDay`.
+ * One day laid out as it renders, top to bottom: follow blocks, their sections, and each
+ * section's rows already grouped and sorted. The renderer draws exactly this and the poster strip
+ * walks exactly this (D-1533.2), so the strip cannot drift from the rows under it. Holds only what
+ * renders — no empty block, section or heading.
  */
-export function dayPosterLeads(items: FeedDayItem[], limit = MAX_DAY_POSTERS): FeedDayItem[] {
-  const { newsBacked, tmdbOnly } = splitByNewsBacked(items.filter((item) => item.poster_path));
+export interface DayLayout<S extends SectionLayout = SectionLayout> {
+  blocks: BlockLayout<S>[];
+}
+
+function filmSections(items: FeedDayItem[]): FilmSectionLayout[] {
+  const { newsBacked, tmdbOnly } = splitByNewsBacked(items);
+  const groups = groupByUpdateType(tmdbOnly);
+  return [
+    ...(newsBacked.length > 0
+      ? [{ section: "news", kind: "films", rows: newsBacked } as const]
+      : []),
+    ...(groups.length > 0 ? [{ section: "not_yet_reported", kind: "films", groups } as const] : []),
+  ];
+}
+
+function entitySections(items: FeedDayItem[]): EntitySectionLayout[] {
+  const { newsBacked, tmdbOnly } = splitByNewsBacked(items);
+  const rows = groupByEntity(newsBacked);
+  const groups = groupByUpdateType(tmdbOnly, ENTITY_UPDATE_TYPE_MAP)
+    .map(({ key, label, rows }) => ({ key, label, rows: groupByEntity(rows) }))
+    .filter((group) => group.rows.length > 0);
+  return [
+    ...(rows.length > 0 ? [{ section: "news", kind: "entities", rows } as const] : []),
+    ...(groups.length > 0
+      ? [{ section: "not_yet_reported", kind: "entities", groups } as const]
+      : []),
+  ];
+}
+
+/**
+ * The global feed's day: one Films block over every row. Never routed through
+ * `groupByFollowBlock` — the feed has no follows, so a `via` there (a backend that one day sent
+ * one) must not sprout entity blocks on it; every row is a film row whatever it carries.
+ */
+export function layoutFeedDay(items: FeedDayItem[]): DayLayout<FilmSectionLayout> {
+  const sections = filmSections(items);
+  return {
+    blocks:
+      sections.length > 0 ? [{ key: "films", label: FOLLOW_BLOCK_LABELS.films, sections }] : [],
+  };
+}
+
+/**
+ * The timeline's day: its rows by follow block (FB-1), each block split into In the news and Not
+ * yet reported. Films lays both out as the feed does; People, Studios and Franchises merge rows
+ * per entity (FB-3), Not yet reported under the entity map's headings (FB-4).
+ */
+export function layoutTimelineDay(items: FeedDayItem[]): DayLayout {
+  return {
+    blocks: groupByFollowBlock(items).flatMap(({ key, label, items: blockItems }) => {
+      const sections = key === "films" ? filmSections(blockItems) : entitySections(blockItems);
+      return sections.length > 0 ? [{ key, label, sections }] : [];
+    }),
+  };
+}
+
+function sectionFilms(section: SectionLayout): FeedDayItem[] {
+  if (section.kind === "films") {
+    return section.section === "news"
+      ? section.rows
+      : section.groups.flatMap((group) => group.rows.map((row) => row.item));
+  }
+  const entityRows =
+    section.section === "news" ? section.rows : section.groups.flatMap((group) => group.rows);
+  return entityRows.flatMap((row) => row.lines.map((line) => line.item));
+}
+
+/**
+ * Every film row and entity line of a day, in the order the reader meets them: block by block,
+ * In the news before Not yet reported, heading by heading, row by row, line by line. A film met
+ * twice is listed twice, so this matches the rendered film links one to one.
+ */
+export function filmsInReadingOrder(day: DayLayout): FeedDayItem[] {
+  return day.blocks.flatMap((block) => block.sections.flatMap(sectionFilms));
+}
+
+/**
+ * The films the day's poster strip shows: each film with a poster once, at its first appearance
+ * in reading order (D-1533.1), at most `limit` of them. The strip has no order of its own —
+ * whatever rearranges the sections rearranges it. On the feed, news-backed films lead only
+ * because In the news comes first; on the timeline a Films-block film leads a People-block one.
+ *
+ * De-duplicated by `film_ref`: one film arrives as several rows (two update types, two reaches).
+ * Films without a poster are skipped rather than held as blanks. Pure, so SSR and client agree.
+ */
+export function dayPosterLeads(day: DayLayout, limit = MAX_DAY_POSTERS): FeedDayItem[] {
   const seen = new Set<string>();
-  return [...newsBacked, ...tmdbOnly]
-    .filter((item) => {
-      if (seen.has(item.film_ref)) return false;
-      seen.add(item.film_ref);
-      return true;
-    })
-    .slice(0, limit);
+  const leads: FeedDayItem[] = [];
+  for (const item of filmsInReadingOrder(day)) {
+    if (leads.length === limit) break;
+    if (!item.poster_path || seen.has(item.film_ref)) continue;
+    seen.add(item.film_ref);
+    leads.push(item);
+  }
+  return leads;
 }

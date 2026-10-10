@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
 import { dayItem, feed, oneDay } from "@/test/feed-fixtures";
 import { env } from "@/env";
-import type { FeedDayResponse, FilmEvent } from "@/api/types";
+import type { FeedDayItem, FeedDayResponse, FilmEvent } from "@/api/types";
+import { MAX_DAY_POSTERS } from "@/lib/feed-groups";
+import { dayFilmLinks, stripFromBody } from "@/test/poster-strip";
 import { GLOBAL_FEED_STANDFIRST, GlobalFeed } from "@/components/feed/GlobalFeed";
 import { SECTION_SPLIT_EXPLAINER } from "@/components/film/labels";
 
@@ -263,7 +265,7 @@ describe("feed day sections", () => {
     expect(tmdb.className).toBe(news.className);
   });
 
-  it("gives the day one strip covering both sections, news-backed posters first", async () => {
+  it("gives the day one strip covering both sections, In the news posters first", async () => {
     renderFeed(
       oneDay(
         dayItem("tmdb", { poster_path: "/tmdb.jpg" }),
@@ -272,8 +274,8 @@ describe("feed day sections", () => {
     );
     await screen.findByText(/June 23, 2026/);
     const posters = screen.getAllByRole("img");
-    // One strip for the whole day — but ordered news-first, so the reported film leads even
-    // though backend order (significance, not section) puts the TMDB-only one ahead of it.
+    // One strip for the whole day, in the order its sections read — so the reported film leads
+    // even though backend order (significance, not section) puts the TMDB-only one ahead of it.
     expect(posters.map((p) => p.getAttribute("src"))).toEqual([
       "https://image.tmdb.org/t/p/w185/news.jpg",
       "https://image.tmdb.org/t/p/w185/tmdb.jpg",
@@ -404,6 +406,33 @@ describe("Not yet reported by update type", () => {
     const block = screen.getByRole("heading", { level: 4, name: label }).parentElement!;
     return [...block.querySelectorAll("a[href^='/film/']")].map((a) => a.textContent);
   }
+
+  it("orders the poster strip as the day reads, update type by update type (NEU-1533)", async () => {
+    const poster = (item: FeedDayItem) => ({ ...item, poster_path: `/${item.film_ref}.jpg` });
+    renderFeed(
+      oneDay(
+        // Sorts first by title, but Cast comes after Release date.
+        poster(withEvents("aardvark", "Aardvark", evt("aa-cast", "casting", "A joins."))),
+        poster(withEvents("zebra", "Zebra", evt("ze-date", "release_date", "Z moved."))),
+        // Under Trailer and under Cast: one poster, at Trailer.
+        poster(
+          withEvents(
+            "middle",
+            "Middle",
+            evt("mi-trailer", "trailer", "M trailer."),
+            evt("mi-cast", "casting", "M joins."),
+          ),
+        ),
+        { ...poster(dayItem("reported", { film_title: "Reported" })), news_backed: true },
+        withEvents("no-art", "No Art", evt("na-date", "release_date", "N moved.")),
+      ),
+    );
+    const day = (await screen.findByText(/June 23, 2026/)).closest("section")!;
+
+    const { strip, body } = dayFilmLinks(day);
+    expect(strip).toEqual(["/film/reported", "/film/middle", "/film/zebra", "/film/aardvark"]);
+    expect(strip).toEqual(stripFromBody(body, ["/film/no-art"], MAX_DAY_POSTERS));
+  });
 
   it("heads the section by update type, then film, then that type's events", async () => {
     renderFeed(oneDay(heat, blade));

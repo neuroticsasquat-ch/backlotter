@@ -1,4 +1,3 @@
-import type { ComponentType } from "react";
 import { RouterContextProvider, createRoutesStub } from "react-router";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -9,13 +8,15 @@ import { server } from "@/test/msw/server";
 import { unauthMeHandler } from "@/test/msw/me";
 import { cloudflareContext, type AppEnv } from "@/lib/load-context";
 import { AuthProvider } from "@/components/AuthContext";
-import CalendarPage, { loader, meta, ErrorBoundary } from "@/routes/calendar";
+import CalendarPage, { loader, meta, shouldRevalidate, ErrorBoundary } from "@/routes/calendar";
 import type { CalendarResponse } from "@/api/types";
+import type { CalendarKind } from "@/lib/calendar";
 
 const BACKEND = "https://api.upmovies.localhost";
 
-/** Overrides for one `callLoader` call: Worker env extras and inbound request headers. */
-type LoaderCall = { env?: Partial<AppEnv>; headers?: Record<string, string> };
+/** Overrides for one `callLoader` call: Worker env extras, inbound request headers, and the
+ *  route's splat — the calendar address after `/calendar/`. */
+type LoaderCall = { env?: Partial<AppEnv>; headers?: Record<string, string>; splat?: string };
 
 const calendarTwoDates: CalendarResponse = {
   items: [
@@ -58,10 +59,9 @@ const calendarTwoDates: CalendarResponse = {
   offset: 0,
 };
 
-/** One date carrying all four buckets, in the order the backend returns them: wide, limited,
- *  then the US home release (D-26). The page groups by adjacency, so the fixture's order is the
- *  rendered order. */
-const calendarWithHomeRelease: CalendarResponse = {
+/** One date carrying both theatrical buckets, in the order the backend returns them: wide, then
+ *  limited. The page groups by adjacency, so the fixture's order is the rendered order. */
+const calendarWideAndLimited: CalendarResponse = {
   items: [
     {
       film_ref: "the-odyssey-2026",
@@ -80,18 +80,7 @@ const calendarWithHomeRelease: CalendarResponse = {
       release_year: 2026,
       poster_path: null,
       release_date: "2026-07-04",
-      release_type: "digital",
-      director: null,
-      stars: [],
-      genres: [],
-    },
-    {
-      film_ref: "avatar-3-2026",
-      film_title: "Avatar 3",
-      release_year: 2025,
-      poster_path: null,
-      release_date: "2026-07-04",
-      release_type: "physical",
+      release_type: "limited",
       director: null,
       stars: [],
       genres: [],
@@ -108,11 +97,12 @@ function contextWithEnv(env: Partial<AppEnv> = {}) {
   return context;
 }
 
-function callLoader({ env, headers }: LoaderCall = {}) {
+function callLoader({ env, headers, splat = "" }: LoaderCall = {}) {
+  const path = splat ? `/calendar/${splat}` : "/calendar";
   return loader({
-    request: new Request("https://upmovies.example/calendar", { headers }),
+    request: new Request(`https://upmovies.example${path}`, { headers }),
     context: contextWithEnv(env),
-    params: {},
+    params: { "*": splat },
   } as unknown as Parameters<typeof loader>[0]);
 }
 
@@ -146,23 +136,128 @@ describe("calendar route loader", () => {
     expect(captured?.get("X-Backlotter-Client-IP")).toBeNull();
   });
 
-  it("fetches the calendar from the backend", async () => {
-    server.use(http.get(`${BACKEND}/calendar`, () => HttpResponse.json(calendarTwoDates)));
+  it("fetches the In theaters calendar from the backend", async () => {
+    let captured: URL | undefined;
+    server.use(
+      http.get(`${BACKEND}/calendar`, ({ request }) => {
+        captured = new URL(request.url);
+        return HttpResponse.json(calendarTwoDates);
+      }),
+    );
     const data = await callLoader();
+    // The document is the theatrical calendar; At home is a browser fetch (D-1542.3).
+    expect(captured?.searchParams.get("kind")).toBe("theatrical");
     expect(data.calendar.total).toBe(2);
     expect(data.calendar.items[0].film_ref).toBe("the-odyssey-2026");
+    expect(data.kind).toBe("theatrical");
+  });
+
+  // Each address's document is its all-releases calendar of that kind; a My films address
+  // renders its public twin's, since the server never resolves auth (NEU-1544).
+  it.each([
+    ["", "theatrical"],
+    ["at-home", "home"],
+    ["my-films", "theatrical"],
+    ["my-films/at-home", "home"],
+  ] as const)("fetches the kind the address %j names", async (splat, kind) => {
+    let captured: URL | undefined;
+    server.use(
+      http.get(`${BACKEND}/calendar`, ({ request }) => {
+        captured = new URL(request.url);
+        return HttpResponse.json(calendarTwoDates);
+      }),
+    );
+    const data = await callLoader({ splat });
+    expect(captured?.searchParams.get("kind")).toBe(kind);
+    expect(data.kind).toBe(kind);
+  });
+
+  it("throws a 404 for anything that is not a calendar address, without asking the backend", async () => {
+    let asked = false;
+    server.use(
+      http.get(`${BACKEND}/calendar`, () => {
+        asked = true;
+        return HttpResponse.json(calendarTwoDates);
+      }),
+    );
+    const thrown = await callLoader({ splat: "nope" }).catch((e: unknown) => e);
+    expect(thrown).toBeInstanceOf(Response);
+    expect((thrown as Response).status).toBe(404);
+    expect(asked).toBe(false);
   });
 });
 
+describe("calendar route shouldRevalidate", () => {
+  const args = (from: string, to: string) =>
+    ({
+      currentUrl: new URL(`https://upmovies.example${from}`),
+      nextUrl: new URL(`https://upmovies.example${to}`),
+      defaultShouldRevalidate: true,
+    }) as unknown as Parameters<typeof shouldRevalidate>[0];
+
+  it("skips the loader between two calendar addresses", () => {
+    expect(shouldRevalidate(args("/calendar", "/calendar/at-home"))).toBe(false);
+    expect(shouldRevalidate(args("/calendar/my-films/at-home", "/calendar/my-films"))).toBe(false);
+  });
+
+  it("defers to the default from anywhere else", () => {
+    expect(shouldRevalidate(args("/film/x", "/calendar/at-home"))).toBe(true);
+    expect(shouldRevalidate(args("/calendar/nope", "/calendar"))).toBe(true);
+    // Defers, rather than answering true: the default's own `false` comes straight back.
+    expect(
+      shouldRevalidate({
+        ...args("/film/x", "/calendar"),
+        defaultShouldRevalidate: false,
+      }),
+    ).toBe(false);
+  });
+});
+
+const metaAt = (pathname: string) =>
+  meta({
+    location: { pathname },
+    params: { "*": pathname.replace(/^\/calendar\/?/, "") },
+  } as unknown as Parameters<typeof meta>[0]);
+
+const titleOf = (tags: ReturnType<typeof meta>) =>
+  String((tags.find((t) => "title" in t) as { title: string }).title);
+const descriptionOf = (tags: ReturnType<typeof meta>) =>
+  (tags.find((t) => "name" in t && t.name === "description") as { content: string }).content;
+const canonicalOf = (tags: ReturnType<typeof meta>) =>
+  (tags.find((t) => "tagName" in t && t.rel === "canonical") as { href: string }).href;
+
 describe("calendar route meta", () => {
   it("builds the head with the templated title, description, and canonical link", () => {
-    const tags = meta({
-      location: { pathname: "/calendar" },
-    } as unknown as Parameters<typeof meta>[0]);
+    const tags = metaAt("/calendar");
     expect(tags.some((t) => "title" in t && /Release Calendar/.test(String(t.title)))).toBe(true);
-    expect(tags.some((t) => "name" in t && t.name === "description")).toBe(true);
+    const description = tags.find((t) => "name" in t && t.name === "description");
+    expect(description).toBeDefined();
+    expect(String((description as { content: string }).content)).not.toMatch(/physical/i);
     expect(tags.some((t) => "tagName" in t && t.tagName === "link" && t.rel === "canonical")).toBe(
       true,
+    );
+  });
+
+  // The My films addresses carry their public twin's document, so they canonical to it — and
+  // carry no noindex, which would contradict the canonical (NEU-1544).
+  it.each([
+    ["/calendar", "Release Calendar", "theatrical", "/calendar"],
+    ["/calendar/at-home", "Home Release Calendar", "home", "/calendar/at-home"],
+    ["/calendar/my-films", "My Films Calendar", "theatrical", "/calendar"],
+    ["/calendar/my-films/at-home", "My Films Calendar", "home", "/calendar/at-home"],
+  ] as const)("titles %s and canonicals it to its public twin", (path, title, kind, canonical) => {
+    const tags = metaAt(path);
+    expect(titleOf(tags)).toBe(`${title} — backlotter`);
+    expect(descriptionOf(tags)).toBe(
+      descriptionOf(metaAt(kind === "home" ? "/calendar/at-home" : "/calendar")),
+    );
+    expect(canonicalOf(tags)).toMatch(new RegExp(`${canonical}$`));
+    expect(tags.some((t) => "name" in t && t.name === "robots")).toBe(false);
+  });
+
+  it("describes At home as the digital home release calendar", () => {
+    expect(descriptionOf(metaAt("/calendar/at-home"))).toBe(
+      "Upcoming US digital home releases by date for every film we track.",
     );
   });
 });
@@ -172,16 +267,18 @@ describe("calendar route meta", () => {
  *  are the anonymous branch — the tabbed one lives in `components/calendar/CalendarView.test.tsx`
  *  — so `/me` answers 401 and the page is exactly the one it was before the tabs existed. */
 function renderCalendar(
-  routeLoader: () => { calendar: CalendarResponse },
-  errorBoundary?: ComponentType,
+  routeLoader: () => { calendar: CalendarResponse; kind: CalendarKind },
+  errorBoundary?: typeof ErrorBoundary,
+  path = "/calendar",
 ) {
   server.use(unauthMeHandler());
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const Stub = createRoutesStub([
     {
-      path: "/calendar",
+      path: "/calendar/*",
       Component: CalendarPage,
       loader: routeLoader,
+      shouldRevalidate,
       ...(errorBoundary ? { ErrorBoundary: errorBoundary } : {}),
     },
     { path: "/film/:slug", Component: () => null },
@@ -190,7 +287,7 @@ function renderCalendar(
   return render(
     <QueryClientProvider client={qc}>
       <AuthProvider>
-        <Stub initialEntries={["/calendar"]} />
+        <Stub initialEntries={[path]} />
       </AuthProvider>
     </QueryClientProvider>,
   );
@@ -198,7 +295,10 @@ function renderCalendar(
 
 describe("calendar route render", () => {
   it("renders title(year) rows grouped by date then release type, linking each to its film page", async () => {
-    const { container } = renderCalendar(() => ({ calendar: calendarTwoDates }));
+    const { container } = renderCalendar(() => ({
+      calendar: calendarTwoDates,
+      kind: "theatrical",
+    }));
 
     // Both date headings render
     expect(await screen.findByText(/July 4, 2026/)).toBeInTheDocument();
@@ -229,15 +329,16 @@ describe("calendar route render", () => {
     expect(timeEls[timeEls.length - 1].textContent).toMatch(/July 11, 2026/);
   });
 
-  it("renders the home-release buckets with their own labels, in backend order", async () => {
-    const { container } = renderCalendar(() => ({ calendar: calendarWithHomeRelease }));
+  it("renders the theatrical buckets with their own labels, in backend order", async () => {
+    const { container } = renderCalendar(() => ({
+      calendar: calendarWideAndLimited,
+      kind: "theatrical",
+    }));
 
     expect(await screen.findByText(/July 4, 2026/)).toBeInTheDocument();
-    expect(screen.getByText("Digital")).toBeInTheDocument();
-    expect(screen.getByText("Physical")).toBeInTheDocument();
     // Each bucket is its own sub-group under the shared date, ordered as the backend sent them.
     const groupLabels = Array.from(container.querySelectorAll("h5")).map((el) => el.textContent);
-    expect(groupLabels).toEqual(["Wide", "Digital", "Physical"]);
+    expect(groupLabels).toEqual(["Wide", "Limited"]);
     expect(screen.getByRole("link", { name: /Dune Part Three/ })).toHaveAttribute(
       "href",
       "/film/dune-3-2026",
@@ -253,9 +354,11 @@ describe("calendar route render", () => {
       offset: 0,
     };
     let captured: Headers | undefined;
+    let kind: string | null = null;
     server.use(
       http.get(`${BACKEND}/calendar`, ({ request }) => {
         captured = request.headers;
+        kind = new URL(request.url).searchParams.get("kind");
         return HttpResponse.json({
           items: [calendarTwoDates.items[2]],
           total: 2,
@@ -264,21 +367,58 @@ describe("calendar route render", () => {
         });
       }),
     );
-    renderCalendar(() => ({ calendar: page1 }));
+    renderCalendar(() => ({ calendar: page1, kind: "theatrical" }));
     expect(await screen.findByText(/July 4, 2026/)).toBeInTheDocument();
     expect(screen.queryByText(/July 11, 2026/)).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: /view more/i }));
     expect(await screen.findByText(/July 11, 2026/)).toBeInTheDocument();
+    expect(kind).toBe("theatrical");
     // Browser-side paging is already per-visitor: it must never send the SSR signing headers.
     expect(captured?.get("X-Backlotter-Origin")).toBeNull();
     expect(captured?.get("X-Backlotter-Client-IP")).toBeNull();
   });
 
+  it("says the dates are US ones, directly under the heading (ADR-0024)", async () => {
+    renderCalendar(() => ({ calendar: calendarTwoDates, kind: "theatrical" }));
+    const heading = await screen.findByRole("heading", { level: 1, name: "Calendar" });
+    expect(heading.nextElementSibling).toHaveTextContent(
+      "US release dates, in theaters and at home.",
+    );
+  });
+
   it("shows the empty state when there are no releases", async () => {
     const emptyCalendar: CalendarResponse = { items: [], total: 0, limit: 100, offset: 0 };
-    renderCalendar(() => ({ calendar: emptyCalendar }));
-    expect(await screen.findByText(/no upcoming releases yet/i)).toBeInTheDocument();
+    renderCalendar(() => ({ calendar: emptyCalendar, kind: "theatrical" }));
+    expect(await screen.findByText(/no upcoming theatrical releases yet/i)).toBeInTheDocument();
+  });
+
+  it("renders the At home calendar without a bucket heading under each date", async () => {
+    let kind: string | null = null;
+    server.use(
+      http.get(`${BACKEND}/calendar`, ({ request }) => {
+        kind = new URL(request.url).searchParams.get("kind");
+        return HttpResponse.json({
+          items: [{ ...calendarTwoDates.items[2], release_type: "digital" }],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        } satisfies CalendarResponse);
+      }),
+    );
+    const { container } = renderCalendar(() => ({
+      calendar: calendarWideAndLimited,
+      kind: "theatrical",
+    }));
+    await screen.findByText(/July 4, 2026/);
+
+    await userEvent.click(screen.getByRole("radio", { name: "At home" }));
+
+    expect(await screen.findByRole("link", { name: /Avatar 3/ })).toBeVisible();
+    expect(kind).toBe("home");
+    // The only h5s on the page are the hidden theatrical panel's; "Digital" never renders.
+    for (const heading of container.querySelectorAll("h5")) expect(heading).not.toBeVisible();
+    expect(screen.queryByText("Digital")).toBeNull();
   });
 
   it("renders year and month headings for multi-month data", async () => {
@@ -311,9 +451,24 @@ describe("calendar route render", () => {
       limit: 20,
       offset: 0,
     };
-    renderCalendar(() => ({ calendar: multiMonth }));
+    renderCalendar(() => ({ calendar: multiMonth, kind: "theatrical" }));
     expect(await screen.findByRole("heading", { name: "2026" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "June" })).toBeInTheDocument();
+  });
+
+  it("error boundary renders the not-found copy for a 404, linking to /calendar", async () => {
+    renderCalendar(
+      () => {
+        throw new Response(null, { status: 404, statusText: "Calendar view not found" });
+      },
+      ErrorBoundary,
+      "/calendar/nope",
+    );
+    expect(await screen.findByText(/that calendar view doesn't exist/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /release calendar/i })).toHaveAttribute(
+      "href",
+      "/calendar",
+    );
   });
 
   it("error boundary renders neutral copy and a link home", async () => {

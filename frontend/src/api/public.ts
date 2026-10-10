@@ -13,6 +13,7 @@ import type {
   PersonSearchItem,
   PopularPeopleResponse,
 } from "./types";
+import type { CalendarKind } from "@/lib/calendar";
 
 /**
  * Extra request headers. SSR loaders pass the signing headers from `lib/ssr-origin.ts` so the
@@ -257,9 +258,17 @@ export async function getFeedGrouped(
  */
 export async function getCalendar(
   baseUrl: string,
-  { limit = 100, offset = 0, headers }: { limit?: number; offset?: number } & ExtraHeaders = {},
+  {
+    kind,
+    limit = 100,
+    offset = 0,
+    headers,
+  }: { kind: CalendarKind; limit?: number; offset?: number } & ExtraHeaders,
 ): Promise<CalendarResponse> {
   const url = apiUrl(baseUrl, "/calendar");
+  // Always sent: omitted, the backend answers with both kinds in one list (for older clients),
+  // which no view on this side renders (D-1542.2).
+  url.searchParams.set("kind", kind);
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("offset", String(offset));
   const res = await fetch(url, { headers: { Accept: "application/json", ...headers } });

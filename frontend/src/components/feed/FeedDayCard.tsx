@@ -35,8 +35,8 @@ export function FeedDayCard({ item }: { item: FeedDayItem }) {
   // A now_available beat's body names the providers a poll found the film on (D-28), so this row
   // is a surface where provider names render and TMDB's terms want JustWatch credited on it.
   // Keyed off `event_types` rather than the row's events, because the no-events fallback row has
-  // only the badge set; once per row, whichever shape it takes. The row
-  // has no per-film watch link to pass — that is the film page's `where_to_watch.link`.
+  // only the badge set; once per row, whichever shape it takes. The row has no per-film watch
+  // link to pass: the API carries none since the where-to-watch box went (NEU-1542).
   const showAttribution = item.event_types.includes("now_available");
   return (
     <div className={FEED_ROW}>

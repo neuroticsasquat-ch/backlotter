@@ -1,8 +1,8 @@
 import type { FeedDayItem } from "@/api/types";
-import { groupByDay, groupByUpdateType, splitByNewsBacked } from "@/lib/feed-groups";
+import { type FilmSectionLayout, groupByDay, layoutFeedDay } from "@/lib/feed-groups";
 import { FeedDayCard } from "@/components/feed/FeedDayCard";
 import { FeedDayPosters } from "@/components/feed/FeedDayPosters";
-import { UpdateTypeGroups } from "@/components/feed/UpdateTypeGroups";
+import { FilmUpdateTypeRows, UpdateTypeGroups } from "@/components/feed/UpdateTypeGroups";
 import { NOT_YET_REPORTED_LABEL, NOT_YET_REPORTED_QUALIFIER } from "@/components/film/labels";
 import { SectionHeading } from "@/components/film/SectionHeading";
 
@@ -12,46 +12,39 @@ const SECTION_BREAK = "[&:not(:first-child)]:mt-6";
 
 /**
  * The day-by-day body of a grouped feed: one section per day, each split into its news-backed
- * and not-yet-reported halves above a strip of that day's posters. In the news is one row per
- * film; Not yet reported is laid out by update type (NR-1). This is the one place that decides
- * which section is grouped — `groupByUpdateType` and `UpdateTypeGroups` take any rows.
+ * and not-yet-reported halves under a strip of that day's posters. In the news is one row per
+ * film; Not yet reported is laid out by update type (NR-1).
  *
- * The global feed's alone. The signed-in timeline renders the same DTO but lays each day out by
- * follow block, through `TimelineDayGroups` (FB-8); it borrows `SectionWrapper` from here, a
- * heading level down.
+ * Each day is `layoutFeedDay`'s one Films block, whose heading the feed does not draw. The strip
+ * and the sections render that same layout, so the strip reads in the sections' order
+ * (NEU-1533). The global feed's alone: the signed-in timeline renders the same DTO but lays each
+ * day out by follow block, through `TimelineDayGroups` (FB-8); it borrows `SectionWrapper` from
+ * here, a heading level down.
  */
 export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
   const groups = groupByDay(items);
   return (
     <div className="mt-6 space-y-8">
       {groups.map((group) => {
-        const { newsBacked, tmdbOnly } = splitByNewsBacked(group.items);
+        const day = layoutFeedDay(group.items);
         return (
           <section key={group.dayKey}>
             <h2 className="text-sm font-medium text-muted-foreground">
               <time dateTime={group.dayKey}>{group.heading}</time>
             </h2>
             <div className="mt-2 flex flex-col gap-3 border-l-2 border-border pl-3">
-              {/* One strip per day, not per section — it anchors the date, and takes the
-                  whole day's items so its own news-first ordering applies. Above the list at
+              {/* One strip per day, not per section — it anchors the date. Above the list at
                   every width: beside it, a poster lined up with whatever row happened to sit
                   next to it and read as a label for an unrelated film. */}
-              <FeedDayPosters items={group.items} />
+              <FeedDayPosters day={day} />
               <div className="min-w-0 flex-1">
-                {/* A day renders only the sections that have items — an empty one is
-                    silence, never a placeholder line (NEU-1467). */}
-                <SectionWrapper label="In the news" empty={newsBacked.length === 0}>
-                  {newsBacked.map((item) => (
-                    <FeedDayCard key={item.film_ref} item={item} />
-                  ))}
-                </SectionWrapper>
-                <SectionWrapper
-                  label={NOT_YET_REPORTED_LABEL}
-                  qualifier={NOT_YET_REPORTED_QUALIFIER}
-                  empty={tmdbOnly.length === 0}
-                >
-                  <UpdateTypeGroups groups={groupByUpdateType(tmdbOnly)} />
-                </SectionWrapper>
+                {/* The layout holds only sections with rows — an empty one is silence, never a
+                    placeholder line (NEU-1467). */}
+                {day.blocks.flatMap((block) =>
+                  block.sections.map((section) => (
+                    <FeedSection key={section.section} section={section} />
+                  )),
+                )}
               </div>
             </div>
           </section>
@@ -61,25 +54,36 @@ export function FeedDayGroups({ items }: { items: FeedDayItem[] }) {
   );
 }
 
-/** Wraps a day section: a static heading, then the rows, always expanded. A section with no
- *  items renders nothing — no heading, no "None today" (NEU-1467). The heading carries no movie
- *  count (NR-6): under update types a film can appear more than once, so a count of rows would
- *  no longer be a count of films. An h3 under the feed's day, an h4 under the timeline's follow
- *  block (FB-1). */
+function FeedSection({ section }: { section: FilmSectionLayout }) {
+  return section.section === "news" ? (
+    <SectionWrapper label="In the news">
+      {section.rows.map((item) => (
+        <FeedDayCard key={item.film_ref} item={item} />
+      ))}
+    </SectionWrapper>
+  ) : (
+    <SectionWrapper label={NOT_YET_REPORTED_LABEL} qualifier={NOT_YET_REPORTED_QUALIFIER}>
+      <UpdateTypeGroups groups={section.groups} renderGroup={FilmUpdateTypeRows} />
+    </SectionWrapper>
+  );
+}
+
+/** Wraps a day section: a static heading, then the rows, always expanded. Only a section with
+ *  rows reaches it — the day layout leaves an empty one out, so there is no "None today"
+ *  (NEU-1467). The heading carries no movie count (NR-6): under update types a film can appear
+ *  more than once, so a count of rows would no longer be a count of films. An h3 under the feed's
+ *  day, an h4 under the timeline's follow block (FB-1). */
 export function SectionWrapper({
   label,
   qualifier,
-  empty,
   headingAs = "h3",
   children,
 }: {
   label: string;
   qualifier?: string;
-  empty: boolean;
   headingAs?: "h3" | "h4";
   children: React.ReactNode;
 }) {
-  if (empty) return null;
   return (
     <div className={SECTION_BREAK}>
       <SectionHeading as={headingAs} label={label} qualifier={qualifier} />

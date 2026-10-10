@@ -10,7 +10,9 @@ export default [
   layout("routes/public-layout.tsx", [
     index("routes/feed.tsx"),
     route("feed", "routes/all-updates.tsx"),
-    route("calendar", "routes/calendar.tsx"),
+    // One route for the four calendar addresses (NEU-1544, D-1544.1), so a tab or kind click is a
+    // navigation within one mounted element and the panels survive it (D-1412.2).
+    route("calendar/*", "routes/calendar.tsx"),
     route("film/:ref", "routes/film.tsx"),
     route("person/:ref", "routes/person.tsx"),
     // "Studio" and "Franchise" in the URL as on screen (EF-19); the payloads and the follow

@@ -9,6 +9,13 @@ adds or presents differently. When a term appears in both, the backend's definit
 
 ### The calendar
 
+**Primary region**:
+The one region the product serves — the United States (backend ADR-0024). Both calendars, the
+iCal feed, the slate and the settings copy are scoped to it and say so once. The film page's
+release list is the one surface that also shows another country: a film's theatrical dates in
+its own country, each tagged with that country. The backend glossary owns the definition.
+_Avoid_: home region, default region, locale, US market.
+
 **All-releases calendar**:
 The public release calendar: every tracked film reaching a US release date, upcoming-only,
 paged by date. It is the calendar an anonymous visitor sees, the one the server renders, and
@@ -22,6 +29,8 @@ director, a studio or a franchise puts nothing on it: an entity follow delivers 
 attachments and detachments, not its films. The backend glossary defines the set and the date
 rule; on the web it is the first tab an entitled reader lands on, and it never exists for
 anyone else. Its subscribed form is the **iCal feed**, which holds the same films and dates.
+It has both **calendar kinds**, and the iCal feed is their union: one subscription, theatrical
+and digital dates together (D-1542.4).
 _Avoid_: watchlist calendar (the old name, retired with the watchlist), my calendar (the nav
 item is "Calendar"; the tab is "My films"), follow calendar, personal calendar, subscription
 calendar (that is the iCal feed).
@@ -29,10 +38,27 @@ calendar (that is the iCal feed).
 **Calendar tab**:
 One of the two views an **entitled** reader can switch between under the Calendar heading:
 "My films" and "All releases". A reader without a grant has no tabs at all: not a locked
-tab, not a disabled one, just the all-releases calendar. The tab is a view on the page, not a
-place; it is never a URL.
+tab, not a disabled one, just the all-releases calendar. Each tab has an address: the
+all-releases tab is `/calendar` (for everyone, entitled readers included), the My films tab is
+`/calendar/my-films`, and the nav sends an entitled reader to the latter (NEU-1544, ADR-0002).
+A reader without a grant who lands on a My films address is moved to its public twin. The
+**calendar kind** cuts across it: switching tab keeps the kind.
 _Avoid_: mode, filter (the my-films calendar is a different set, not the same set filtered
 on the client), locked tab.
+
+**Calendar kind**:
+Which of the two calendars the page is showing: **In theaters** (the US theatrical arc, wide
+and limited) or **At home** (the US digital date). One segmented control under the heading,
+for every reader — anonymous ones included — and below the tab strip for an entitled one. It
+is shared across the tabs, so My films and All releases each have both kinds. Each kind has an
+address — In theaters carries no segment, At home is `/at-home` under the tab's path
+(`/calendar/at-home`, `/calendar/my-films/at-home`; NEU-1544, ADR-0002) — but it is never a
+preference (never remembered): without a segment the page opens on In theaters, and the server
+renders whichever kind the address names. The At home kind holds the announced digital date
+and nothing observed; a `now_available` observation is a feed card, never a calendar entry. It
+renders without the bucket heading, since it has one bucket (NEU-1542).
+_Avoid_: filter, mode, category, "rent/buy/stream view" (the ticket's phrase; the view holds one
+announced date, not three observations), "digital tab" (it is not a tab).
 
 ### The feed and the film page
 
@@ -80,6 +106,26 @@ one, since that heading names nothing.
 _Avoid_: category, event type (that is the beat's own classification, one level finer), beat
 (a beat is one development; an update type is a heading over many), section (that is the
 provenance split, In the news / Not yet reported, one level coarser), subgroup.
+
+**Poster strip**:
+The row of posters under a day heading on the grouped feed and the timeline, and over a day
+(or the week) of the digest: one poster per film that has one, at most eight, each linking to
+its film. Its order is the day's **reading order**: a film's poster sits where the film first
+appears when the day is read top to bottom, follow block by follow block, In the news before
+Not yet reported, update type by update type, row by row, and line by line within an entity
+row. A film that appears twice has one poster, at its first appearance. The strip has no order
+of its own: whatever rearranges the rows rearranges the strip.
+_Avoid_: lead posters, day leads (the code's old name for a rule the strip no longer has),
+news-first (true on the grouped feed only as a consequence of section order, and not on the
+timeline), thumbnail row, carousel (it clips; it does not scroll).
+
+**Where to watch** (retired):
+D-29's film-page box of current US carriers, removed by NEU-1542 (backend ADR-0023) because it
+promised an accuracy across time the site does not provide. The phrase survives only as the
+**Where to watch (TMDB)** chip beside IMDb and TMDB, which links out to TMDB's watch page once
+the film has a US date behind it. `now_available` cards keep their JustWatch credit.
+_Avoid_: providers box, availability box, describing anything on the site as "where to watch"
+data.
 
 ### The timeline
 

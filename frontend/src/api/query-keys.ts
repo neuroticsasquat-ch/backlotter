@@ -1,3 +1,5 @@
+import type { CalendarKind } from "@/lib/calendar";
+
 /** The cache keys for the account-scoped collections, kept in one module because several of
  *  them have writers on both sides of the `AuthContext` ↔ `api/me` import edge: the hooks in
  *  `api/me.ts` read `useAuth`, so `AuthContext` cannot import a key back from there without
@@ -46,7 +48,15 @@ export const activeImportKey = ["me", "import", "active"] as const;
  *  mutations, which have no natural prefix over it, whereas this has one already. */
 export const myFilmsCalendarKey = [...followsKey, "calendar"] as const;
 
-/** The key for one page of `GET /me/calendar`. `limit`/`offset` count distinct release dates,
- *  as the public route's do (NEU-1411). */
-export const myFilmsCalendarPageKey = (limit: number, offset: number) =>
-  [...myFilmsCalendarKey, limit, offset] as const;
+/** The key for one page of `GET /me/calendar`, per calendar kind (NEU-1542). `limit`/`offset`
+ *  count distinct release dates, as the public route's do (NEU-1411). Both kinds sit under
+ *  `myFilmsCalendarKey`, so a follow change refreshes both. */
+export const myFilmsCalendarPageKey = (kind: CalendarKind, limit: number, offset: number) =>
+  [...myFilmsCalendarKey, kind, limit, offset] as const;
+
+/** The first page of a public calendar kind fetched in the browser — the kind the page was not
+ *  entered at, the first time a reader picks it (NEU-1542, D-1542.3). The loader's kind is
+ *  whichever the address named (NEU-1544), and its page is never cached here. Outside `["me"]`:
+ *  it is the same for everyone. */
+export const publicCalendarFirstPageKey = (kind: CalendarKind, limit: number) =>
+  ["calendar", kind, limit] as const;

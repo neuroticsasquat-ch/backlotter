@@ -217,6 +217,13 @@ describe("FilmHeader", () => {
     expect(screen.getByRole("link", { name: /imdb/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /tmdb/i })).toBeInTheDocument();
   });
+
+  it("passes the watchable flag through to the external links", () => {
+    const { rerender } = render(<FilmHeader film={film} />);
+    expect(screen.queryByRole("link", { name: "Where to watch (TMDB)" })).not.toBeInTheDocument();
+    rerender(<FilmHeader film={film} watchable />);
+    expect(screen.getByRole("link", { name: "Where to watch (TMDB)" })).toBeInTheDocument();
+  });
 });
 
 describe("FilmHeader follow affordances", () => {

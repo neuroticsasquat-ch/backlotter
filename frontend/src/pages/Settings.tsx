@@ -448,9 +448,10 @@ function CalendarSection() {
       <h2 id={headingId} className="text-lg font-semibold text-foreground">
         Calendar
       </h2>
+      {/* The feed is US-only (backend/docs/adr/0024-the-product-is-us-market.md). */}
       <p className="mt-1 text-sm text-muted-foreground">
-        Subscribe your calendar to the release dates of the films you follow — in theaters, digital
-        and disc, each as an all-day event that moves when the date does.
+        Subscribe your calendar to the US release dates of the films you follow — in theaters and at
+        home, each as an all-day event that moves when the date does.
       </p>
 
       {isLoading && <p className="mt-3 text-sm text-muted-foreground">Loading…</p>}

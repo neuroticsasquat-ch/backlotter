@@ -4,9 +4,9 @@
  * An obligation, not a caption: TMDB's terms for `/movie/{id}/watch/providers` require crediting
  * JustWatch wherever the data renders and linking back to TMDB's own page (D-28, D-29). It lives
  * in its own module, and the wording is written here rather than taken from a payload, so that
- * the terms exist in exactly one version. The film page's where-to-watch box is the first
- * surface; the `now_available` cards on the feed and the timeline are the second (NEU-1402) and
- * import this rather than restate it.
+ * the terms exist in exactly one version. The `now_available` cards on the feed, the timeline
+ * and the film page are where it renders (NEU-1402) — the film page's where-to-watch box was the
+ * first surface until NEU-1542 removed it — and they import this rather than restate it.
  *
  * `link` is nullable because TMDB omits it for some regions — the credit renders either way, and
  * a card has no link to offer at all.

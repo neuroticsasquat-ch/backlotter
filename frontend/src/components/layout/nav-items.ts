@@ -1,4 +1,5 @@
 import type { FollowAccess } from "@/components/follow/access";
+import { DEFAULT_CALENDAR_ADDRESS, calendarPath } from "@/lib/calendar";
 import { SITE_NAME } from "@/lib/seo";
 
 export const WORDMARK = SITE_NAME;
@@ -6,10 +7,11 @@ export const WORDMARK = SITE_NAME;
 export interface NavItem {
   label: string;
   href: string;
+  /** The path whose whole subtree lights the item, when that is wider than `href`'s: the Calendar
+   *  item links to one of the four calendar addresses but is the current page on all of them
+   *  (NEU-1544). Defaults to `href`. */
+  activePath?: string;
 }
-
-/** The calendar is the same destination for everybody, so it is spelled once. */
-const CALENDAR: NavItem = { label: "Calendar", href: "/calendar" };
 
 /**
  * The primary nav, which depends on whether the reader has a timeline to be offered.
@@ -36,12 +38,28 @@ const CALENDAR: NavItem = { label: "Calendar", href: "/calendar" };
  * `hinted` gets the two-item form too: the timeline hint predicts `ready`, and the home page is
  * already showing the "My feed" skeleton for it (NEU-1468, D-1468.5). A hint that turns out wrong
  * collapses the nav with the page when `/me` answers.
+ *
+ * The Calendar item is the same label for everyone but not the same address: `/calendar` is All
+ * releases whoever is looking (NEU-1544, D-1544.1), so a reader with films of their own is sent
+ * to `/calendar/my-films`, where the calendar opens on them. A `hinted` reader goes there too;
+ * if the hint is wrong, the page replaces itself onto `/calendar` once `/me` answers (D-1544.2).
  */
 export function navItemsFor(access: FollowAccess): NavItem[] {
   if (access === "ready" || access === "hinted") {
-    return [{ label: "My feed", href: "/" }, { label: "All updates", href: "/feed" }, CALENDAR];
+    return [
+      { label: "My feed", href: "/" },
+      { label: "All updates", href: "/feed" },
+      {
+        label: "Calendar",
+        href: calendarPath({ tab: "films", kind: "theatrical" }),
+        activePath: calendarPath(DEFAULT_CALENDAR_ADDRESS),
+      },
+    ];
   }
   // `/feed` keeps working and stays in the sitemap; it is just not worth a nav entry when it
   // is a second door onto the page the reader is already looking at.
-  return [{ label: "Updates", href: "/" }, CALENDAR];
+  return [
+    { label: "Updates", href: "/" },
+    { label: "Calendar", href: calendarPath(DEFAULT_CALENDAR_ADDRESS) },
+  ];
 }
