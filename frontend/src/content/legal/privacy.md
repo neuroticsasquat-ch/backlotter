@@ -1,8 +1,8 @@
 # Privacy Policy
 
-**Last updated: 2026-09-26**
+**Last updated: 2026-10-11**
 
-This Privacy Policy explains how Tom Boone, doing business as neuroticsasquat.ch ("we," "us," or "our") collects, uses, and shares information when you use Backlotter (the "Service"). It is incorporated into our [Terms of Service](/terms) by reference. By using the Service, you agree to the practices described here.
+This Privacy Policy explains how neuroticsasquat.ch, a trade name registered in Maryland ("we," "us," or "our") collects, uses, and shares information when you use Backlotter (the "Service"). It is incorporated into our [Terms of Service](/terms) by reference. By using the Service, you agree to the practices described here.
 
 ## 1. Information We Collect
 
@@ -90,7 +90,7 @@ Depending on where you live, you may have rights to:
 - Object to or restrict certain processing; and
 - Receive a copy of your data in a portable format.
 
-To exercise these rights, contact us at support@backlotter.com. We will not discriminate against you for exercising them.
+To exercise these rights, contact us at privacy@backlotter.com. We will not discriminate against you for exercising them.
 
 **California residents (CCPA/CPRA):** You have the right to know, delete, and correct your personal information, and to opt out of its "sale" or "sharing." As stated, we do not sell or share your personal information as those terms are defined, other than aggregated/de-identified data that falls outside those definitions.
 
@@ -106,4 +106,4 @@ We may update this Policy from time to time. If we make material changes, we wil
 
 ## 13. Contact
 
-Questions or requests? Contact us at support@backlotter.com.
+Questions or requests? Contact us at privacy@backlotter.com.

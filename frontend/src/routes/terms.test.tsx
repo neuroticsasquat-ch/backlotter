@@ -22,7 +22,7 @@ describe("terms route render", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: /terms of service/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/last updated: 2026-06-30/i)).toBeInTheDocument();
+    expect(screen.getByText(/last updated: 2026-10-11/i)).toBeInTheDocument();
   });
 
   it("links to the privacy policy", async () => {
@@ -30,5 +30,16 @@ describe("terms route render", () => {
     const { container } = render(<Stub initialEntries={["/terms"]} />);
     await screen.findByRole("heading", { level: 1, name: /terms of service/i });
     expect(container.querySelector('a[href="/privacy"]')).not.toBeNull();
+  });
+
+  it("names the operator by trade name and links support@ (NEU-1569)", async () => {
+    const Stub = createRoutesStub([{ path: "/terms", Component: TermsPage }]);
+    const { container } = render(<Stub initialEntries={["/terms"]} />);
+    await screen.findByRole("heading", { level: 1, name: /terms of service/i });
+    expect(container.textContent).toMatch(
+      /neuroticsasquat\.ch, a trade name registered in Maryland/,
+    );
+    expect(container.textContent).not.toMatch(/Tom Boone/);
+    expect(container.querySelector('a[href="mailto:support@backlotter.com"]')).not.toBeNull();
   });
 });
