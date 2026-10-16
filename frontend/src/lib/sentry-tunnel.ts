@@ -1,16 +1,17 @@
 /** Same-origin path the browser SDK posts envelopes to (the Sentry `tunnel` target,
  *  set in entry.client.tsx). Routing through our own origin keeps ad blockers from
- *  dropping the request to `ingest.sentry.io`. The Worker proxies it on (workers/app.ts). */
+ *  dropping the request to the Bugsink host. The Worker proxies it on (workers/app.ts). */
 export const SENTRY_TUNNEL_PATH = "/monitoring";
 
 /**
  * Validate a tunneled Sentry envelope against our own DSN and return the upstream ingest
  * URL to forward it to, or `null` if it doesn't target our project — so the tunnel can't
- * be abused as an open relay.
+ * be abused as an open relay. The URL is derived from the DSN: Bugsink serves Sentry's
+ * `/api/<projectId>/envelope/` ingest path (NEU-1594).
  *
  * `envelopeHeader` is the first line of the envelope: a JSON object whose `dsn` field
  * names the intended destination. `ourDsn` is the Worker's `SENTRY_DSN`
- * (`https://<key>@<host>/<projectId>`).
+ * (`https://<key>@bugsink.neuroticsasquat.ch/<projectId>`).
  */
 export function sentryTunnelUpstream(ourDsn: string, envelopeHeader: string): string | null {
   if (!ourDsn) return null;

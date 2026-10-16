@@ -95,19 +95,39 @@ entitled resolve. The public layout's loader reads it from the request and hands
 is read instead. `useFollowAccess()` answers `hinted` while it is set and `/me` is in flight, and
 only the home page and the nav act on that. It is a prediction, never auth.
 
-### Sentry: three surfaces, one tunnel
+### Error reporting (Bugsink): three surfaces, one tunnel
+
+Errors go to **Bugsink** (`bugsink.neuroticsasquat.ch`, project `upcoming-movies-frontend`), which
+speaks the Sentry protocol — the `@sentry/*` SDKs stay, only the DSNs and upload target point there
+(NEU-1594; ops repo `docs/runbooks/bugsink.md`).
 
 - **Browser** (`entry.client.tsx`): `@sentry/react`, `tunnel: SENTRY_TUNNEL_PATH` — envelopes go to
-  same-origin `/monitoring` instead of `ingest.sentry.io` so ad blockers don't drop them.
+  same-origin `/monitoring` instead of the Bugsink host so ad blockers don't drop them.
 - **SSR/Worker** (`workers/app.ts`): `Sentry.withSentry` from `@sentry/cloudflare` wraps the fetch
   handler, catching loader/render errors; DSN comes from the Worker env (`env.SENTRY_DSN`).
 - **Tunnel proxy** (`workers/app.ts` `handleSentryTunnel` + `lib/sentry-tunnel.ts`): the Worker
-  forwards `/monitoring` POSTs upstream after validating the envelope's `dsn` against its own, so it
-  can't be used as an open relay. **Must read the body as raw bytes** (`arrayBuffer`), not text —
-  session-replay envelopes carry a binary payload and a UTF-8 round-trip corrupts it.
+  forwards `/monitoring` POSTs to `https://<dsn host>/api/<id>/envelope/` after validating the
+  envelope's `dsn` against its own, so it can't be used as an open relay. **Must read the body as
+  raw bytes** (`arrayBuffer`), not text — session-replay envelopes carry a binary payload and a
+  UTF-8 round-trip corrupts it.
 
-There are two separate DSN/env-var sets: `VITE_SENTRY_DSN` (build-time, browser) and `SENTRY_DSN`
-(Worker runtime var in `wrangler.jsonc`/CF dashboard, SSR).
+Two DSN settings, **both the same Bugsink DSN** — the tunnel drops any envelope whose DSN differs
+from the Worker's, so they always move together: `VITE_SENTRY_DSN` (Workers Builds build var,
+browser) and `SENTRY_DSN` (a Wrangler **secret**, `wrangler secret put SENTRY_DSN`, read at request
+time). It is a secret rather than a `wrangler.jsonc` var so the value lives in Cloudflare and a
+deploy doesn't overwrite it.
+
+**Source maps.** With `SENTRY_AUTH_TOKEN` set in the build env, `@sentry/vite-plugin` injects debug
+IDs, uploads the maps to `SENTRY_URL` (`SENTRY_ORG` defaults to Bugsink's `bugsinkhasnoorgs`,
+`SENTRY_PROJECT` to `upcoming-movies-frontend`) and deletes every `.map` from `dist/`, so none is
+deployed. No token → no maps, a build warning, and a successful build. The **release** is the
+commit SHA (`VITE_GIT_SHA`, else Workers Builds' `WORKERS_CI_COMMIT_SHA`; `vite.config.ts` also
+reads `CF_PAGES_COMMIT_SHA` and Coolify's `SOURCE_COMMIT`, ignoring its `"unknown"`), compiled in as `__GIT_SHA__` and read by
+both inits through `lib/sentry.ts`; `environment` is the Vite mode.
+
+**Test errors.** `/debug/error` (unlinked, client-only) has a button that throws a
+`BrowserTestError`; any URL with `?__test_error` makes the Worker throw a `WorkerTestError`
+(`lib/test-error.ts`). Distinct types, so each lands as its own Bugsink issue.
 
 ### Layout (`src/`)
 
@@ -119,8 +139,8 @@ There are two separate DSN/env-var sets: `VITE_SENTRY_DSN` (build-time, browser)
 - `components/` — `AuthContext.tsx` (`useAuth`), `RequireAuth`/`RequireAdmin` guards, `layout/`
   (header/nav/admin shells), `ui/` (primitives), feature folders (`feed/`, `film/`, `calendar/`,
   `search/`).
-- `lib/` — `load-context.ts` (`cloudflareContext`), `sentry-tunnel.ts`, formatting/grouping helpers,
-  each with a co-located test.
+- `lib/` — `load-context.ts` (`cloudflareContext`), `sentry.ts`/`sentry-tunnel.ts`/`test-error.ts`,
+  formatting/grouping helpers, each with a co-located test.
 - `workers/app.ts` — the Worker entrypoint (SSR request handler + Sentry tunnel proxy).
 - `env.ts` — build-time `VITE_*` vars for the SPA/client path.
 
