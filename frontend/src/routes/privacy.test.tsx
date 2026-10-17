@@ -22,7 +22,7 @@ describe("privacy route render", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: /privacy policy/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/last updated: 2026-09-26/i)).toBeInTheDocument();
+    expect(screen.getByText(/last updated: 2026-10-11/i)).toBeInTheDocument();
   });
 
   it("states we do not sell personal information and may sell aggregated data", async () => {
@@ -33,5 +33,23 @@ describe("privacy route render", () => {
     expect(
       screen.getByRole("heading", { name: /aggregated and de-identified data/i }),
     ).toBeInTheDocument();
+  });
+
+  it("names the operator by trade name, not a personal name (NEU-1569)", async () => {
+    const Stub = createRoutesStub([{ path: "/privacy", Component: PrivacyPage }]);
+    const { container } = render(<Stub initialEntries={["/privacy"]} />);
+    await screen.findByRole("heading", { level: 1, name: /privacy policy/i });
+    expect(container.textContent).toMatch(
+      /neuroticsasquat\.ch, a trade name registered in Maryland/,
+    );
+    expect(container.textContent).not.toMatch(/Tom Boone/);
+  });
+
+  it("routes privacy requests to privacy@ (NEU-1569)", async () => {
+    const Stub = createRoutesStub([{ path: "/privacy", Component: PrivacyPage }]);
+    const { container } = render(<Stub initialEntries={["/privacy"]} />);
+    await screen.findByRole("heading", { level: 1, name: /privacy policy/i });
+    expect(container.querySelector('a[href="mailto:privacy@backlotter.com"]')).not.toBeNull();
+    expect(container.textContent).not.toMatch(/support@backlotter\.com/);
   });
 });

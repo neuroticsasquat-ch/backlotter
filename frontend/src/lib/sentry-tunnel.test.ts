@@ -12,6 +12,13 @@ describe("sentryTunnelUpstream", () => {
     expect(sentryTunnelUpstream(OUR_DSN, header(OUR_DSN))).toBe(UPSTREAM);
   });
 
+  it("forwards to the Bugsink host named by a Bugsink DSN", () => {
+    const bugsink = "https://0123456789abcdef0123456789abcdef@bugsink.neuroticsasquat.ch/4";
+    expect(sentryTunnelUpstream(bugsink, header(bugsink))).toBe(
+      "https://bugsink.neuroticsasquat.ch/api/4/envelope/",
+    );
+  });
+
   it("rejects an envelope for a different project id (no open relay)", () => {
     const other =
       "https://661cd3047ac9824d9202e4747e983fa8@o4511310598897664.ingest.us.sentry.io/9999999999";
