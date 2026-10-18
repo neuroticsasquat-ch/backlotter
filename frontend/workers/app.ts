@@ -8,8 +8,9 @@ import { throwIfWorkerTestError } from "@/lib/test-error";
 // `SENTRY_DSN` is a Wrangler secret (`wrangler secret put SENTRY_DSN`), not a var in
 // wrangler.jsonc, so the Bugsink DSN is set in Cloudflare and survives deploys (NEU-1594).
 // `wrangler types` only sees vars, hence the declaration here. Unset → Sentry is disabled and
-// the tunnel rejects every envelope.
-type WorkerEnv = Env & { SENTRY_DSN?: string };
+// the tunnel rejects every envelope. `SENTRY_TEST_ERROR_TOKEN` is a secret too: it arms the
+// `?__test_error=<token>` trigger, which is off while it is unset.
+type WorkerEnv = Env & { SENTRY_DSN?: string; SENTRY_TEST_ERROR_TOKEN?: string };
 
 const requestHandler = createRequestHandler(
   () => import("virtual:react-router/server-build"),
@@ -47,7 +48,7 @@ const handler = {
       return handleSentryTunnel(request, env.SENTRY_DSN ?? "");
     }
     // Inside `withSentry`, so the throw is reported: confirms the Worker reaches Bugsink.
-    throwIfWorkerTestError(url);
+    throwIfWorkerTestError(url, env.SENTRY_TEST_ERROR_TOKEN);
     const context = new RouterContextProvider();
     context.set(cloudflareContext, { env });
     return requestHandler(request, context);
