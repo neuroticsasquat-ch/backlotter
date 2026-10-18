@@ -123,7 +123,11 @@ IDs, uploads the maps to `SENTRY_URL` (`SENTRY_ORG` defaults to Bugsink's `bugsi
 deployed. No token → no maps, a build warning, and a successful build. The **release** is the
 commit SHA (`VITE_GIT_SHA`, else Workers Builds' `WORKERS_CI_COMMIT_SHA`; `vite.config.ts` also
 reads `CF_PAGES_COMMIT_SHA` and Coolify's `SOURCE_COMMIT`, ignoring its `"unknown"`), compiled in as `__GIT_SHA__` and read by
-both inits through `lib/sentry.ts`; `environment` is the Vite mode.
+both inits through `lib/sentry.ts`; `environment` is the Vite mode. Redeploy by merging to `main`,
+never with the dashboard's *Retry build*: a dashboard-started build sets `WORKERS_CI_COMMIT_SHA` to the
+branch name, so the release reads `main` instead of the SHA. Add `SENTRY_DSN` and `SENTRY_AUTH_TOKEN` in
+the dashboard as type **Secret**, never Text: a Text value is not in `wrangler.jsonc`, so the next deploy
+deletes it and prints it in the build log.
 
 **Test errors.** `/debug/error` (unlinked, client-only) has a button that throws a
 `BrowserTestError`; any URL with `?__test_error` makes the Worker throw a `WorkerTestError`
