@@ -8,6 +8,9 @@ API_BASE_URL=http://api:8000
 # In prod this is a Wrangler secret: `wrangler secret put SENTRY_DSN` (the
 # upcoming-movies-frontend project's DSN, same as the build's VITE_SENTRY_DSN).
 # SENTRY_DSN=
+# Optional: arms the Worker's `?__test_error=<token>` trigger (a WorkerTestError to Bugsink).
+# Unset -> the trigger is off. In prod this is a Wrangler secret, type Secret in the dashboard.
+# SENTRY_TEST_ERROR_TOKEN=
 # Optional: shared secret that identifies SSR loader fetches to the backend rate limiter
 # (backend NEU-1344 §4). Unset -> loaders send no signing headers and the backend limits them
 # on the Worker's egress IP. In prod this is a Wrangler secret: `wrangler secret put

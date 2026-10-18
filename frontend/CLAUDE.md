@@ -130,7 +130,8 @@ the dashboard as type **Secret**, never Text: a Text value is not in `wrangler.j
 deletes it and prints it in the build log.
 
 **Test errors.** `/debug/error` (unlinked, client-only) has a button that throws a
-`BrowserTestError`; any URL with `?__test_error` makes the Worker throw a `WorkerTestError`
+`BrowserTestError`; any URL with `?__test_error=<token>` makes the Worker throw a `WorkerTestError`, where
+`<token>` is the `SENTRY_TEST_ERROR_TOKEN` Wrangler secret (unset → the Worker trigger is off)
 (`lib/test-error.ts`). Distinct types, so each lands as its own Bugsink issue.
 
 ### Layout (`src/`)
