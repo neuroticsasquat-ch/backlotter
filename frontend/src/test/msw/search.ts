@@ -28,7 +28,7 @@ export function filmsSearchHandler(
 
 /** Every endpoint the header's `SearchBox` calls, in one `server.use(...)`.
  *
- *  MSW is configured `onUnhandledRequest: "error"`, and one query now fans out to four
+ *  MSW is configured `onUnhandledFrame: "error"`, and one query now fans out to four
  *  endpoints — so a test that stubs only the films search fails on the other three rather
  *  than on what it meant to assert. Everything defaults to an empty page, which is also the
  *  shape that makes a group render nothing at all. */
