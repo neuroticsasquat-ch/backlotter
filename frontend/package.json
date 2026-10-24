@@ -44,7 +44,7 @@
     "@cloudflare/vite-plugin": "^1.64.0",
     "@cloudflare/workers-types": "^5.20261021.1",
     "@react-router/dev": "^8.5.0",
-    "@sentry/vite-plugin": "^5.4.1",
+    "@sentry/vite-plugin": "^11.8.0",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4",
     "@testing-library/dom": "^10.4.2",
