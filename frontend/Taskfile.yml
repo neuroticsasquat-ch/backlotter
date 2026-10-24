@@ -1,18 +1,29 @@
 version: '3'
 
+# Traefik and the external `proxy` network are the shared stack in the tbc-localdev-infra
+# repo (~/projects/tbc-localdev-infra); `task infra:up` starts it. Optional, so a checkout
+# without it (CI) still runs every task that doesn't need it. The backend runs from its own
+# repo, ../upcoming-movies-backend.
+includes:
+  infra:
+    taskfile: ../../tbc-localdev-infra/Taskfile.yml
+    dir: ../../tbc-localdev-infra
+    optional: true
+
 vars:
-  COMPOSE: "docker compose -f ../docker-compose.yml"
-  SVC: web
-  EXEC: "docker compose -f ../docker-compose.yml exec -T web"
+  COMPOSE: "docker compose"
+  SVC: upmovies-frontend
+  EXEC: "docker compose exec -T upmovies-frontend"
 
 tasks:
   up:
-    desc: Start the frontend container (requires infra to be up)
+    desc: Start the shared infra, then the frontend container
     cmds:
+      - task: infra:up
       - "{{.COMPOSE}} up -d"
 
   down:
-    desc: Stop the frontend container
+    desc: Stop the frontend container (leaves the shared infra running)
     cmds:
       - "{{.COMPOSE}} down"
 
