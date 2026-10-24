@@ -1,19 +1,19 @@
 version: '3'
 
-# Traefik and the external `proxy` network are the shared stack in the tbc-localdev-infra
-# repo (~/projects/tbc-localdev-infra); `task infra:up` starts it. Optional, so a checkout
-# without it (CI) still runs every task that doesn't need it. The backend runs from its own
-# repo, ../upcoming-movies-backend.
+# Traefik, Postgres, Mailpit and the external `proxy` network are the shared
+# tbc-localdev-infra stack; `task infra:up` starts it. Optional, so a checkout
+# without it (CI) still loads every task that doesn't need it. The backend runs from
+# its own repo, ../upcoming-movies-backend.
 includes:
   infra:
-    taskfile: ../../tbc-localdev-infra/Taskfile.yml
-    dir: ../../tbc-localdev-infra
+    taskfile: ~/projects/tbc-localdev-infra/Taskfile.yml
+    dir: ~/projects/tbc-localdev-infra
     optional: true
 
 vars:
-  COMPOSE: "docker compose"
+  COMPOSE: docker compose
   SVC: upmovies-frontend
-  EXEC: "docker compose exec -T upmovies-frontend"
+  EXEC: "{{.COMPOSE}} exec {{.SVC}}"
 
 tasks:
   up:
@@ -27,11 +27,17 @@ tasks:
     cmds:
       - "{{.COMPOSE}} down"
 
+  restart:
+    desc: Restart the frontend container
+    cmds:
+      - "{{.COMPOSE}} restart {{.SVC}}"
+
   build:
-    desc: Rebuild the frontend image and sync deps into the node_modules volume
+    desc: Rebuild the image, sync deps into the node_modules volume, recreate the container
     cmds:
       - "{{.COMPOSE}} build"
       - "{{.COMPOSE}} run --rm --no-deps {{.SVC}} pnpm install"
+      - "{{.COMPOSE}} up -d"
 
   logs:
     desc: Follow frontend logs
@@ -41,7 +47,7 @@ tasks:
   shell:
     desc: Open a shell inside the frontend container
     cmds:
-      - "{{.COMPOSE}} exec {{.SVC}} sh"
+      - "{{.EXEC}} bash"
 
   ps:
     desc: Show compose service status
@@ -61,7 +67,7 @@ tasks:
   test:watch:
     desc: Run vitest in watch mode
     cmds:
-      - "{{.COMPOSE}} exec {{.SVC}} pnpm test:watch {{.CLI_ARGS}}"
+      - "{{.EXEC}} pnpm test:watch {{.CLI_ARGS}}"
 
   lint:
     desc: Run oxlint
@@ -72,6 +78,11 @@ tasks:
     desc: Run prettier --write
     cmds:
       - "{{.EXEC}} pnpm format"
+
+  format:check:
+    desc: 'Run prettier --check (task format:check -- <files> to scope; the pre-commit hook passes staged files)'
+    cmds:
+      - "{{.EXEC}} pnpm exec prettier --check {{.CLI_ARGS | default \"\\\"src/**/*.{ts,tsx,css,json}\\\"\"}}"
 
   typecheck:
     desc: Run react-router typegen + tsc
@@ -103,6 +114,11 @@ tasks:
     desc: 'Add a dev dependency (task deps:add-dev -- <package>)'
     cmds:
       - "{{.EXEC}} pnpm add -D {{.CLI_ARGS}}"
+
+  deps:remove:
+    desc: 'Remove a dependency (task deps:remove -- <package>)'
+    cmds:
+      - "{{.EXEC}} pnpm remove {{.CLI_ARGS}}"
 
   release-notes:
     desc: 'Prepend a tag''s notes to RELEASE_NOTES.md (task release-notes -- v0.4.1)'

@@ -6,7 +6,6 @@ services:
     build:
       context: .
       target: dev
-    container_name: upmovies_frontend
     volumes:
       - .:/app
       # Keeps the image's Linux node_modules from being shadowed by the host's.

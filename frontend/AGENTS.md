@@ -15,6 +15,8 @@ integration branch, else the one unmerged `origin/release/*`). Only pin a `loop_
 
 Do **not** run `pnpm`, `vitest`, `eslint`, or `tsc` on the host. Use `task` targets (they `docker compose exec` into the `upmovies-frontend` container). Source is bind-mounted (Vite HMR is live); **dependency changes require `task build`** (rebuilds the image and syncs `node_modules` into the volume). Add deps with `task deps:add -- <pkg>` / `task deps:add-dev -- <pkg>`.
 
+The Taskfile, compose file and pre-commit hooks follow the shared contract in `~/projects/tbc-localdev-infra/CONVENTIONS.md`.
+
 | Task | Runs |
 |---|---|
 | `task up` / `task down` / `task build` | container lifecycle (`build` reinstalls deps) |

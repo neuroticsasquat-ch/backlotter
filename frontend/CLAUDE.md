@@ -33,14 +33,18 @@ Traefik + the external `proxy` network); `task up` starts it first. The app is s
 `https://app.upmovies.localhost`; the backend (`upmovies-backend`, from its own repo) must be up
 for API calls, which the dev server proxies at `/api` and SSR reaches via `.dev.vars`.
 
+The `Taskfile.yml`, `docker-compose.yml` and `.pre-commit-config.yaml` follow the shared
+contract in `~/projects/tbc-localdev-infra/CONVENTIONS.md`; read it before changing any of them.
+
 | Task | Runs |
 |---|---|
-| `task up` / `task down` / `task build` | container lifecycle (`build` also reinstalls deps) |
+| `task up` / `task down` / `task restart` / `task build` | container lifecycle (`build` also reinstalls deps and recreates the container) |
 | `task test` | `vitest run` (`task test -- src/routes/film.test.tsx` to scope to one file) |
 | `task release-notes -- v0.4.1` | Prepend a tag's notes to `RELEASE_NOTES.md` (runs on the host) |
 | `task lint` | `oxlint src --max-warnings 0` |
 | `task typecheck` | `react-router typegen && tsc -b` (typegen must run first — routes use generated `+types/*` imports) |
 | `task format` | `prettier --write` |
+| `task format:check` | `prettier --check` (`task format:check -- <files>` to scope) |
 | `task build:app` | `react-router build` (SSR + client bundles) |
 | `task cf-typegen` | regenerate the Cloudflare `Env` type via `wrangler types` |
 | `task deploy` | build + `wrangler deploy` |
