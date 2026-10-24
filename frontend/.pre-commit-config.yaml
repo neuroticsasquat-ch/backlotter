@@ -1,38 +1,39 @@
 minimum_pre_commit_version: "3.5.0"
 
-# Every hook runs INSIDE the `upmovies-frontend` dev container, never on the host: the
-# image's pinned node_modules is the single source of truth for oxlint / prettier / tsc /
-# vitest, so a commit is checked against the exact toolchain the project ships. This mirrors
-# the Taskfile's EXEC. `-T` disables TTY allocation, which pre-commit's non-interactive run
-# needs. The container must be up (`task up`) for a commit to run its checks.
+# Every hook calls a Taskfile target, and the target runs inside the dev container
+# (tbc-localdev-infra/CONVENTIONS.md). The Taskfile is the only place the toolchain
+# is invoked, so the hooks and `task <x>` can't drift apart. The container must be
+# up (`task up`) and rebuilt after a dependency change (`task build`).
 repos:
   - repo: local
     hooks:
-      - id: oxlint
-        name: oxlint (container)
-        entry: docker compose exec -T upmovies-frontend pnpm lint
+      - id: lint
+        name: lint (container)
+        entry: task lint
         language: system
         pass_filenames: false
-        files: ^src/.*\.(ts|tsx)$
+        files: \.(ts|tsx|js|mjs|json|css)$
 
-      # Only the staged files, and only --check: format what you touch, not the files with
-      # known drift on main (AGENTS.md).
-      - id: prettier
-        name: prettier --check (container)
-        entry: docker compose exec -T upmovies-frontend pnpm exec prettier --check
+      # Exception to the contract: only the staged files, and only --check. Format what you
+      # touch, not the files with known prettier drift on main (AGENTS.md). Scoped to src/ to
+      # match `task format`.
+      - id: format
+        name: format --check (container)
+        entry: task format:check --
         language: system
-        files: ^src/.*\.(ts|tsx|css|json)$
+        pass_filenames: true
+        files: ^src/.*\.(ts|tsx|js|mjs|json|css)$
 
       - id: typecheck
-        name: typegen + tsc -b (container)
-        entry: docker compose exec -T upmovies-frontend pnpm typecheck
+        name: typecheck (container)
+        entry: task typecheck
         language: system
         pass_filenames: false
-        files: \.(ts|tsx)$
+        files: \.(ts|tsx|js|mjs|json|css)$
 
-      - id: vitest
-        name: vitest (container)
-        entry: docker compose exec -T upmovies-frontend pnpm test
+      - id: test
+        name: test (container)
+        entry: task test
         language: system
         pass_filenames: false
-        files: \.(ts|tsx)$
+        files: \.(ts|tsx|js|mjs|json|css)$
