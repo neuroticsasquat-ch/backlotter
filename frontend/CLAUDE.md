@@ -151,7 +151,7 @@ deletes it and prints it in the build log.
 
 ## Testing (Vitest + RTL + MSW)
 
-- MSW intercepts all HTTP (`onUnhandledRequest: "error"`); override per-test with `server.use(...)`.
+- MSW intercepts all HTTP (`onUnhandledFrame: "error"`); override per-test with `server.use(...)`.
   `test/msw/handlers.ts` has defaults, `test/msw/me.ts` builds `/me` responses for auth states.
 - **Loaders** (public SSR routes): call the exported `loader` directly with a `RouterContextProvider`
   that has `cloudflareContext` set (`context.set(cloudflareContext, { env: { API_BASE_URL } })`) —

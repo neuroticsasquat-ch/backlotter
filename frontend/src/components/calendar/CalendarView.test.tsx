@@ -3,7 +3,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { delay, http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { server } from "@/test/msw/server";
 import { env } from "@/env";
 import { meHandler, unauthMeHandler } from "@/test/msw/me";
@@ -21,6 +21,19 @@ import { parseCalendarPath, type CalendarKind } from "@/lib/calendar";
 import { writeTimelineHint } from "@/lib/timeline-hint";
 
 const base = env.apiBaseUrl;
+
+afterEach(() => vi.restoreAllMocks());
+
+/** The `credentials` mode of every `/me/calendar` fetch, read off the `fetch` call itself: MSW 3
+ *  re-parses a Node `fetch` off the socket, and the request a handler sees always says
+ *  `same-origin`. The spy passes through, so the handlers still answer. */
+function spyOnMyFilmsCredentials() {
+  const fetchSpy = vi.spyOn(globalThis, "fetch");
+  return () =>
+    fetchSpy.mock.calls
+      .filter(([input]) => String(input).includes("/me/calendar"))
+      .map(([, init]) => init?.credentials);
+}
 
 function item(overrides: Partial<CalendarItem> & { film_ref: string }): CalendarItem {
   return {
@@ -161,7 +174,6 @@ function countingMyFilmsCalendar(items: CalendarItem[]) {
     kind: string | null;
     limit: string | null;
     offset: string | null;
-    credentials: RequestCredentials;
   }[] = [];
   const dates = [...new Set(items.map((i) => i.release_date))];
   const handler = http.get(`${base}/me/calendar`, ({ request }) => {
@@ -172,7 +184,6 @@ function countingMyFilmsCalendar(items: CalendarItem[]) {
       kind: url.searchParams.get("kind"),
       limit: url.searchParams.get("limit"),
       offset: url.searchParams.get("offset"),
-      credentials: request.credentials,
     });
     const page = dates.slice(offset, offset + limit);
     return HttpResponse.json({
@@ -314,6 +325,7 @@ describe("calendar view — entitled", () => {
 
   it("pages My films by date, from the count of dates already on screen", async () => {
     let captured: Request | undefined;
+    const credentials = spyOnMyFilmsCredentials();
     server.use(
       meHandler({ entitled: true }),
       http.get(`${base}/me/calendar`, (info) => {
@@ -338,12 +350,13 @@ describe("calendar view — entitled", () => {
 
     expect(await screen.findByText("Mine Film 20", {}, { timeout: 3000 })).toBeVisible();
     // Cookie-authed, like every other `/me/*` read — and asked for by date, not by film row.
-    expect(captured?.credentials).toBe("include");
+    expect(credentials()).toEqual(["include", "include"]);
     expect(new URL(captured!.url).searchParams.get("offset")).toBe("20");
   });
 
   it("keeps paging progress across a tab switch, and pays for each page once", async () => {
     const counted = countingMyFilmsCalendar(twentyOneDates);
+    const credentials = spyOnMyFilmsCredentials();
     server.use(meHandler({ entitled: true }), counted.handler);
     renderCalendar(publicCalendar, MY_FILMS);
 
@@ -359,7 +372,7 @@ describe("calendar view — entitled", () => {
     expect(screen.getByText("Mine Film 20")).toBeVisible();
     expect(counted.calls.map((c) => c.offset)).toEqual(["0", "20"]);
     expect(counted.calls.every((c) => c.limit === "20")).toBe(true);
-    expect(counted.calls.every((c) => c.credentials === "include")).toBe(true);
+    expect(credentials()).toEqual(["include", "include"]);
   });
 });
 

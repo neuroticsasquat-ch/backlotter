@@ -45,7 +45,7 @@ Before claiming work done, `task test`, `task lint`, `task typecheck` must be gr
 
 ## Testing (Vitest + RTL + MSW)
 
-- **TDD** — write the failing test first. MSW intercepts all HTTP (`onUnhandledRequest: "error"`); override per-test with `server.use(...)`. The `meHandler({ is_admin })` helper in `test/msw/me.ts` builds a `/me` response.
+- **TDD** — write the failing test first. MSW intercepts all HTTP (`onUnhandledFrame: "error"`); override per-test with `server.use(...)`. The `meHandler({ is_admin })` helper in `test/msw/me.ts` builds a `/me` response.
 - Render with the providers the unit needs: `QueryClientProvider` (use `{ retry: false }`), `AuthProvider`, and `MemoryRouter` + `Routes` when the component uses router context.
 - Auth resolves **asynchronously** via the `/me` query. Use `findBy*` for content gated on it, and key assertions off something that only appears post-auth (e.g. the "Log out" control) — not content that renders before auth resolves, or you'll get a false pass/fail.
 
