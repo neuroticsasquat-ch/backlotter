@@ -18,7 +18,11 @@ export class WorkerTestError extends Error {
 /** Query parameter that makes the Worker throw a `WorkerTestError` before routing. */
 export const WORKER_TEST_ERROR_PARAM = "__test_error";
 
-/** Throws a `WorkerTestError` when the request URL carries `?__test_error`. */
-export function throwIfWorkerTestError(url: URL): void {
-  if (url.searchParams.has(WORKER_TEST_ERROR_PARAM)) throw new WorkerTestError();
+/** Throws a `WorkerTestError` when `?__test_error` carries `token`, the Worker's
+ *  `SENTRY_TEST_ERROR_TOKEN` secret. Guarded so nobody else can fill Bugsink with test events;
+ *  with no token configured the trigger is off. */
+export function throwIfWorkerTestError(url: URL, token: string | undefined): void {
+  if (token && url.searchParams.get(WORKER_TEST_ERROR_PARAM) === token) {
+    throw new WorkerTestError();
+  }
 }
