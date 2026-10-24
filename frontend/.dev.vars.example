@@ -3,7 +3,7 @@
 # SSR server) reaches it container-to-container. This is the SSR path only -- the browser
 # goes through the dev server's /api proxy instead (vite.config.ts), which is why that one
 # is relative and this one cannot be.
-API_BASE_URL=http://api:8000
+API_BASE_URL=http://upmovies-backend:8000
 # Optional: SSR (server-side) Bugsink DSN for the Worker. Leave unset locally to disable.
 # In prod this is a Wrangler secret: `wrangler secret put SENTRY_DSN` (the
 # upcoming-movies-frontend project's DSN, same as the build's VITE_SENTRY_DSN).

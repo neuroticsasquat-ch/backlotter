@@ -1,0 +1,39 @@
+# Local dev only (prod is a Cloudflare Worker). Traefik comes from the shared
+# tbc-localdev-infra stack (`task infra:up`), reached over its external `proxy` network;
+# the backend runs from its own repo, ../upcoming-movies-backend, on that same network.
+services:
+  upmovies-frontend:
+    build:
+      context: .
+      target: dev
+    container_name: upmovies_frontend
+    volumes:
+      - .:/app
+      # Keeps the image's Linux node_modules from being shadowed by the host's.
+      - upmovies_frontend_node_modules:/app/node_modules
+    environment:
+      # The dev server's /api proxy target (vite.config.ts): the backend's compose service,
+      # container-to-container. SSR loaders take theirs from .dev.vars instead.
+      API_PROXY_TARGET: "http://upmovies-backend:8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.upmovies-frontend.rule=Host(`app.upmovies.localhost`)"
+      - "traefik.http.routers.upmovies-frontend.tls=true"
+      - "traefik.http.routers.upmovies-frontend.entrypoints=websecure"
+      - "traefik.http.services.upmovies-frontend.loadbalancer.server.port=5173"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    networks:
+      - proxy
+
+volumes:
+  upmovies_frontend_node_modules:
+
+networks:
+  proxy:
+    external: true

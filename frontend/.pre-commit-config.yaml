@@ -1,0 +1,38 @@
+minimum_pre_commit_version: "3.5.0"
+
+# Every hook runs INSIDE the `upmovies-frontend` dev container, never on the host: the
+# image's pinned node_modules is the single source of truth for oxlint / prettier / tsc /
+# vitest, so a commit is checked against the exact toolchain the project ships. This mirrors
+# the Taskfile's EXEC. `-T` disables TTY allocation, which pre-commit's non-interactive run
+# needs. The container must be up (`task up`) for a commit to run its checks.
+repos:
+  - repo: local
+    hooks:
+      - id: oxlint
+        name: oxlint (container)
+        entry: docker compose exec -T upmovies-frontend pnpm lint
+        language: system
+        pass_filenames: false
+        files: ^src/.*\.(ts|tsx)$
+
+      # Only the staged files, and only --check: format what you touch, not the files with
+      # known drift on main (AGENTS.md).
+      - id: prettier
+        name: prettier --check (container)
+        entry: docker compose exec -T upmovies-frontend pnpm exec prettier --check
+        language: system
+        files: ^src/.*\.(ts|tsx|css|json)$
+
+      - id: typecheck
+        name: typegen + tsc -b (container)
+        entry: docker compose exec -T upmovies-frontend pnpm typecheck
+        language: system
+        pass_filenames: false
+        files: \.(ts|tsx)$
+
+      - id: vitest
+        name: vitest (container)
+        entry: docker compose exec -T upmovies-frontend pnpm test
+        language: system
+        pass_filenames: false
+        files: \.(ts|tsx)$

@@ -11,3 +11,5 @@ Dockerfile
 docker-compose.yml
 Taskfile.yml
 README.md
+.pnpm-store
+.wrangler

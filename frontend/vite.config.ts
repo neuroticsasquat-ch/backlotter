@@ -78,26 +78,28 @@ export default defineConfig({
     // The browser reaches the API through this dev server rather than directly, so dev is
     // same-origin: the session cookie and the CSRF header behave as they do in prod, and no
     // CORS config has to be kept in sync. `API_PROXY_TARGET` is handed to this container by
-    // the workspace compose; the fallback is the same service on the compose network. Only
-    // the browser needs this -- SSR loaders run inside the container and read the absolute
-    // `API_BASE_URL` Worker binding from `.dev.vars` instead.
+    // docker-compose.yml; the fallback is the backend's compose service on the shared
+    // `proxy` network. Only the browser needs this -- SSR loaders run inside the container
+    // and read the absolute `API_BASE_URL` Worker binding from `.dev.vars` instead.
     proxy: {
       "/api": {
-        target: process.env.API_PROXY_TARGET ?? "http://api:8000",
+        target: process.env.API_PROXY_TARGET ?? "http://upmovies-backend:8000",
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, ""),
       },
     },
     // No `hmr` block on purpose. Left unset, Vite injects null for protocol, host and
     // port, and the client falls back to the page's own origin -- so the socket follows
-    // however the dev server was reached, whether that is the workspace's HTTPS proxy or
-    // http://localhost:5173 directly. Pinning them (as this did to the retired Traefik
-    // host on :443) breaks every other route in, and breaks it silently: the page still
-    // renders and only live reload stops arriving.
-    allowedHosts: [".coder.neuroticsasquat.ch"],
+    // however the dev server was reached, which through Traefik is wss on :443. Pinning
+    // them breaks every other route in, and breaks it silently: the page still renders and
+    // only live reload stops arriving.
+    allowedHosts: ["app.upmovies.localhost"],
     watch: {
       usePolling: true,
       interval: 500,
+      // pnpm in the container keeps its store at /app/.pnpm-store (the bind mount's root),
+      // and polling its ~50k files kept the dev server from ever listening.
+      ignored: ["**/.pnpm-store/**", "**/.wrangler/**"],
     },
   },
 });
