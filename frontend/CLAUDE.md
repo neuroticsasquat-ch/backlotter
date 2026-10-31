@@ -14,26 +14,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`AGENTS.md`** — operating rules and container workflow. Note: its architecture description
   (Vite SPA, `createBrowserRouter`, ESLint) is **stale** — see Architecture below for what's
   actually here. Its `task` command table and container rules are accurate.
-- **Sibling repo**: `../backend`; read its `AGENTS.md` before touching backend code.
-- **Project-wide specs live in the backend repo**: `../backend/docs/specs/` — a ticket in a
-  cross-repo project (e.g. `bl-entity-follows-project-spec.md`) may have no per-ticket spec
-  under `docs/specs/` here; read the project spec there instead. Linear tickets write that
-  path umbrella-relative (`backend/docs/specs/…`).
+- **Sibling repo**: `../upcoming-movies-backend`; read its `AGENTS.md` before touching backend code.
+- **Project-wide specs live in the backend repo**: `../upcoming-movies-backend/docs/specs/` — a
+  ticket in a cross-repo project (e.g. `bl-entity-follows-project-spec.md`) may have no per-ticket
+  spec under `docs/specs/` here; read the project spec there instead. Linear tickets write that
+  path umbrella-relative as `backend/docs/specs/…`, which is `upcoming-movies-backend/` on disk.
 
 ## Everything runs in the container
 
 Do not run `pnpm`, `vitest`, `oxlint`, or `tsc` on the host — use `task` targets, which
-`docker compose exec` into the frontend service. Source is bind-mounted (Vite HMR is live);
-dependency changes require `task build`.
+`docker compose exec` into the `upmovies-frontend` service (`docker-compose.yml`). Source is
+bind-mounted (Vite HMR is live); dependency changes require `task build`. The pre-commit hooks
+(`.pre-commit-config.yaml`, `pre-commit install` once) run in the same container, so it must be
+up to commit.
+
+Local dev sits on the shared **tbc-localdev-infra** stack (`~/projects/tbc-localdev-infra`:
+Traefik + the external `proxy` network); `task up` starts it first. The app is served at
+`https://app.upmovies.localhost`; the backend (`upmovies-backend`, from its own repo) must be up
+for API calls, which the dev server proxies at `/api` and SSR reaches via `.dev.vars`.
+
+The `Taskfile.yml`, `docker-compose.yml` and `.pre-commit-config.yaml` follow the shared
+contract in `~/projects/tbc-localdev-infra/CONVENTIONS.md`; read it before changing any of them.
 
 | Task | Runs |
 |---|---|
-| `task up` / `task down` / `task build` | container lifecycle (`build` also reinstalls deps) |
+| `task up` / `task down` / `task restart` / `task build` | container lifecycle (`build` also reinstalls deps and recreates the container) |
 | `task test` | `vitest run` (`task test -- src/routes/film.test.tsx` to scope to one file) |
 | `task release-notes -- v0.4.1` | Prepend a tag's notes to `RELEASE_NOTES.md` (runs on the host) |
 | `task lint` | `oxlint src --max-warnings 0` |
 | `task typecheck` | `react-router typegen && tsc -b` (typegen must run first — routes use generated `+types/*` imports) |
 | `task format` | `prettier --write` |
+| `task format:check` | `prettier --check` (`task format:check -- <files>` to scope) |
 | `task build:app` | `react-router build` (SSR + client bundles) |
 | `task cf-typegen` | regenerate the Cloudflare `Env` type via `wrangler types` |
 | `task deploy` | build + `wrangler deploy` |

@@ -15,6 +15,8 @@ integration branch, else the one unmerged `origin/release/*`). Only pin a `loop_
 
 Do **not** run `pnpm`, `vitest`, `eslint`, or `tsc` on the host. Use `task` targets (they `docker compose exec` into the `upmovies-frontend` container). Source is bind-mounted (Vite HMR is live); **dependency changes require `task build`** (rebuilds the image and syncs `node_modules` into the volume). Add deps with `task deps:add -- <pkg>` / `task deps:add-dev -- <pkg>`.
 
+The Taskfile, compose file and pre-commit hooks follow the shared contract in `~/projects/tbc-localdev-infra/CONVENTIONS.md`.
+
 | Task | Runs |
 |---|---|
 | `task up` / `task down` / `task build` | container lifecycle (`build` reinstalls deps) |
@@ -51,12 +53,12 @@ Before claiming work done, `task test`, `task lint`, `task typecheck` must be gr
 
 ## Sibling repo
 
-The backend lives at `../backend`. Read its `AGENTS.md` before working on backend code.
+The backend lives at `../upcoming-movies-backend`. Read its `AGENTS.md` before working on backend code.
 
 ## Gotchas
 
 - A few pre-existing files (`AuthContext.*`) have Prettier drift on `main`. Don't reformat unrelated files in a PR — format only what you touch.
-- Backend dev API comes from `VITE_API_BASE_URL` (`env.ts`), in dev as in prod. Its fallback is still `https://api.upmovies.localhost`, the retired Traefik host, so the variable has to be set in the workspace -- unset, every request goes to a name that does not resolve.
+- Local dev runs behind the shared tbc-localdev-infra Traefik at `https://app.upmovies.localhost` (`task up` starts the infra too). The browser calls the API same-origin through the dev server's `/api` proxy (`VITE_API_BASE_URL=/api` from `.env.development`, proxied to `http://upmovies-backend:8000` on the `proxy` network); SSR loaders use `API_BASE_URL` from `.dev.vars` (copy `.dev.vars.example`). The backend must be up in its own repo. `env.ts`'s `https://api.upmovies.localhost` fallback is what the tests use.
 
 ## Commits / PRs
 

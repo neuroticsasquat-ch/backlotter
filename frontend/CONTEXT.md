@@ -2,7 +2,7 @@
 
 The frontend renders the tracker's public surfaces (feed, film pages, calendar) for everyone and
 the subscriber surfaces (timeline, follows, settings) for entitled readers. The
-backend's `../backend/CONTEXT.md` owns the domain; this file names only what the web app
+backend's `../upcoming-movies-backend/CONTEXT.md` owns the domain; this file names only what the web app
 adds or presents differently. When a term appears in both, the backend's definition governs.
 
 ## Language
