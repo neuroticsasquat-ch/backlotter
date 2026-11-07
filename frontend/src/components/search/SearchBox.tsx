@@ -42,13 +42,12 @@ export function SearchBox() {
   const options: SearchHit[] = groups?.flatMap((group) => group.items) ?? [];
 
   // The index each group's first hit occupies in `options`, so a row can name its own option
-  // id without the render having to carry a running counter.
-  let optionOffset = 0;
-  const groupOffsets = (groups ?? []).map((group) => {
-    const offset = optionOffset;
-    optionOffset += group.items.length;
-    return offset;
-  });
+  // id without the render having to carry a running counter. Summed per group rather than
+  // accumulated in a `let`: there are only a handful of groups, and a reassigned local trips
+  // oxlint's react/immutability.
+  const groupOffsets = (groups ?? []).map((_, g, all) =>
+    all.slice(0, g).reduce((sum, group) => sum + group.items.length, 0),
+  );
 
   // Opens on an answer, never on `loading` alone: before the first answer there is nothing to
   // show, and an open empty box reads as a broken one. A re-query keeps the held groups open
