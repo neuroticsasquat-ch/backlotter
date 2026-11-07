@@ -40,3 +40,7 @@ updates:
         update-types:
           - minor
           - patch
+        # oxlint minors regularly enable new rules by default; on its own PR a
+        # new lint finding can't hold up the rest of the group.
+        exclude-patterns:
+          - oxlint

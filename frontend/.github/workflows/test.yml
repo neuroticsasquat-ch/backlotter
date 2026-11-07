@@ -18,10 +18,16 @@ jobs:
           node-version: "22"
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - id: install
+        run: pnpm install --frozen-lockfile
 
+      # Each gate runs even when an earlier one failed, so one red check never
+      # hides the others — a lint failure used to leave tests unrun. All three
+      # still need a successful install.
       - run: pnpm lint
 
       - run: pnpm typecheck
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
 
       - run: pnpm test
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
