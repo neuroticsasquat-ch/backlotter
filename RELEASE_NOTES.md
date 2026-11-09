@@ -717,7 +717,7 @@ From the merge on, each release has one set of notes, above (NEU-2236).
 
 ### 0.3.1 — 2026-08-13
 
-# Changelog
+### Changelog
 
 All notable changes to this project are documented in this file.
 

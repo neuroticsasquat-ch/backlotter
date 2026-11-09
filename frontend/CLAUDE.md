@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `linear_initiative: backlotter`
 `linear_team: Neuroticsasquatch`
-`linear_repos: upcoming-movies-backend`
+`linear_repos: backlotter`
 `specs_dir: docs`
 
 ## Companion docs — read before working
