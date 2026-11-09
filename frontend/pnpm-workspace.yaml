@@ -1,0 +1,5 @@
+# Dependencies allowed to run install scripts; pnpm skips every other one and fails
+# the install. Both fetch or check a platform binary, which npm used to run unasked.
+allowBuilds:
+  esbuild: true
+  workerd: true
