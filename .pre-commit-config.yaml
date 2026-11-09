@@ -1,36 +1,76 @@
 minimum_pre_commit_version: "3.5.0"
 
-# Every hook calls a Taskfile target, and the target runs inside the dev container
-# (tbc-localdev-infra/CONVENTIONS.md). The Taskfile is the only place the toolchain
-# is invoked, so the hooks and `task <x>` can't drift apart. The container must be
-# up (`task up`) and rebuilt after a dependency change (`task build`).
+# Every hook calls a Taskfile target, and the target runs inside a dev container
+# (tbc-localdev-infra/CONVENTIONS.md): the backend hooks in upmovies-backend, the fe-*
+# ones in upmovies-frontend. The Taskfile is the only place the toolchain is invoked, so
+# the hooks and `task <x>` can't drift apart. The containers must be up (`task up`) and
+# rebuilt after a dependency change (`task build`).
+#
+# Exceptions:
+# - fe-format checks only the staged files under frontend/src/, and only --check: format
+#   what you touch, not the files with known prettier drift on main (frontend/AGENTS.md).
+#   CI doesn't run prettier at all.
+# - The fe-* hooks also match `css` beyond CONVENTIONS.md's frontend regex, because
+#   prettier formats the stylesheets (`pnpm run format` covers src/**/*.css).
 repos:
   - repo: local
     hooks:
       - id: lint
-        name: lint (container)
+        name: ruff check (backend container)
         entry: task lint
         language: system
         pass_filenames: false
         files: \.py$|^pyproject\.toml$|^uv\.lock$
+        exclude: ^frontend/
 
       - id: format
-        name: format --check (container)
+        name: ruff format --check (backend container)
         entry: task format:check
         language: system
         pass_filenames: false
         files: \.py$|^pyproject\.toml$|^uv\.lock$
+        exclude: ^frontend/
 
       - id: typecheck
-        name: typecheck (container)
+        name: pyright (backend container)
         entry: task typecheck
         language: system
         pass_filenames: false
         files: \.py$|^pyproject\.toml$|^uv\.lock$
+        exclude: ^frontend/
 
       - id: test
-        name: test (container)
+        name: pytest (backend container)
         entry: task test
         language: system
         pass_filenames: false
         files: \.py$|^pyproject\.toml$|^uv\.lock$
+        exclude: ^frontend/
+
+      - id: fe-lint
+        name: oxlint (frontend container)
+        entry: task fe:lint
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx|js|mjs|json|css)$
+
+      - id: fe-format
+        name: prettier --check (frontend container)
+        entry: task fe:format:check --
+        language: system
+        pass_filenames: true
+        files: ^frontend/src/.*\.(ts|tsx|js|mjs|json|css)$
+
+      - id: fe-typecheck
+        name: react-router typegen + tsc (frontend container)
+        entry: task fe:typecheck
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx|js|mjs|json|css)$
+
+      - id: fe-test
+        name: vitest (frontend container)
+        entry: task fe:test
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx|js|mjs|json|css)$

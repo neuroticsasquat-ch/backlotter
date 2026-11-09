@@ -25,8 +25,8 @@ services:
       TMDB_API_KEY: "${TMDB_API_KEY:-dev-tmdb-key}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-test-anthropic-key}"
     # No published port: Traefik is the only route in from the host, which is what makes the
-    # dev CMD's `--forwarded-allow-ips *` safe. The frontend reaches this service directly
-    # on the proxy network as http://upmovies-backend:8000.
+    # dev CMD's `--forwarded-allow-ips *` safe. The frontend service below reaches this one
+    # directly on the proxy network as http://upmovies-backend:8000.
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
@@ -48,6 +48,41 @@ services:
       start_period: 10s
     networks:
       - proxy
+
+  # The SSR app, from frontend/ (NEU-2236): Vite with @cloudflare/vite-plugin, so loaders run
+  # in workerd as they do on the Worker. It reaches the backend over two channels, both
+  # container-to-container on the proxy network: SSR loaders read API_BASE_URL from
+  # frontend/.dev.vars (gitignored; copy frontend/.dev.vars.example), and the browser's /api
+  # calls go through the dev server's proxy to API_PROXY_TARGET (frontend/vite.config.ts). No
+  # published port: Traefik is the only route in.
+  upmovies-frontend:
+    build:
+      context: frontend
+      target: dev
+    volumes:
+      - ./frontend:/app
+      # The container's own node_modules (Linux binaries), not the host's.
+      - upmovies_frontend_node_modules:/app/node_modules
+    environment:
+      API_PROXY_TARGET: "http://upmovies-backend:8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.upmovies-frontend.rule=Host(`app.upmovies.localhost`)"
+      - "traefik.http.routers.upmovies-frontend.tls=true"
+      - "traefik.http.routers.upmovies-frontend.entrypoints=websecure"
+      - "traefik.http.services.upmovies-frontend.loadbalancer.server.port=5173"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    networks:
+      - proxy
+
+volumes:
+  upmovies_frontend_node_modules:
 
 networks:
   proxy:

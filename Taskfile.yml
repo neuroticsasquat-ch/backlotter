@@ -14,41 +14,46 @@ vars:
   COMPOSE: "docker compose"
   SVC: "upmovies-backend"
   EXEC: "{{.COMPOSE}} exec {{.SVC}}"
+  # The frontend (frontend/) runs in its own container; the fe:* tasks below are its.
+  FE_SVC: "upmovies-frontend"
+  FE_EXEC: "{{.COMPOSE}} exec {{.FE_SVC}}"
 
 tasks:
   up:
-    desc: Start the shared infra, then the backend container
+    desc: Start the shared infra, then the backend and frontend containers
     cmds:
       - task: infra:up
       - "{{.COMPOSE}} up -d"
   down:
-    desc: Stop the backend container (leaves the shared infra running)
+    desc: Stop both containers (leaves the shared infra running)
     cmds:
       - "{{.COMPOSE}} down"
   restart:
     desc: Restart the backend container
     cmds:
       - "{{.COMPOSE}} restart {{.SVC}}"
+  # The frontend's named node_modules volume is filled from the image only when it is
+  # first created, so a rebuilt image alone never reaches the running container. The
+  # throwaway install writes the lockfile's packages into the volume.
   build:
-    desc: Rebuild the backend image (installs uv.lock) and recreate the container
+    desc: Rebuild both images (uv.lock, pnpm-lock.yaml), sync the frontend's node_modules volume, recreate the containers
     cmds:
       - "{{.COMPOSE}} build"
+      - "{{.COMPOSE}} run --rm --no-deps {{.FE_SVC}} pnpm install --frozen-lockfile"
       - "{{.COMPOSE}} up -d"
-  # `--no-sync` on all three: the image is where dependencies get installed, and
-  # `uv remove`'s sync is exact without the `dev` extra, so it would strip pytest, ruff
-  # and pyright out of the running container. The change lands with `task build`.
+  # `--no-sync` on all three: the image is where dependencies get installed, and an
+  # exact sync to the base dependencies would strip pytest, ruff, pyright and uv itself
+  # out of the running container. The change lands with `task build`.
   deps:add:
     desc: 'Add a dependency (task deps:add -- <pkg>), then `task build`'
     cmds:
       - "{{.EXEC}} uv add --no-sync {{.CLI_ARGS}}"
   deps:add-dev:
-    desc: 'Add a dev dependency (task deps:add-dev -- <pkg>), then `task build`'
-    # Dev tools live in the `dev` optional extra, not a dependency group, so `--optional
-    # dev` rather than `--dev`.
+    desc: 'Add a dev-group dependency (task deps:add-dev -- <pkg>), then `task build`'
     cmds:
-      - "{{.EXEC}} uv add --no-sync --optional dev {{.CLI_ARGS}}"
+      - "{{.EXEC}} uv add --no-sync --dev {{.CLI_ARGS}}"
   deps:remove:
-    desc: 'Remove a dependency (task deps:remove -- <pkg>; add `--optional dev` for a dev one), then `task build`'
+    desc: 'Remove a dependency (task deps:remove -- <pkg>; add `--dev` for a dev one), then `task build`'
     cmds:
       - "{{.EXEC}} uv remove --no-sync {{.CLI_ARGS}}"
   deps:lock:
@@ -109,26 +114,108 @@ tasks:
     desc: Run only the integration tests
     cmds:
       - "{{.EXEC}} pytest tests/integration {{.CLI_ARGS}}"
+  # No paths: what ruff and pyright check is set in pyproject.toml, so these and CI's
+  # shared python.yml (which runs them bare) can't disagree.
   lint:
-    desc: Run ruff check
+    desc: 'Run ruff check (task lint [-- --fix])'
     cmds:
-      - "{{.EXEC}} ruff check src tests"
+      - "{{.EXEC}} ruff check {{.CLI_ARGS}}"
   format:
     desc: Run ruff format
     cmds:
-      - "{{.EXEC}} ruff format src tests"
+      - "{{.EXEC}} ruff format {{.CLI_ARGS}}"
   format:check:
-    desc: Check ruff formatting without writing
+    desc: 'Check ruff formatting without writing (task format:check [-- <paths>])'
     cmds:
-      - '{{.EXEC}} ruff format --check {{.CLI_ARGS | default "src tests"}}'
+      - "{{.EXEC}} ruff format --check {{.CLI_ARGS}}"
   typecheck:
     desc: Run pyright static type check
     cmds:
-      - "{{.EXEC}} pyright src tests"
+      - "{{.EXEC}} pyright {{.CLI_ARGS}}"
   coverage:
     desc: 'Run pytest with coverage (HTML report in ./htmlcov)'
     cmds:
       - "{{.EXEC}} pytest --cov=src/upmovies --cov-report=term-missing --cov-report=html {{.CLI_ARGS}}"
+
+  # Frontend (frontend/), in the upmovies-frontend container (NEU-2236). The lint,
+  # typecheck, test and build tasks run the package scripts CI's js job runs.
+  fe:install:
+    desc: Reinstall the frontend's dependencies from pnpm-lock.yaml into the running container
+    cmds:
+      - "{{.FE_EXEC}} pnpm install --frozen-lockfile"
+  fe:restart:
+    desc: Restart the frontend container
+    cmds:
+      - "{{.COMPOSE}} restart {{.FE_SVC}}"
+  fe:logs:
+    desc: Follow frontend logs
+    cmds:
+      - "{{.COMPOSE}} logs -f {{.FE_SVC}}"
+  fe:shell:
+    desc: Open a bash shell inside the frontend container
+    cmds:
+      - "{{.FE_EXEC}} bash"
+  fe:lint:
+    desc: Run oxlint on the frontend (fails on warnings)
+    cmds:
+      - "{{.FE_EXEC}} pnpm run lint"
+  fe:format:
+    desc: Run prettier --write on the frontend
+    cmds:
+      - "{{.FE_EXEC}} pnpm run format"
+  # The pre-commit hook passes repo-relative paths (frontend/src/...); the container
+  # works in frontend/, so the prefix is stripped.
+  fe:format:check:
+    desc: 'Run prettier --check (task fe:format:check [-- <files>] to check only those)'
+    cmds:
+      - "{{.FE_EXEC}} pnpm exec prettier --check {{if .CLI_ARGS}}{{.CLI_ARGS | replace \"frontend/\" \"\"}}{{else}}\"src/**/*.{ts,tsx,css,json}\"{{end}}"
+  fe:typecheck:
+    desc: Type-check the frontend (react-router typegen, then tsc -b)
+    cmds:
+      - "{{.FE_EXEC}} pnpm run typecheck"
+  fe:test:
+    desc: 'Run the frontend test suite once (task fe:test [-- src/path/to/file.test.tsx])'
+    cmds:
+      - "{{.FE_EXEC}} pnpm run test {{.CLI_ARGS}}"
+  fe:test:watch:
+    desc: Run the frontend tests in watch mode
+    cmds:
+      - "{{.FE_EXEC}} pnpm run test:watch {{.CLI_ARGS}}"
+  fe:cf-typegen:
+    desc: Regenerate the Cloudflare Worker types (Env, worker-configuration.d.ts)
+    cmds:
+      - "{{.FE_EXEC}} pnpm exec wrangler types"
+  # Exception (CONVENTIONS.md names this `build:app`): `fe:build` is the name the monorepo
+  # spec (ops, Decision 8) gives it. The rule exists so the bundle can't be confused with
+  # `build`, the image rebuild, and the fe: prefix already keeps them apart.
+  fe:build:
+    desc: Build the frontend for production (react-router build, what Workers Builds runs)
+    cmds:
+      - "{{.FE_EXEC}} pnpm run build"
+  fe:deploy-dry-run:
+    desc: Build, then dry-run the Worker deploy (bundles the SSR Worker and lists the assets, uploads nothing)
+    cmds:
+      - "{{.FE_EXEC}} pnpm run build"
+      - "{{.FE_EXEC}} pnpm exec wrangler deploy --dry-run"
+  # Workers Builds deploys every push to main that touches frontend/; this is the manual
+  # escape hatch it replaces, kept from the frontend's own Taskfile. It ships whatever the
+  # last `fe:build` left in the build output.
+  fe:deploy:
+    desc: Deploy the last fe:build to Cloudflare (Workers Builds normally does this)
+    cmds:
+      - "{{.FE_EXEC}} pnpm exec wrangler deploy"
+  fe:deps:add:
+    desc: 'Add a frontend runtime dependency (task fe:deps:add -- <package>)'
+    cmds:
+      - "{{.FE_EXEC}} pnpm add {{.CLI_ARGS}}"
+  fe:deps:add-dev:
+    desc: 'Add a frontend dev dependency (task fe:deps:add-dev -- <package>)'
+    cmds:
+      - "{{.FE_EXEC}} pnpm add -D {{.CLI_ARGS}}"
+  fe:deps:remove:
+    desc: 'Remove a frontend dependency (task fe:deps:remove -- <package>)'
+    cmds:
+      - "{{.FE_EXEC}} pnpm remove {{.CLI_ARGS}}"
 
   release-notes:
     desc: 'Prepend a tag''s notes to RELEASE_NOTES.md (task release-notes -- v0.4.1)'
