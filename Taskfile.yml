@@ -241,7 +241,8 @@ tasks:
           exit 1
         fi
         version="${tag#v}"
-        if grep -qF "## $version — " RELEASE_NOTES.md 2>/dev/null; then
+        # Anchored: the folded "Frontend release history" has "### <version> — " headings.
+        if grep -q "^## $version — " RELEASE_NOTES.md 2>/dev/null; then
           echo "RELEASE_NOTES.md already has a section for $version; nothing to do" >&2
           exit 0
         fi
