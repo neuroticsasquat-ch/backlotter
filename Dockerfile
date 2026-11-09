@@ -34,7 +34,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 RUN uv sync --locked --inexact --no-cache --no-install-project
 # Bake the node download into the image so the first pre-commit run does not
-# pay for it (and does not need the network).
+# pay for it (and does not need the network). The pinned version is load-bearing:
+# asked for "latest", nodeenv dies parsing a `-alpha` entry in Node's release index
+# (2026-11-08, also hit by tvbf in NEU-2235). CI is unaffected: the runner already
+# has node on PATH, which the pyright wrapper prefers.
+ENV PYRIGHT_PYTHON_NODE_VERSION=22.12.0
 RUN pyright --version
 COPY src/ src/
 COPY scripts/ scripts/

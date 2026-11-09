@@ -34,12 +34,14 @@ tasks:
       - "{{.COMPOSE}} restart {{.SVC}}"
   # The frontend's named node_modules volume is filled from the image only when it is
   # first created, so a rebuilt image alone never reaches the running container. The
-  # throwaway install writes the lockfile's packages into the volume.
+  # throwaway install writes the lockfile's packages into the volume. CI=true: when the
+  # volume's layout differs from the image's, pnpm asks before reinstalling node_modules,
+  # and with no TTY (an agent, a script) that prompt waits forever.
   build:
     desc: Rebuild both images (uv.lock, pnpm-lock.yaml), sync the frontend's node_modules volume, recreate the containers
     cmds:
       - "{{.COMPOSE}} build"
-      - "{{.COMPOSE}} run --rm --no-deps {{.FE_SVC}} pnpm install --frozen-lockfile"
+      - "{{.COMPOSE}} run --rm --no-deps -e CI=true {{.FE_SVC}} pnpm install --frozen-lockfile"
       - "{{.COMPOSE}} up -d"
   # `--no-sync` on all three: the image is where dependencies get installed, and an
   # exact sync to the base dependencies would strip pytest, ruff, pyright and uv itself
