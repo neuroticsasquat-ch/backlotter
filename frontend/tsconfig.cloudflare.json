@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "composite": true,
+    "jsx": "react-jsx",
+    "types": ["@cloudflare/workers-types", "vite/client"],
+    "rootDirs": [".", "./.react-router/types"],
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "resolveJsonModule": true,
+    "outDir": ".tsc-out/cloudflare",
+    "declarationDir": ".tsc-out/cloudflare-types"
+  },
+  "include": [
+    "src",
+    "workers",
+    "worker-configuration.d.ts",
+    ".react-router/types/**/*"
+  ],
+  // Tests are not Worker code: they run in vitest's jsdom environment and some of them
+  // read repo files with node builtins, which have no types under `@cloudflare/workers-types`.
+  // The root project still typechecks them, with "node" in its `types`.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+}

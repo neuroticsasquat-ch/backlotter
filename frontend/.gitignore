@@ -1,0 +1,35 @@
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+.env
+.env.local
+.env.*.local
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+.vscode/
+.idea/
+*.tsbuildinfo
+
+# Emitted artifacts from `tsc -b` on referenced configs
+
+# React Router framework-mode generated types
+.react-router/
+
+# Wrangler local state
+.wrangler/
+
+# tsc-emitted artifacts from workers/ composite build
+workers/*.js
+workers/*.d.ts
+
+# tsc -b composite project output
+.tsc-out/
+
+# Wrangler local dev overrides (may contain secrets)
+.dev.vars
+.pack-lock.json

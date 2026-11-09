@@ -1,0 +1,39 @@
+minimum_pre_commit_version: "3.5.0"
+
+# Every hook calls a Taskfile target, and the target runs inside the dev container
+# (tbc-localdev-infra/CONVENTIONS.md). The Taskfile is the only place the toolchain
+# is invoked, so the hooks and `task <x>` can't drift apart. The container must be
+# up (`task up`) and rebuilt after a dependency change (`task build`).
+repos:
+  - repo: local
+    hooks:
+      - id: lint
+        name: lint (container)
+        entry: task lint
+        language: system
+        pass_filenames: false
+        files: \.(ts|tsx|js|mjs|json|css)$
+
+      # Exception to the contract: only the staged files, and only --check. Format what you
+      # touch, not the files with known prettier drift on main (AGENTS.md). Scoped to src/ to
+      # match `task format`.
+      - id: format
+        name: format --check (container)
+        entry: task format:check --
+        language: system
+        pass_filenames: true
+        files: ^src/.*\.(ts|tsx|js|mjs|json|css)$
+
+      - id: typecheck
+        name: typecheck (container)
+        entry: task typecheck
+        language: system
+        pass_filenames: false
+        files: \.(ts|tsx|js|mjs|json|css)$
+
+      - id: test
+        name: test (container)
+        entry: task test
+        language: system
+        pass_filenames: false
+        files: \.(ts|tsx|js|mjs|json|css)$

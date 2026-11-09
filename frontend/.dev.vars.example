@@ -1,0 +1,19 @@
+# Copy this to .dev.vars for local Docker dev.
+# API_BASE_URL must be absolute and name the backend's compose service, so workerd (the
+# SSR server) reaches it container-to-container. This is the SSR path only -- the browser
+# goes through the dev server's /api proxy instead (vite.config.ts), which is why that one
+# is relative and this one cannot be.
+API_BASE_URL=http://upmovies-backend:8000
+# Optional: SSR (server-side) Bugsink DSN for the Worker. Leave unset locally to disable.
+# In prod this is a Wrangler secret: `wrangler secret put SENTRY_DSN` (the
+# upcoming-movies-frontend project's DSN, same as the build's VITE_SENTRY_DSN).
+# SENTRY_DSN=
+# Optional: arms the Worker's `?__test_error=<token>` trigger (a WorkerTestError to Bugsink).
+# Unset -> the trigger is off. In prod this is a Wrangler secret, type Secret in the dashboard.
+# SENTRY_TEST_ERROR_TOKEN=
+# Optional: shared secret that identifies SSR loader fetches to the backend rate limiter
+# (backend NEU-1344 §4). Unset -> loaders send no signing headers and the backend limits them
+# on the Worker's egress IP. In prod this is a Wrangler secret: `wrangler secret put
+# SSR_ORIGIN_SECRET`, matching SSR_ORIGIN_SECRET on the backend (set in Coolify). Keep it ASCII:
+# it travels as a header value, and workerd rejects anything outside latin-1.
+# SSR_ORIGIN_SECRET=

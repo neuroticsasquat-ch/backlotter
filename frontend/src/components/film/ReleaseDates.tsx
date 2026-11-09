@@ -1,0 +1,36 @@
+import type { ReleaseDate } from "@/api/types";
+import { formatEventDate } from "@/lib/format";
+
+/** Release dates section: a list of TMDB release date entries for a film. */
+export function ReleaseDates({ dates }: { dates: ReleaseDate[] }) {
+  if (dates.length === 0) return null;
+
+  return (
+    <section className="border-t border-border pb-4 pt-3">
+      <h2 className="text-lg font-semibold">Release dates</h2>
+      {/* Names the one exception to the US-market rule
+          (backend/docs/adr/0024-the-product-is-us-market.md). */}
+      <p className="mt-1 text-sm text-muted-foreground">
+        US dates, plus theatrical dates in the film&apos;s own country.
+      </p>
+      <ul className="mt-3 space-y-2">
+        {dates.map((d) => (
+          <li
+            key={`${d.country}-${d.release_type}-${d.date}`}
+            className="flex flex-wrap items-center gap-2 text-sm"
+          >
+            {d.type_label && <span className="font-medium">{d.type_label}</span>}
+            <time dateTime={d.date} className="text-muted-foreground">
+              {formatEventDate(d.date)}
+            </time>
+            {d.country && (
+              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700">
+                {d.country}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "upcoming-movies-frontend",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./workers/app.ts",
+  "observability": { "enabled": true },
+  "vars": {
+    "API_BASE_URL": "https://api.backlotter.com",
+  },
+  "routes": [{ "pattern": "backlotter.com", "custom_domain": true }],
+}
