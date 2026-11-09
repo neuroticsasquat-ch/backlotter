@@ -6,7 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `linear_initiative: backlotter`
 `linear_team: Neuroticsasquatch`
-`linear_repos: upcoming-movies-frontend`
+`linear_repos: backlotter`
+
+## Monorepo layout
+
+This is the **backlotter** app monorepo (NEU-2236, renamed from `upcoming-movies-backend`): the
+FastAPI backend at the root, unchanged, and the SSR frontend (React Router on a Cloudflare Worker)
+under `frontend/`, its history imported from the archived `upcoming-movies-frontend`. One version
+and one tag per release, one `cliff.toml`, one compose file, one Taskfile, one pre-commit config.
+Until the docs PR (NEU-2260) folds them in, the frontend keeps its own guides —
+**read `frontend/AGENTS.md` and `frontend/CLAUDE.md` before touching `frontend/`**, and read each
+`task <x>` there as `task fe:<x>` here.
 
 ## Companion docs — read before working
 
@@ -44,10 +54,24 @@ follow `~/projects/tbc-localdev-infra/CONVENTIONS.md`.
 | Release notes for a tag (host) | `task release-notes -- v0.4.1` |
 | Create local DBs | `task db:init` |
 | Refresh local content from prod | `task db:refresh` |
+| Frontend: lint / format / typecheck / test / build | `task fe:lint` / `task fe:format` / `task fe:typecheck` / `task fe:test` / `task fe:build` |
+| Frontend: Worker deploy dry run / deps | `task fe:deploy-dry-run` / `task fe:deps:add -- <pkg>` (`fe:deps:add-dev`, `fe:deps:remove`) |
+
+`task up` starts both containers: `upmovies-backend` (`https://api.upmovies.localhost`) and
+`upmovies-frontend` (`https://app.upmovies.localhost`). The frontend's SSR loaders reach the backend
+at `API_BASE_URL` from the gitignored `frontend/.dev.vars` (copy `frontend/.dev.vars.example`).
 
 **Before claiming work done:** `task format`, then `task test && task lint && task typecheck` must all
-pass. CI (`.github/workflows/test.yml`) additionally runs `ruff format --check`, so unformatted code
-fails the PR.
+pass; for a frontend change, `task fe:lint && task fe:typecheck && task fe:test` too. Run the frontend
+suite in its container (Node 22, as CI): on the host's newer Node about 150 jsdom tests fail.
+
+**CI** is `.github/workflows/ci.yml`, on the shared workflows (`neuroticsasquat-ch/workflows@v1`).
+A `changes` path filter gates `python` (anything outside `frontend/`: ruff check, `ruff format
+--check`, pyright, a single Alembic head, `alembic upgrade head && alembic check`, pytest, against
+Postgres 17 set up by `.github/ci/setup.sh` with `.github/ci/env`), `image` (the prod stage builds
+and doesn't run as root) and `js` (`frontend/`: lint, typecheck, test, build). `ci` is the one
+required check. The ruff and pyright scope is set in `pyproject.toml`, so CI and the tasks run them
+bare. `dependencies.yml` runs the `updates/dependencies` branch.
 
 ## Architecture
 
@@ -133,5 +157,5 @@ models for feed/film/calendar/sitemap · `routers/` FastAPI routers.
   `RELEASE_NOTES.md` accumulates per-release chunks and is never rebuilt wholesale. This is the
   one task that runs on the host rather than in the container, because git-cliff reads git
   history and tags; don't call `git-cliff` directly.
-- The frontend is a sibling repo at `../upcoming-movies-frontend`; read its `AGENTS.md` before
+- The frontend is under `frontend/` (see *Monorepo layout*); read `frontend/AGENTS.md` before
   touching it.

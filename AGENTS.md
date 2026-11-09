@@ -288,7 +288,7 @@ DB split into Postgres schemas: `app`, `catalog`, `news`, `ingest`. Tests use `c
 
 ## Sibling repo
 
-The frontend lives at `../upcoming-movies-frontend`. Read its `AGENTS.md` before working on frontend code.
+The frontend lives under `frontend/` in this repo (NEU-2236). Read `frontend/AGENTS.md` before working on frontend code; its `task <x>` targets are `task fe:<x>` at the root.
 
 ## Conventions
 

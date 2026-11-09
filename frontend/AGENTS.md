@@ -1,5 +1,13 @@
 # upcoming-movies-frontend
 
+> **Monorepo note (NEU-2236).** This frontend now lives under `frontend/` in the `backlotter`
+> monorepo, with the backend at the repo root. Its own compose file, Taskfile, pre-commit config and
+> CI are gone: run everything from the root, where each `task <x>` below is `task fe:<x>`
+> (`build:app` is `fe:build`, `deploy` is `fe:deploy`; `task up`, `task build` and `task down` drive
+> both containers), and CI is the root's `.github/workflows/ci.yml` (`js` job). References to a
+> sibling `upcoming-movies-backend` repo, or to `../upcoming-movies-backend`, mean the repo root;
+> `linear_repos` is `backlotter`. The docs PR (NEU-2260) rewrites this file.
+
 React + TypeScript SPA for the Upcoming Movies Tracker. Vite, react-router, TanStack Query (server state), Tailwind v4 + Radix/shadcn-style UI primitives, Sentry, sonner. Tooling: ESLint, Prettier, `tsc`, Vitest + Testing Library + MSW. pnpm (`pnpm@9.15.0`). Runs in a container — **no local Node/pnpm**.
 
 ## Branching
