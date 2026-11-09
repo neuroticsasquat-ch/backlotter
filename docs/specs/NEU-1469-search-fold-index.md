@@ -6,7 +6,7 @@
 fans out to all four endpoints), NEU-1355 (the follows-page box), NEU-1358 (the onboarding
 people grid), ADR-0008 (which declined `pg_trgm` for retrieval)
 **Target repos:** both. This file is the **backend half** (the speed). The frontend half (the
-visual indicator) is `frontend/docs/specs/NEU-1469-search-running-indicator.md`. The two are
+visual indicator) is `docs/specs/NEU-1469-search-running-indicator.md`. The two are
 independent: neither changes the API contract, so they deploy in either order.
 **Base branch:** `release/v1.1.1` (the current release branch; the skills resolve it from the
 checkout).

@@ -12,7 +12,7 @@ import { TimelinePage } from "@/components/feed/TimelinePage";
  *
  * - **ready** — signed in and entitled. Swap to their own feed.
  * - **hinted** — no account yet, but the timeline hint predicts a `ready` one (NEU-1468,
- *   ADR-0001). The same page, which can only show its skeleton until the account lands, and is
+ *   ADR-0026). The same page, which can only show its skeleton until the account lands, and is
  *   server-rendered that way, so a subscriber's first paint is already "My feed". A hint that
  *   turns out wrong falls through to the global feed below with no extra request: it was loaded
  *   all along.

@@ -1,6 +1,6 @@
 """Read-only probe: what would an entity-scoped undated sweep admit? (NEU-1073)
 
-Spec: `upcoming-movies/docs/specs/backlotter-undated-film-discovery-project-spec.md` §4.3.
+Spec: `docs/specs/backlotter-undated-film-discovery-project-spec.md` §4.3.
 
 The undated-discovery admission bar has one constant nobody can guess — the corroboration
 threshold, the number of distinct seed-grade attachments a film needs before it is real

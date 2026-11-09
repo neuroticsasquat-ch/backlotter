@@ -3,7 +3,7 @@
 **Ticket:** [NEU-1542](https://linear.app/neuroticsasquatch/issue/NEU-1542) (no priority, no comments, no relations)
 **Project:** bl: Maintenance (no milestone, no project spec, no shared contracts)
 **Target repos:** upcoming-movies-backend (this file) **and** upcoming-movies-frontend
-(`../../../frontend/docs/specs/NEU-1542-calendar-split-and-initial-release-only.md` holds the
+(`docs/specs/NEU-1542-calendar-split-and-initial-release-only-frontend.md` holds the
 frontend half in full; the decisions below are shared). **Base branch:** `main` in both.
 **Deploy order:** free in either direction (§5). One migration (drops a table). One one-off
 prod script, run by Tom after deploy (§3.6). No Coolify change.
@@ -347,7 +347,7 @@ removes, the audit, how to run), `--apply` off by default.
 
 ## 4. Acceptance — frontend
 
-In full in `frontend/docs/specs/NEU-1542-calendar-split-and-initial-release-only.md`. Summary of
+In full in `docs/specs/NEU-1542-calendar-split-and-initial-release-only-frontend.md`. Summary of
 the contract this repo must hold for it:
 
 - `GET /calendar?kind=` and `GET /me/calendar?kind=` with `theatrical` | `home`; omitted =

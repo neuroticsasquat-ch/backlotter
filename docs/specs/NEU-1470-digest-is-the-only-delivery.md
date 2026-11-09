@@ -2,7 +2,7 @@
 
 **Ticket:** NEU-1470 "Why did I get two emails this morning?" (bl: Maintenance)
 **Repos:** `upcoming-movies-backend` (this file) and `upcoming-movies-frontend`
-(`frontend/docs/specs/NEU-1470-digest-is-the-only-delivery.md`). One ticket, two PRs, both on
+(`docs/specs/NEU-1470-digest-is-the-only-delivery-frontend.md`). One ticket, two PRs, both on
 `release/v1.1.1`; they ship together at the cutover.
 **Decision record:** ADR-0021 `docs/adr/0021-the-digest-is-the-only-delivery.md` (written in
 the planning session, 2026-09-26, with the glossary and the superseded-decision annotations —

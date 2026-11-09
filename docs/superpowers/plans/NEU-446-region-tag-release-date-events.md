@@ -1,0 +1,568 @@
+# NEU-446 Region-Tag Release_Date Events Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Stop surfacing a `release_date` news beat for a non-primary country (e.g. "released in India") by tagging each `release_date` event with the country it applies to and quieting non-primary-country events on every public surface.
+
+**Architecture:** The clustering LLM pass already classifies each new event; we add a `region` (ISO 3166-1 alpha-2) field to its output, persist it on `news.event`, and add a single region-aware SQL predicate that every event-surfacing read applies alongside the existing type-visibility predicate. Region detection is in the existing LLM call (no extra call); the surfacing decision is deterministic SQL.
+
+**Tech Stack:** Python 3.13, SQLAlchemy 2 (async) + asyncpg, Alembic, FastAPI, pytest. All tooling runs in the container via `task` (never run `pytest`/`ruff`/`pyright`/`alembic`/`python` on the host).
+
+## Global Constraints
+
+- **Everything runs in the container via `task`.** Use `task test` (scope with `task test -- tests/...`), `task lint`, `task typecheck`, `task format`, `task makemigration -- "msg"`, `task migrate`. Keep the container up (`task up`).
+- **Before claiming any task done:** `task format` applied, and `task test`, `task lint`, `task typecheck` all green.
+- **Migrations:** add the model column first (tests pick it up via `create_all`), then `task makemigration`, review the generated file, then `task migrate`.
+- **Type hints:** modern `X | None` / `X | Y`. No `from __future__ import annotations`. ruff line length 100.
+- **TDD:** write the failing test first; run it red; implement; run it green; commit.
+- **Region semantics:** alpha-2 stored upper-cased; `NULL` = global/unspecified. Primary set = `{"US"} ∪ film.origin_country`. Surfacing rule: a `release_date` event is visible iff `region IS NULL OR region = 'US' OR region = ANY(film.origin_country)`. Other event types are never region-filtered. Forward-only — no backfill of existing rows.
+- **Commits:** Conventional Commits subject (`feat:`/`fix:`/`refactor:`/`test:`…). No Linear ID in the subject (optional `Refs NEU-446.` in body). No `🤖` footer and no `Co-Authored-By` in commits.
+
+---
+
+### Task 1: Add `region` column to the `Event` model + migration
+
+**Files:**
+- Modify: `src/upmovies/news/models.py` (the `Event` class, around line 91)
+- Test: `tests/integration/test_models.py`
+- Generated: `alembic/versions/<hash>_add_event_region.py`
+
+**Interfaces:**
+- Produces: `Event.region: Mapped[str | None]` — nullable ISO 3166-1 alpha-2 code (or `None`). Consumed by Tasks 3 and 4.
+
+- [ ] **Step 1: Write the failing test**
+
+Add to `tests/integration/test_models.py`:
+
+```python
+async def test_event_region_defaults_none_and_persists(session):
+    from datetime import UTC, datetime
+
+    from upmovies.catalog.models import Film
+    from upmovies.news.models import Event
+
+    film = Film(tmdb_id=920001, title="Region Model Film")
+    session.add(film)
+    await session.flush()
+
+    tagged = Event(
+        film_id=film.id,
+        event_type="release_date",
+        confidence="confirmed",
+        occurred_at=datetime(2026, 7, 1, tzinfo=UTC),
+        region="IN",
+    )
+    untagged = Event(
+        film_id=film.id,
+        event_type="casting",
+        confidence="confirmed",
+        occurred_at=datetime(2026, 7, 1, tzinfo=UTC),
+    )
+    session.add_all([tagged, untagged])
+    await session.commit()
+    await session.refresh(tagged)
+    await session.refresh(untagged)
+
+    assert tagged.region == "IN"
+    assert untagged.region is None
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `task test -- tests/integration/test_models.py::test_event_region_defaults_none_and_persists`
+Expected: FAIL — `TypeError: 'region' is an invalid keyword argument for Event` (column does not exist yet).
+
+- [ ] **Step 3: Add the column to the model**
+
+In `src/upmovies/news/models.py`, in the `Event` class, add after the `confidence` column (line 92):
+
+```python
+    region: Mapped[str | None] = mapped_column(Text, nullable=True)
+```
+
+(`Text` and `Mapped`/`mapped_column` are already imported in this file.)
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `task test -- tests/integration/test_models.py::test_event_region_defaults_none_and_persists`
+Expected: PASS.
+
+- [ ] **Step 5: Generate and review the migration**
+
+Run: `task makemigration -- "add event.region"`
+Open the generated file under `alembic/versions/`. Confirm it contains exactly an additive, nullable column and nothing else:
+
+```python
+def upgrade() -> None:
+    op.add_column("event", sa.Column("region", sa.Text(), nullable=True), schema="news")
+
+def downgrade() -> None:
+    op.drop_column("event", "region", schema="news")
+```
+
+Delete any stray autogenerated lines unrelated to this column (e.g. a leftover `_alembic_tmp_*` drop). Then apply:
+
+Run: `task migrate`
+Expected: `alembic upgrade head` succeeds with no error.
+
+- [ ] **Step 6: Verify the suite, lint, types**
+
+Run: `task format && task test -- tests/integration/test_models.py && task lint && task typecheck`
+Expected: all green.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/upmovies/news/models.py tests/integration/test_models.py alembic/versions/
+git commit -m "feat: add nullable region column to news.event"
+```
+
+---
+
+### Task 2: Cluster classifier emits a per-event `region`
+
+**Files:**
+- Modify: `src/upmovies/link/cluster.py` (`_INSTRUCTIONS` ~54-89, `ClusterGroup` ~107-113, `parse_cluster_groups` ~115-144; add `import re` at top)
+- Test: `tests/unit/link/test_cluster_pure.py`
+
+**Interfaces:**
+- Consumes: nothing from earlier tasks.
+- Produces: `ClusterGroup.region: str | None` (upper-cased alpha-2 or `None`). The LLM JSON contract gains an optional `"region"` key per new event. Consumed by Task 3.
+
+- [ ] **Step 1: Write the failing tests**
+
+Add to `tests/unit/link/test_cluster_pure.py`:
+
+```python
+def test_parse_cluster_groups_extracts_region_uppercased():
+    raw = (
+        '{"events": [{"existing": null, "type": "release_date", "confidence": "confirmed",'
+        ' "region": "in", "stories": [1]}]}'
+    )
+    groups = parse_cluster_groups(raw, n_stories=1)
+    assert groups is not None
+    assert groups[0].region == "IN"
+
+
+def test_parse_cluster_groups_region_missing_or_invalid_is_none():
+    raw = (
+        '{"events": ['
+        '{"existing": null, "type": "casting", "confidence": "confirmed", "stories": [1]},'
+        '{"existing": null, "type": "release_date", "confidence": "confirmed",'
+        ' "region": "India", "stories": [2]}'
+        ']}'
+    )
+    groups = parse_cluster_groups(raw, n_stories=2)
+    assert groups is not None
+    assert groups[0].region is None  # key absent
+    assert groups[1].region is None  # full country name rejected (not alpha-2)
+
+
+def test_instructions_describe_region_alpha2():
+    text = _INSTRUCTIONS.lower()
+    assert "region" in text
+    assert "alpha-2" in text or "iso 3166" in text
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `task test -- tests/unit/link/test_cluster_pure.py -k region`
+Expected: FAIL — `AttributeError: 'ClusterGroup' object has no attribute 'region'` (and the instructions assertion fails).
+
+- [ ] **Step 3: Add the `region` field to `ClusterGroup`**
+
+In `src/upmovies/link/cluster.py`, update the dataclass (lines ~107-113):
+
+```python
+@dataclass
+class ClusterGroup:
+    existing: int | None
+    event_type: str | None
+    confidence: str | None
+    story_indices: list[int]
+    region: str | None = None
+```
+
+- [ ] **Step 4: Parse `region` in `parse_cluster_groups`**
+
+At the top of `src/upmovies/link/cluster.py`, add `import re` (with the other stdlib imports, line ~6).
+
+In `parse_cluster_groups`, inside the `for group in data.get("events", []):` loop, after the `existing = group.get("existing")` line and before constructing `ClusterGroup`, add:
+
+```python
+        region_raw = group.get("region")
+        region = (
+            region_raw.upper()
+            if isinstance(region_raw, str) and re.fullmatch(r"[A-Za-z]{2}", region_raw)
+            else None
+        )
+```
+
+Then pass it into the appended group:
+
+```python
+        groups.append(
+            ClusterGroup(
+                existing=existing if isinstance(existing, int) else None,
+                event_type=group.get("type"),
+                confidence=group.get("confidence"),
+                story_indices=indices,
+                region=region,
+            )
+        )
+```
+
+- [ ] **Step 5: Update the prompt `_INSTRUCTIONS`**
+
+In `src/upmovies/link/cluster.py`, in the `New events carry:` list (after the `"confidence"` bullet, line ~80), add a bullet:
+
+```
+- "region": for a "release_date" event ONLY, the ISO 3166-1 alpha-2 code (e.g. "IN" for \
+India, "US" for the United States) of the country the date applies to; null when the date is \
+worldwide/global or no country is named. For every non-release_date event, null.
+```
+
+And update the JSON contract line (the `Return ONLY JSON` block, line ~83) to include the new key:
+
+```
+{"events": [{"existing": <existing event number or null>, "type": <type or null>, \
+"confidence": "confirmed" | "rumored" | null, "region": <ISO 3166-1 alpha-2 or null>, \
+"stories": [<story number n>, ...]}]}
+```
+
+- [ ] **Step 6: Run the tests to verify they pass**
+
+Run: `task test -- tests/unit/link/test_cluster_pure.py`
+Expected: PASS (new region tests and the existing shape/parse tests).
+
+- [ ] **Step 7: Format, lint, types**
+
+Run: `task format && task lint && task typecheck`
+Expected: all green.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/upmovies/link/cluster.py tests/unit/link/test_cluster_pure.py
+git commit -m "feat: extract per-event region from cluster classifier"
+```
+
+---
+
+### Task 3: Persist `region` on new `release_date` events
+
+**Files:**
+- Modify: `src/upmovies/link/cluster.py` (`apply_cluster_decisions`, the new-event `Event(...)` construction ~340-342)
+- Test: `tests/integration/link/test_cluster.py`
+
+**Interfaces:**
+- Consumes: `ClusterGroup.region` (Task 2), `Event.region` (Task 1).
+- Produces: persisted `Event.region` — set to `group.region` only when `event_type == "release_date"`, else `None`. Consumed by Task 4 (surfacing).
+
+- [ ] **Step 1: Write the failing tests**
+
+Add to `tests/integration/link/test_cluster.py` (reuses the file's `FakeClient` and `_linked_story` helpers):
+
+```python
+async def test_release_date_event_persists_region(session):
+    film = Film(tmdb_id=2, title="Runner")
+    session.add(film)
+    await session.flush()
+    await _linked_story(session, film, "https://e/region-1")
+    await session.commit()
+
+    client = FakeClient(
+        {
+            "events": [
+                {
+                    "existing": None,
+                    "type": "release_date",
+                    "confidence": "confirmed",
+                    "region": "IN",
+                    "stories": [1],
+                }
+            ]
+        }
+    )
+    await cluster_film_events(session, client=client, model="m", film_id=film.id, attach_limit=45)
+    await session.commit()
+
+    event = (
+        await session.execute(select(Event).where(Event.film_id == film.id))
+    ).scalar_one()
+    assert event.event_type == "release_date"
+    assert event.region == "IN"
+
+
+async def test_non_release_date_event_ignores_region(session):
+    film = Film(tmdb_id=3, title="Runner")
+    session.add(film)
+    await session.flush()
+    await _linked_story(session, film, "https://e/region-2")
+    await session.commit()
+
+    # A model that wrongly returns a region on a casting event must not persist it.
+    client = FakeClient(
+        {
+            "events": [
+                {
+                    "existing": None,
+                    "type": "casting",
+                    "confidence": "confirmed",
+                    "region": "IN",
+                    "stories": [1],
+                }
+            ]
+        }
+    )
+    await cluster_film_events(session, client=client, model="m", film_id=film.id, attach_limit=45)
+    await session.commit()
+
+    event = (
+        await session.execute(select(Event).where(Event.film_id == film.id))
+    ).scalar_one()
+    assert event.event_type == "casting"
+    assert event.region is None
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `task test -- tests/integration/link/test_cluster.py -k region`
+Expected: FAIL — `test_release_date_event_persists_region` asserts `event.region == "IN"` but the column is left `None` (region not wired into `Event(...)`).
+
+- [ ] **Step 3: Set `region` when creating the event**
+
+In `src/upmovies/link/cluster.py`, in `apply_cluster_decisions`, update the new-event construction (lines ~340-342):
+
+```python
+            event = Event(
+                film_id=plan.film_id,
+                event_type=etype,
+                confidence=conf,
+                occurred_at=occurred,
+                region=group.region if etype == "release_date" else None,
+            )
+```
+
+(The `existing`-attach branch is left unchanged — region belongs to the originating beat.)
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `task test -- tests/integration/link/test_cluster.py`
+Expected: PASS (both new tests and the existing clustering tests).
+
+- [ ] **Step 5: Format, lint, types**
+
+Run: `task format && task lint && task typecheck`
+Expected: all green.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/upmovies/link/cluster.py tests/integration/link/test_cluster.py
+git commit -m "feat: persist region on new release_date events"
+```
+
+---
+
+### Task 4: Region-aware surfacing predicate across all event reads
+
+**Files:**
+- Modify: `src/upmovies/public/service.py` (add `_region_visible()` next to `_visible_events()` ~92; apply in `get_film_detail` ~275-282, `get_feed` ~491-507, `get_feed_grouped` `visible` tuple ~555, `get_sitemap_films` ~478-486)
+- Modify: `tests/fixtures/public.py` (`make_film` adds `origin_country`; `add_event` adds `region`)
+- Test: `tests/integration/routers/test_public_films.py`, `tests/integration/routers/test_public_feed.py`
+
+**Interfaces:**
+- Consumes: `Event.region` (Task 1), `Film.origin_country: list[str] | None` (existing).
+- Produces: `_region_visible() -> ColumnElement[bool]` — a WHERE predicate that requires `Film` to be present in the query.
+
+- [ ] **Step 1: Extend the test fixtures**
+
+In `tests/fixtures/public.py`, add an `origin_country` parameter to `make_film`'s inner `_make` signature (after `adult`):
+
+```python
+        adult: bool | None = None,
+        origin_country: list[str] | None = None,
+```
+
+and pass it into the `Film(...)` constructor:
+
+```python
+            adult=adult,
+            origin_country=origin_country,
+```
+
+Add a `region` parameter to `add_event`'s inner `_add` signature (after `sources`):
+
+```python
+        sources: tuple[dict, ...] = (),
+        region: str | None = None,
+```
+
+and pass it into the `Event(...)` constructor:
+
+```python
+        event = Event(
+            film_id=film.id,
+            event_type=event_type,
+            confidence=confidence,
+            occurred_at=occurred_at,
+            region=region,
+        )
+```
+
+- [ ] **Step 2: Write the failing surfacing tests**
+
+Add to `tests/integration/routers/test_public_films.py`:
+
+```python
+async def test_detail_quiets_non_primary_country_release_date(client, make_film, add_event):
+    film = await make_film(slug="moana-2026", title="Moana", origin_country=["US"])
+    await add_event(
+        film=film, event_type="release_date", summary="Dated in India.", region="IN"
+    )
+    await add_event(
+        film=film, event_type="release_date", summary="US date set.", region="US"
+    )
+    await add_event(
+        film=film, event_type="release_date", summary="Pushed worldwide.", region=None
+    )
+    await add_event(film=film, event_type="casting", summary="Cast set.", region=None)
+
+    r = await client.get("/films/moana-2026")
+    assert r.status_code == 200
+    summaries = {e["summary"] for e in r.json()["events"]}
+    assert summaries == {"US date set.", "Pushed worldwide.", "Cast set."}
+    assert "Dated in India." not in summaries
+
+
+async def test_detail_surfaces_release_date_for_origin_country(client, make_film, add_event):
+    film = await make_film(slug="rrr-2026", title="RRR2", origin_country=["IN"])
+    await add_event(
+        film=film, event_type="release_date", summary="India theatrical date.", region="IN"
+    )
+
+    r = await client.get("/films/rrr-2026")
+    assert r.status_code == 200
+    assert [e["summary"] for e in r.json()["events"]] == ["India theatrical date."]
+```
+
+Add to `tests/integration/routers/test_public_feed.py` (match the file's existing fixtures/route — use `make_film`/`add_event` and the feed path used by the other tests in that file):
+
+```python
+async def test_feed_quiets_non_primary_country_release_date(client, make_film, add_event):
+    film = await make_film(slug="feed-moana-2026", title="Moana", origin_country=["US"])
+    await add_event(
+        film=film, event_type="release_date", summary="Dated in India.", region="IN"
+    )
+    await add_event(
+        film=film, event_type="release_date", summary="US date set.", region="US"
+    )
+
+    r = await client.get("/feed")
+    assert r.status_code == 200
+    summaries = {i["summary"] for i in r.json()["items"]}
+    assert "US date set." in summaries
+    assert "Dated in India." not in summaries
+```
+
+- [ ] **Step 3: Run the tests to verify they fail**
+
+Run: `task test -- tests/integration/routers/test_public_films.py -k region tests/integration/routers/test_public_feed.py -k region`
+Expected: FAIL — the India release_date event is currently surfaced, so the `not in` assertions fail.
+
+- [ ] **Step 4: Add the region predicate**
+
+In `src/upmovies/public/service.py`, immediately after `_visible_events()` (ends ~line 96), add:
+
+```python
+def _region_visible() -> ColumnElement[bool]:
+    """SQL predicate: a release_date event reaches the public surface only when its region is
+    global (NULL) or in the film's primary set — US plus the film's origin countries. Other
+    event types are never region-filtered. Requires Film to be present in the query (NEU-446)."""
+    return or_(
+        Event.event_type != "release_date",
+        Event.region.is_(None),
+        Event.region == "US",
+        Event.region == any_(Film.origin_country),
+    )
+```
+
+`or_`, `any_`, `ColumnElement`, `Event`, and `Film` are already imported in this module. `region = ANY(NULL)` evaluates to NULL → false, so a film with no `origin_country` still surfaces only US/global release_date events.
+
+- [ ] **Step 5: Apply the predicate in `get_film_detail`**
+
+In `get_film_detail`, the `summarized` query (lines ~275-282) filters by `Event.film_id` but does not join `Film`. Add the join and the predicate:
+
+```python
+    summarized = (
+        await session.execute(
+            select(Event, EventSummary.summary)
+            .join(EventSummary, EventSummary.event_id == Event.id)
+            .join(Film, Film.id == Event.film_id)
+            .where(Event.film_id == film.id, _visible_events(), _region_visible())
+            .order_by(Event.created_at.asc(), Event.id.asc())
+        )
+    ).all()
+```
+
+(Leave the separate `all_event_types` query at lines ~267-272 untouched — arc stage is derived from all event types by design.)
+
+- [ ] **Step 6: Apply the predicate in `get_feed`**
+
+In `get_feed`, add `_region_visible()` to both the count query (line ~496) and the rows query (line ~503). Each already joins `Film`:
+
+```python
+        .where(Film.slug.is_not(None), _visible_events(), _region_visible())
+```
+
+(apply the identical change to both `.where(...)` calls).
+
+- [ ] **Step 7: Apply the predicate in `get_feed_grouped` and `get_sitemap_films`**
+
+In `get_feed_grouped`, extend the shared `visible` tuple (line ~555) — both the `distinct_days` and the rows query join `Film` and use it:
+
+```python
+    visible = (Film.slug.is_not(None), _visible_events(), _region_visible())
+```
+
+In `get_sitemap_films`, add the predicate to its `.where()` (line ~482), which already joins `Film`:
+
+```python
+            .where(_visible_events(), _region_visible())
+```
+
+- [ ] **Step 8: Run the surfacing tests to verify they pass**
+
+Run: `task test -- tests/integration/routers/test_public_films.py tests/integration/routers/test_public_feed.py`
+Expected: PASS (new region tests plus the existing detail/feed tests).
+
+- [ ] **Step 9: Run the full suite, format, lint, types**
+
+Run: `task format && task test && task lint && task typecheck`
+Expected: all green (the fixture signature change touches many tests — confirm none regressed).
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add src/upmovies/public/service.py tests/fixtures/public.py tests/integration/routers/test_public_films.py tests/integration/routers/test_public_feed.py
+git commit -m "feat: quiet non-primary-country release_date events on public surfaces"
+```
+
+---
+
+## Self-Review
+
+**Spec coverage:**
+- Data model (`news.event.region` nullable) → Task 1. ✓
+- Classifier emits region (prompt + parse) → Task 2. ✓
+- Persist region for release_date only; null for other types → Task 3. ✓
+- Region-aware surfacing on film page + feed + sitemap via one shared predicate → Task 4. ✓
+- Forward-only / no backfill → no backfill task exists; migration is additive-nullable only (Task 1 Step 5). ✓
+- Out of scope (frontend/DTO, TMDB release_dates block, new event types) → untouched. ✓
+
+**Placeholder scan:** No TBD/TODO; every code step shows the exact code and command.
+
+**Type consistency:** `Event.region: str | None` (Task 1) is read as `event.region` / `Event.region` (Tasks 3, 4); `ClusterGroup.region: str | None` (Task 2) is read as `group.region` (Task 3); `_region_visible() -> ColumnElement[bool]` matches `_visible_events()`'s signature and is applied only in queries that join `Film`. Fixture params `origin_country: list[str] | None` and `region: str | None` match the model column types.
+
+**Note for the implementer:** `test_public_feed.py`'s existing tests hit `GET /feed` and read `body["items"][n]["summary"]` (verified), which the new feed test mirrors — no adjustment needed.
