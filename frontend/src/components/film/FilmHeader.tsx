@@ -1,0 +1,185 @@
+import { Link } from "react-router";
+import type { CrewMember, FilmDetail } from "@/api/types";
+import { formatRuntime, pickRating } from "@/lib/format";
+import { posterUrl } from "@/lib/poster";
+import { collectionTarget, franchisePath, titleTarget } from "@/lib/film-entities";
+import { latestTrailerKey } from "@/lib/trailers";
+import { TitleFollowButton } from "@/components/follow/TitleFollowButton";
+import { FOLLOW_CUE } from "@/components/follow/access";
+import { PersonName } from "./PersonName";
+import { ArcStepper } from "./ArcStepper";
+import { ExternalLinks } from "./ExternalLinks";
+import { TrailerEmbed } from "./TrailerEmbed";
+
+/** Title + parenthetical year, then the poster beside the production-status arc
+ *  (left-aligned), with a labeled spec sheet (countries, director, runtime, rating, genres)
+ *  below. An undated film drops the parenthetical entirely rather than showing its arc-stage
+ *  label: the `ArcStepper` directly below states production status in a better form, so
+ *  "(Announced)" beside the title is duplication (NEU-1215). The feed row, which has no such
+ *  affordance, keeps that fallback.
+ *  The spec sheet is the complete structured record — it caps nothing, and the title
+ *  parenthetical stays year-only here so the director is not repeated 100px above its own
+ *  labelled row.
+ *  Production companies render in their own collapsible section below the cast.
+ *  **One follow button on the page** — `TitleFollowButton`, under the title, with
+ *  {@link FOLLOW_CUE} beneath it (EF-16). The collection keeps its labelled row, but the row
+ *  is a link now: a person, studio or franchise is followed from its own page, which is the
+ *  one place that can show what the follow would deliver (EF-18). */
+export function FilmHeader({ film, watchable = false }: { film: FilmDetail; watchable?: boolean }) {
+  const poster = posterUrl(film.poster_path, "w342");
+  const runtime = film.runtime != null && film.runtime > 0 ? formatRuntime(film.runtime) : null;
+  const rating = pickRating(film.release_dates);
+  const followTitle = titleTarget(film);
+  const followCollection = collectionTarget(film.collection);
+  // Promoted out of the timeline: the newest trailer is the one thing on this page a visitor
+  // is likely to have come for, and it is otherwise buried under however many updates the
+  // film has collected since (D-35).
+  const trailerKey = latestTrailerKey(film.day_groups);
+
+  // The crew members themselves, not their names: these are the most prominent person names
+  // on the page and EF-16 wants every one of them linked, which needs the `person_id` a bare
+  // string has already thrown away. `PersonName` decides linked-or-not from the same
+  // `personTarget` test the credit lists use, so the header cannot disagree with the block
+  // below it about who the catalog can identify.
+  const billing: [string, CrewMember[]][] = (
+    [
+      ["Director", "Director"],
+      ["Screenplay", "Screenplay"],
+      ["Writer", "Writer"],
+      ["Story", "Story"],
+    ] as const
+  )
+    .map(
+      ([label, job]) => [label, film.crew.filter((c) => c.job === job)] as [string, CrewMember[]],
+    )
+    .filter(([, people]) => people.length > 0);
+
+  return (
+    <header>
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <h1 className="text-2xl font-bold">{film.title}</h1>
+        {film.release_year != null && (
+          <span className="text-2xl font-normal text-muted-foreground">({film.release_year})</span>
+        )}
+      </div>
+
+      {/* No id in the payload means no film to follow, so neither the control nor the cue
+          renders — a cue explaining a button that is not there would be worse than silence. */}
+      {followTitle && (
+        <div className="mt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <TitleFollowButton target={followTitle} />
+          </div>
+          <p className="mt-1.5 text-sm text-muted-foreground">{FOLLOW_CUE}</p>
+        </div>
+      )}
+
+      {trailerKey && (
+        <div className="mt-3">
+          <TrailerEmbed videoKey={trailerKey} label="Trailer" title={`${film.title} trailer`} />
+        </div>
+      )}
+
+      <div className="mt-4 flex items-start gap-4">
+        {poster && (
+          <img
+            src={poster}
+            alt={`${film.title} poster`}
+            width={128}
+            height={192}
+            className="shrink-0 rounded-lg shadow-md ring-1 ring-black/10"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <ArcStepper current={film.arc_stage} />
+        </div>
+      </div>
+
+      <dl className="mt-5 grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-2 text-sm text-foreground">
+        {film.production_countries.length > 0 && (
+          <>
+            <dt className="text-muted-foreground">
+              {film.production_countries.length === 1 ? "Country" : "Countries"}
+            </dt>
+            <dd>
+              {film.production_countries.map((country) => (
+                <div key={country}>{country}</div>
+              ))}
+            </dd>
+          </>
+        )}
+        {billing.map(([label, people]) => (
+          <div key={label} className="contents">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd>
+              {people.map((person, i) => (
+                <div key={`${person.name}-${i}`}>
+                  <PersonName person={person} />
+                </div>
+              ))}
+            </dd>
+          </div>
+        ))}
+        {film.collection && (
+          <>
+            <dt className="text-muted-foreground">Collection</dt>
+            <dd className="flex flex-wrap items-center gap-2">
+              {/* Linked when the payload identifies the collection — a franchise with no id
+                  renders as plain text rather than a link to `/franchise/undefined`
+                  (NEU-1429). */}
+              {followCollection ? (
+                <Link
+                  to={franchisePath(followCollection.entityId, followCollection.label)}
+                  className="hover:underline"
+                >
+                  {film.collection.name}
+                </Link>
+              ) : (
+                <span>{film.collection.name}</span>
+              )}
+            </dd>
+          </>
+        )}
+        {runtime && (
+          <>
+            <dt className="text-muted-foreground">Runtime</dt>
+            <dd>{runtime}</dd>
+          </>
+        )}
+        {rating && (
+          <>
+            <dt className="text-muted-foreground">Rating</dt>
+            <dd className="flex items-center gap-1.5">
+              <span className="inline-flex items-center rounded border border-border px-1.5 py-0.5 text-xs font-semibold">
+                {rating.certification}
+              </span>
+              {rating.country !== "US" && (
+                <span className="text-xs text-muted-foreground">{rating.country}</span>
+              )}
+            </dd>
+          </>
+        )}
+        {film.genres.length > 0 && (
+          <>
+            <dt className="text-muted-foreground">Genres</dt>
+            <dd>
+              <ul className="flex flex-wrap gap-1.5">
+                {film.genres.map((genre) => (
+                  <li
+                    key={genre}
+                    className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-300"
+                  >
+                    {genre}
+                  </li>
+                ))}
+              </ul>
+            </dd>
+          </>
+        )}
+      </dl>
+      <div className="mt-4">
+        <ExternalLinks tmdbId={film.tmdb_id} imdbId={film.imdb_id} watchable={watchable} />
+      </div>
+    </header>
+  );
+}

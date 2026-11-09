@@ -1,6 +1,10 @@
-# upcoming-movies-backend
+# backlotter
 
-FastAPI service backing the Upcoming Movies Tracker.
+The Backlotter monorepo: the FastAPI backend at the root, and the SSR frontend (React Router on a
+Cloudflare Worker) under [`frontend/`](frontend/AGENTS.md) (NEU-2236). `task up` starts both; the
+frontend's tasks are `task fe:*`.
+
+The backend is a FastAPI service backing the Upcoming Movies Tracker.
 
 Stack: Python 3.13, FastAPI, SQLAlchemy 2 (async) + asyncpg, Alembic, Pydantic v2, httpx, uv. Ruff, pyright, pytest. Packaged as a single container — no local Python required.
 
