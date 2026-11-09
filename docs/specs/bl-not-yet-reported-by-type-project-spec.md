@@ -385,4 +385,4 @@ Linear project: https://linear.app/neuroticsasquatch/project/bl-not-yet-reported
   day unchanged, so it kept its news-backed-first, title-ordered rule under a section now laid
   out by update type. Superseded: the strip's order is the day's reading order, each film at
   its first appearance — under Not yet reported, update type by update type. See
-  `frontend/docs/specs/NEU-1533-poster-strip-reading-order.md`.
+  `docs/specs/NEU-1533-poster-strip-reading-order.md`.

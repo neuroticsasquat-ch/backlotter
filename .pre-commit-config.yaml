@@ -8,7 +8,7 @@ minimum_pre_commit_version: "3.5.0"
 #
 # Exceptions:
 # - fe-format checks only the staged files under frontend/src/, and only --check: format
-#   what you touch, not the files with known prettier drift on main (frontend/AGENTS.md).
+#   what you touch, not the files with known prettier drift on main (AGENTS.md, *Frontend*).
 #   CI doesn't run prettier at all.
 # - The fe-* hooks also match `css` beyond CONVENTIONS.md's frontend regex, because
 #   prettier formats the stylesheets (`pnpm run format` covers src/**/*.css).

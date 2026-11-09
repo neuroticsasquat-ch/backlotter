@@ -115,7 +115,7 @@ The calendar's existing meta descriptions already say "US" and are unchanged.
 ### Docs
 
 - `CONTEXT.md`: **Primary region** entry (done with this spec).
-- Comments on the four edits cite `backend/docs/adr/0024-the-product-is-us-market.md`.
+- Comments on the four edits cite `docs/adr/0024-the-product-is-us-market.md`.
 
 ### Tests
 

@@ -40,7 +40,7 @@ const CALENDAR_KINDS: readonly CalendarKind[] = ["theatrical", "home"];
  * control for every reader, shared by both tabs — switching tab keeps the kind.
  *
  * The active tab and kind are the **address** (NEU-1544, D-1544.1,
- * `docs/adr/0002-calendar-views-are-paths.md`): each combo has a path, the tabs and kinds are
+ * `docs/adr/0027-calendar-views-are-paths.md`): each combo has a path, the tabs and kinds are
  * links that push history, and Back retraces the reader's steps on and off the page. The route
  * keeps this element mounted across those navigations, so the panels below still mount once
  * and then stay `hidden` (D-1412.2). The kind is still never a remembered preference.

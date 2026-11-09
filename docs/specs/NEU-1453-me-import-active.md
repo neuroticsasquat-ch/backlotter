@@ -2,7 +2,7 @@
 
 **Ticket:** [NEU-1453](https://linear.app/neuroticsasquatch/issue/NEU-1453/backend-get-meimportactive-the-callers-open-import-job-or-204)
 **Project:** bl: Entity Follows · **Milestone:** M5 — Imports you review · **Story:** NEU-1427
-**Blocked by:** nothing · **Blocks:** NEU-1452 (frontend restore of a waiting review list, spec `../../../frontend/docs/specs/NEU-1452-open-import-restored.md`)
+**Blocked by:** nothing · **Blocks:** NEU-1452 (frontend restore of a waiting review list, spec `docs/specs/NEU-1452-open-import-restored.md`)
 **Related:** NEU-1449 (two-phase job, merged PR #366), NEU-1450 (review list, frontend PR #171)
 **Decisions honoured:** EF-22 (the import is two-phase; a new import discards an unconfirmed one), the M5 shared contract that `ACTIVE_IMPORT_STATUSES` includes `awaiting_review`
 **Target repo:** upcoming-movies-backend · **Base branch:** `release/v1.0.0`

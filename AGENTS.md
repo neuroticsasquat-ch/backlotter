@@ -1,4 +1,7 @@
-# Upcoming Movies Backend — Agent Guide
+# backlotter — Agent Guide
+
+The backend (FastAPI) is at the repo root; the web app is under `frontend/` — see
+[Frontend](#frontend-frontend) below.
 
 ## Spec and plan directory
 
@@ -286,9 +289,46 @@ DB split into Postgres schemas: `app`, `catalog`, `news`, `ingest`. Tests use `c
 - **Migrations:** add model column first (tests get it via `create_all`), then `task makemigration -- "msg"`, review, `task migrate`. Autogenerate never emits `CheckConstraint` — write every `ck_*` by hand, and give any hand-named constraint the same `name=` in the model: the parity test (`tests/integration/test_migrations.py`) compares names, so a mismatch fails `task test`.
 
 
-## Sibling repo
+## Frontend (`frontend/`)
 
-The frontend lives under `frontend/` in this repo (NEU-2236). Read `frontend/AGENTS.md` before working on frontend code; its `task <x>` targets are `task fe:<x>` at the root.
+The SSR web app: React Router v8 in framework mode on a Cloudflare Worker, TanStack Query for
+server state, Tailwind v4 + Radix/shadcn-style primitives, Sentry SDKs reporting to Bugsink.
+Tooling: oxlint, Prettier, `tsc`, Vitest + Testing Library + MSW; pnpm. Its architecture — the
+two route trees, signed SSR fetches, error reporting, layout — is in `CLAUDE.md` → *Frontend*.
+Its history was imported from the archived `upcoming-movies-frontend` repo (NEU-2236).
+
+- **Everything runs in the `upmovies-frontend` container via `task fe:<x>`.** Do not run `pnpm`,
+  `vitest`, `oxlint` or `tsc` on the host; on the host's newer Node about 150 jsdom tests fail.
+  Source is bind-mounted (Vite HMR is live); **dependency changes require `task build`**. Add deps
+  with `task fe:deps:add -- <pkg>` / `task fe:deps:add-dev -- <pkg>`.
+- **Before claiming work done:** `task fe:test`, `task fe:lint`, `task fe:typecheck` green, and
+  new or changed files prettier-formatted. oxlint runs at **zero warnings**: unused imports fail.
+- **HTTP** (the client-only SPA subtree) goes through `apiFetch<T>(path, init?)`: sends
+  `credentials: "include"`, attaches the CSRF header on mutations, throws `ApiError` (with
+  `.status`) on non-2xx, tolerates empty bodies. Don't call `fetch` directly. SSR loaders use the
+  pure fetchers in `api/public.ts` instead.
+- **Server state = TanStack Query**, not local state. Export typed fetchers + hooks from the
+  relevant `api/*.ts`, with stable `queryKey`s. The auto-refresh pattern:
+  `refetchInterval: (query) => <condition on query.state.data> ? 5000 : false` (see `useRuns`,
+  which polls only while a run is `running`).
+- **Auth/routing:** `useAuth()` exposes `user` (incl. `is_admin`), `login`/`signup`/`logout`/
+  `refresh`. `RequireAuth` redirects anon → `/login?next=`; `RequireAdmin` (nested inside
+  `RequireAuth`) redirects non-admins → `/`. Admin-only nav/UI keys off `user.is_admin`.
+- **Types mirror the backend response shapes** (e.g. `IngestRun` ↔ `RunOut`). Keep them in sync
+  when the API changes.
+- **Tests: TDD**, write the failing test first. MSW intercepts all HTTP
+  (`onUnhandledFrame: "error"`); override per-test with `server.use(...)`. Auth resolves
+  **asynchronously** via the `/me` query: use `findBy*` for content gated on it, and key
+  assertions off something that only appears post-auth (e.g. the "Log out" control), or you'll
+  get a false pass/fail.
+- **Prettier drift:** a few pre-existing files (`AuthContext.*`) are unformatted on `main`. Don't
+  reformat unrelated files in a PR; format only what you touch. The `fe-format` pre-commit hook
+  checks only the staged files under `frontend/src/`.
+- **Local dev:** the app is at `https://app.upmovies.localhost`. The browser calls the API
+  same-origin through the dev server's `/api` proxy (`VITE_API_BASE_URL=/api` from
+  `.env.development`, proxied to `http://upmovies-backend:8000` on the `proxy` network); SSR
+  loaders use `API_BASE_URL` from `frontend/.dev.vars` (copy `.dev.vars.example`). `env.ts`'s
+  `https://api.upmovies.localhost` fallback is what the tests use.
 
 ## Conventions
 

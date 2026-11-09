@@ -2,7 +2,7 @@ import { createContext, useContext, useSyncExternalStore } from "react";
 import type { AuthedUser } from "@/api/types";
 
 /**
- * The timeline hint (NEU-1468, ADR-0001): a first-party cookie on the site origin that says the
+ * The timeline hint (NEU-1468, ADR-0026): a first-party cookie on the site origin that says the
  * account last resolved entitled, so `/` can server-render the timeline skeleton instead of the
  * global feed while `/me` is still in flight.
  *

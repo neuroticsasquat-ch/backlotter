@@ -1,7 +1,7 @@
 # NEU-1505 — Imports decline released films, and admission attaches only unreleased ones
 
 **Target repos:** upcoming-movies-backend (this file is the decision record), upcoming-movies-frontend
-(`frontend/docs/specs/NEU-1505-imports-decline-released-films.md` is the frontend half). One
+(`docs/specs/NEU-1505-imports-decline-released-films-frontend.md` is the frontend half). One
 ticket, two PRs; see §7 for the deploy order.
 
 **Linear:** https://linear.app/neuroticsasquatch/issue/NEU-1505 (Bug, High)
@@ -291,7 +291,7 @@ deleted after the events (their `carded_by_event_id` is NULL on sweep-carded row
 references them). Run once in prod after the fix deploys, dry first; paste the dry-run output
 on the PR.
 
-### 3.5 Frontend half — see `frontend/docs/specs/NEU-1505-imports-decline-released-films.md`
+### 3.5 Frontend half — see `docs/specs/NEU-1505-imports-decline-released-films-frontend.md`
 
 In one paragraph: `ImportCandidate.skip_reason` and the disabled-row branch go; the review list
 renders candidates only, with the intro "These are the upcoming and recently released films

@@ -1,8 +1,8 @@
 # backlotter
 
 The Backlotter monorepo: the FastAPI backend at the root, and the SSR frontend (React Router on a
-Cloudflare Worker) under [`frontend/`](frontend/AGENTS.md) (NEU-2236). `task up` starts both; the
-frontend's tasks are `task fe:*`.
+Cloudflare Worker) under [`frontend/`](frontend/) (NEU-2236). `task up` starts both; the frontend's
+tasks are `task fe:*`, and its guides are the *Frontend* sections of `CLAUDE.md` and `AGENTS.md`.
 
 The backend is a FastAPI service backing the Upcoming Movies Tracker.
 
