@@ -59,9 +59,11 @@ tasks:
   deps:lock:
     desc: Re-resolve uv.lock after a pyproject.toml change (then `task build`)
     # A throwaway container with the repo mounted, so the lockfile lands on the host
-    # whether or not the backend service is running.
+    # whether or not the backend service is running. trixie, not bookworm: astral stopped
+    # publishing the bookworm tags at uv 0.9.30, whose older lockfile revision rewrote
+    # Dependabot's (NEU-2236). `--pull always`, so a cached image can't go stale the same way.
     cmds:
-      - docker run --rm -v "$PWD":/app -w /app ghcr.io/astral-sh/uv:python3.13-bookworm-slim uv lock {{.CLI_ARGS}}
+      - docker run --rm --pull always -v "$PWD":/app -w /app ghcr.io/astral-sh/uv:python3.13-trixie-slim uv lock {{.CLI_ARGS}}
   logs:
     desc: Follow backend logs
     cmds:

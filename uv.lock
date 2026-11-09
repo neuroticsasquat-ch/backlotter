@@ -1817,7 +1817,7 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "httpx" },
     { name = "icalendar" },
@@ -1840,8 +1840,6 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "feedparser", specifier = ">=6.0.14" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28.1" },
-    { name = "icalendar", marker = "extra == 'dev'", specifier = ">=6.1.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "opentelemetry-distro" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -1852,21 +1850,26 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-sqlalchemy" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
-    { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.411" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.1.1" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.4.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7.1.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "python-slugify", specifier = ">=8.0.4" },
-    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.23.1" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.2" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.67.1" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52,<2.1" },
     { name = "tldextract", specifier = ">=5.3.1" },
-    { name = "types-python-slugify", marker = "extra == 'dev'", specifier = ">=8.0.2.20240310" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.1" },
 ]
-provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "icalendar", specifier = ">=6.1.0" },
+    { name = "pyright", specifier = ">=1.1.411" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "pytest-asyncio", specifier = ">=1.4.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "respx", specifier = ">=0.23.1" },
+    { name = "ruff", specifier = ">=0.16.2" },
+    { name = "types-python-slugify", specifier = ">=8.0.2.20240310" },
+]
 
 [[package]]
 name = "urllib3"

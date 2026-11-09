@@ -1,0 +1,88 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to a PR cancels its older run; runs on main are never cancelled.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # Job-level path filters rather than workflow-level `paths:`, so a filtered-out job reports as
+  # skipped, which `ci` passes. The backend is everything outside frontend/; each filter also
+  # matches this file.
+  changes:
+    runs-on: ubuntu-latest
+    # paths-filter lists a PR's files through the API; on a push it diffs with git.
+    permissions: { contents: read, pull-requests: read }
+    outputs:
+      backend: ${{ steps.backend.outputs.backend }}
+      frontend: ${{ steps.frontend.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # `every`: a file counts only if it matches all the patterns, which is what lets the
+      # negation exclude frontend/. Under the default `some`, `**` alone would match it.
+      - id: backend
+        uses: dorny/paths-filter@v4.0.3
+        with:
+          predicate-quantifier: every
+          filters: |
+            backend:
+              - "**"
+              - "!frontend/**"
+      - id: frontend
+        uses: dorny/paths-filter@v4.0.3
+        with:
+          filters: |
+            frontend:
+              - "frontend/**"
+              - ".github/workflows/ci.yml"
+
+  # uv sync, ruff check, ruff format --check, pyright, the Alembic head and drift checks, pytest.
+  # Scope and options live in pyproject.toml; the test variables come from .github/ci/env, and
+  # .github/ci/setup.sh creates upmovies and upmovies_test with the four schemas and the citext
+  # and pgcrypto extensions.
+  python:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    uses: neuroticsasquat-ch/workflows/.github/workflows/python.yml@v1
+    with:
+      postgres: "17"
+
+  # pnpm install, then the package scripts lint, typecheck (react-router typegen && tsc -b),
+  # test and build. Node comes from frontend/.node-version.
+  js:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    uses: neuroticsasquat-ch/workflows/.github/workflows/js.yml@v1
+    with:
+      working-directory: frontend
+
+  # Builds the image Coolify deploys (docker-compose.prod.yml: Dockerfile, target prod) without
+  # pushing, and checks it doesn't run as root. Gated with `python`: .dockerignore keeps
+  # frontend/ out of the build context, so a frontend-only change can't alter the image.
+  image:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    uses: neuroticsasquat-ch/workflows/.github/workflows/image-check.yml@v1
+    with:
+      target: prod
+
+  ci: # the one required check; the name is the contract
+    if: always()
+    # Every other job. `changes` is here too: if it fails, the jobs gated on it are skipped, and
+    # the gate passes a skip.
+    needs: [changes, python, js, image]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: neuroticsasquat-ch/workflows/actions/gate@v1
+        with:
+          needs: ${{ toJSON(needs) }}

@@ -33,7 +33,9 @@ dependencies = [
     "tldextract>=5.3.1",
 ]
 
-[project.optional-dependencies]
+# A dependency group, not an extra: uv installs it by default (`uv sync`, CI's shared
+# python.yml), and the prod image leaves it out with --no-dev.
+[dependency-groups]
 dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
@@ -56,9 +58,12 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/upmovies"]
 
+# What `ruff check` and `ruff format` cover when run bare, as CI's shared python.yml and the
+# Taskfile's lint/format targets run them: src and tests, as before NEU-2236 put the paths here.
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+include = ["src/**/*.py", "tests/**/*.py"]
 
 [tool.ruff.format]
 # ruff 0.16.0 began formatting Python code blocks inside Markdown by default.
@@ -68,6 +73,10 @@ exclude = ["*.md"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 ignore = ["B008"]
+
+# The same scope for pyright, run bare by CI and `task typecheck`.
+[tool.pyright]
+include = ["src", "tests"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

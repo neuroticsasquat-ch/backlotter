@@ -24,6 +24,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 
 
+# The dev dependency group is installed by default; prod leaves it out with --no-dev.
 FROM base AS dev
 # pyright downloads its own prebuilt node (via nodeenv), and that binary links
 # against libatomic, which python:*-slim does not ship. Without it the pyright
@@ -31,7 +32,7 @@ FROM base AS dev
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libatomic1 \
     && rm -rf /var/lib/apt/lists/*
-RUN uv sync --locked --inexact --no-cache --extra dev --no-install-project
+RUN uv sync --locked --inexact --no-cache --no-install-project
 # Bake the node download into the image so the first pre-commit run does not
 # pay for it (and does not need the network).
 RUN pyright --version
@@ -39,7 +40,7 @@ COPY src/ src/
 COPY scripts/ scripts/
 COPY alembic.ini alembic.ini
 COPY migrations/ migrations/
-RUN uv sync --locked --inexact --no-cache --extra dev
+RUN uv sync --locked --inexact --no-cache
 EXPOSE 8000
 # `--proxy-headers --forwarded-allow-ips=*` here for parity with prod below, where they are
 # what makes `request.client.host` the caller rather than the proxy (NEU-1344).
@@ -56,6 +57,14 @@ COPY alembic.ini alembic.ini
 COPY migrations/ migrations/
 
 RUN uv sync --locked --inexact --no-cache --no-dev --no-editable
+
+# Not root (ops: Shared CI workflows, Decision 13; CI's image job checks it). Nothing in the
+# image is written at runtime: no volume, no bytecode (PYTHONDONTWRITEBYTECODE), and the
+# migrations and the Coolify scheduled tasks only talk to Postgres and the network. The home
+# directory is for tldextract's optional suffix-list cache. Everything above stays
+# root-owned, which the user only needs to read.
+RUN useradd --system --create-home --uid 10001 upmovies
+USER upmovies
 
 EXPOSE 8000
 

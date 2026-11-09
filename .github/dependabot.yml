@@ -1,34 +1,16 @@
 version: 2
 updates:
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-      day: saturday
-      time: "09:00"
-      timezone: America/New_York
-    target-branch: updates/dependencies
-    commit-message:
-      prefix: ci
-      include: scope
-    groups:
-      minor-and-patch:
-        update-types:
-          - minor
-          - patch
-
   - package-ecosystem: uv
     directory: /
+    target-branch: updates/dependencies
     schedule:
       interval: weekly
       day: saturday
       time: "09:00"
       timezone: America/New_York
-    target-branch: updates/dependencies
     commit-message:
       prefix: build
       prefix-development: build
-      include: scope
     ignore:
       # SQLAlchemy 2.1 types Select/Row with TypeVarTuple, which breaks pyright repo-wide
       # (Select[int] vs Select[tuple[int]]). pyproject pins <2.1; drop this once the 2.1
@@ -37,6 +19,47 @@ updates:
         versions: [">=2.1.0"]
     groups:
       minor-and-patch:
-        update-types:
-          - minor
-          - patch
+        update-types: [minor, patch]
+
+  # The frontend (frontend/). The npm ecosystem reads pnpm-lock.yaml.
+  - package-ecosystem: npm
+    directory: /frontend
+    target-branch: updates/dependencies
+    schedule:
+      interval: weekly
+      day: saturday
+      time: "09:00"
+      timezone: America/New_York
+    commit-message:
+      prefix: build
+      prefix-development: build
+    ignore:
+      # jsdom 30.1 hides its wrapper->impl link in private fields, which breaks vitest's
+      # jsdom Blob/FormData shim for fetch bodies (every upload test throws). Drop this once
+      # a vitest release reads jsdom 30.1 Blobs.
+      - dependency-name: jsdom
+        versions: [">=30.1.0"]
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+        # oxlint minors regularly enable new rules by default; on its own PR a
+        # new lint finding can't hold up the rest of the group.
+        exclude-patterns:
+          - oxlint
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: updates/dependencies
+    schedule:
+      interval: weekly
+      day: saturday
+      time: "09:00"
+      timezone: America/New_York
+    commit-message:
+      prefix: ci
+    # The shared workflows float on @v1; bumping them is the workflows repo's job.
+    ignore:
+      - dependency-name: neuroticsasquat-ch/workflows
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
