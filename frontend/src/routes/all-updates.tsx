@@ -2,6 +2,8 @@
 import type { Route } from "./+types/all-updates";
 import { buildMeta } from "@/lib/seo";
 import { loadGlobalFeed } from "@/lib/global-feed";
+import { busyHeaders, isBusy } from "@/lib/overload";
+import { BusyPage } from "@/components/BusyPage";
 import { FeedErrorBoundary, GlobalFeed } from "@/components/feed/GlobalFeed";
 
 /**
@@ -13,6 +15,10 @@ import { FeedErrorBoundary, GlobalFeed } from "@/components/feed/GlobalFeed";
  */
 export async function loader({ request, context }: Route.LoaderArgs) {
   return loadGlobalFeed({ request, context });
+}
+
+export function headers(args: Route.HeadersArgs) {
+  return busyHeaders(args);
 }
 
 export function meta({ location }: Route.MetaArgs): Route.MetaDescriptors {
@@ -31,6 +37,6 @@ export default function AllUpdatesPage({ loaderData }: Route.ComponentProps) {
   return <GlobalFeed feed={loaderData.feed} />;
 }
 
-export function ErrorBoundary() {
-  return <FeedErrorBoundary />;
+export function ErrorBoundary({ error }: { error: unknown }) {
+  return isBusy(error) ? <BusyPage /> : <FeedErrorBoundary />;
 }

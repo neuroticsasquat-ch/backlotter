@@ -41,3 +41,25 @@ describe("shouldInitBrowserSentry", () => {
     expect(shouldInitBrowserSentry("")).toBe(true);
   });
 });
+
+describe("dropOverloaded", () => {
+  const event = (type: string) => ({ exception: { values: [{ type }] } });
+
+  it("drops the API's overload answer by instance", async () => {
+    const { dropOverloaded } = await import("./sentry");
+    const { ApiOverloadedError } = await import("@/api/public");
+    const error = new ApiOverloadedError("/people/x", 5);
+    expect(dropOverloaded(event("Error"), { originalException: error })).toBeNull();
+  });
+
+  it("drops it by exception type when the instance is gone", async () => {
+    const { dropOverloaded } = await import("./sentry");
+    expect(dropOverloaded(event("ApiOverloadedError"), {})).toBeNull();
+  });
+
+  it("keeps every other event", async () => {
+    const { dropOverloaded } = await import("./sentry");
+    const kept = event("Error");
+    expect(dropOverloaded(kept, { originalException: new Error("boom") })).toBe(kept);
+  });
+});

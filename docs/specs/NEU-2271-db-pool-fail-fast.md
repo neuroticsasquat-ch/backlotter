@@ -129,3 +129,8 @@ Until the frontend follow-up lands, a burst that reaches the API produces fast 5
 becomes an SSR loader error: reported to the `upcoming-movies-frontend` Bugsink project and
 rendered as the 500 page. Visitors still see an error page during a burst, but after about 3 s
 rather than 30, and the backend no longer piles up.
+
+*Update (NEU-2273):* the frontend follow-up has landed. The loaders now render an overload 503 as
+a "busy, try again" page, served as a 503 with the API's `Retry-After`, and report nothing. The
+"reported to Bugsink" half above was never true: loader errors went unreported until that ticket
+added `handleError` to `entry.server.tsx`.

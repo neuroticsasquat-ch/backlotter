@@ -258,7 +258,16 @@ speaks the Sentry protocol — the `@sentry/*` SDKs stay, only the DSNs and uplo
 - **Browser** (`entry.client.tsx`): `@sentry/react`, `tunnel: SENTRY_TUNNEL_PATH` — envelopes go to
   same-origin `/monitoring` instead of the Bugsink host so ad blockers don't drop them.
 - **SSR/Worker** (`workers/app.ts`): `Sentry.withSentry` from `@sentry/cloudflare` wraps the fetch
-  handler, catching loader/render errors; DSN comes from the Worker env (`env.SENTRY_DSN`).
+  handler; DSN comes from the Worker env (`env.SENTRY_DSN`). React Router catches loader and
+  render errors itself, so they reach Bugsink only through the `handleError` export in
+  `entry.server.tsx`, which skips thrown responses (404s, redirects, the busy 503) and aborted
+  requests (NEU-2273). The public routes' ErrorBoundaries report nothing; root's reports what
+  reaches it, which no public route lets through.
+- **Overload is not an error.** An API 503 `overloaded` (NEU-2271) is `ApiOverloadedError` in
+  `api/public.ts`; public loaders run through `busyOnOverload` (`lib/overload.ts`), which turns it
+  into a 503 with `Retry-After` that each route's boundary renders as `BusyPage`. Each such route
+  exports `headers` (`busyHeaders`), because React Router copies only cookies from a thrown
+  response onto the document. Both SDKs' `beforeSend` (`dropOverloaded`, `lib/sentry.ts`) drop it.
 - **Tunnel proxy** (`workers/app.ts` `handleSentryTunnel` + `lib/sentry-tunnel.ts`): the Worker
   forwards `/monitoring` POSTs to `https://<dsn host>/api/<id>/envelope/` after validating the
   envelope's `dsn` against its own, so it can't be used as an open relay. **Must read the body as

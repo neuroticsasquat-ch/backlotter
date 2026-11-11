@@ -1,3 +1,5 @@
+import { API_OVERLOADED_ERROR_NAME, ApiOverloadedError } from "@/api/public";
+
 // Set by vite.config.ts on a build that knows its commit (NEU-1594); undefined in dev, in
 // tests, and on a build without one.
 declare const __GIT_SHA__: string | undefined;
@@ -19,4 +21,24 @@ const SKIPPED_USER_AGENTS = /Lightpanda/i;
  *  init, rather than filtering in `beforeSend`, also stops the client's traces and replays. */
 export function shouldInitBrowserSentry(userAgent: string): boolean {
   return !SKIPPED_USER_AGENTS.test(userAgent);
+}
+
+/**
+ * Both SDKs' `beforeSend` (`entry.client.tsx`, `workers/app.ts`): drop the API's overload answer
+ * (NEU-2273). A burst sheds requests by design, and one Bugsink event per shed page load would
+ * bury the errors that matter. The SSR loaders already turn it into the busy page before
+ * anything reports it (`lib/overload.ts`); this catches the paths that don't, such as a browser
+ * fetch whose rejection goes unhandled.
+ *
+ * Matched on the instance where the SDK still has it, and on the exception type otherwise. The
+ * type is the error's hand-set `name`, so it survives minification.
+ */
+export function dropOverloaded<E extends { exception?: { values?: { type?: string }[] } }>(
+  event: E,
+  hint: { originalException?: unknown },
+): E | null {
+  if (hint.originalException instanceof ApiOverloadedError) return null;
+  if (event.exception?.values?.some((value) => value.type === API_OVERLOADED_ERROR_NAME))
+    return null;
+  return event;
 }

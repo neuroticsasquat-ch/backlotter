@@ -1,5 +1,6 @@
-import type { EntryContext } from "react-router";
-import { ServerRouter } from "react-router";
+import type { EntryContext, HandleErrorFunction } from "react-router";
+import { isRouteErrorResponse, ServerRouter } from "react-router";
+import * as Sentry from "@sentry/cloudflare";
 import { isbot } from "isbot";
 import { renderToReadableStream } from "react-dom/server";
 
@@ -40,3 +41,26 @@ export default async function handleRequest(
     status: responseStatusCode,
   });
 }
+
+/**
+ * Report the loader, action and render errors React Router catches on the server (NEU-2273).
+ *
+ * Without this export React Router only logs them, and the public routes' ErrorBoundaries
+ * report nothing either, so a failed SSR loader never reached Bugsink. It runs inside the
+ * Worker's `withSentry` scope (`workers/app.ts`), so the event carries that request.
+ *
+ * Logged but not reported: an error response, which is either one a route threw on purpose (a
+ * 404, a redirect, the busy 503 `lib/overload.ts` makes of the API's overload answer) or React
+ * Router's own for a URL nothing serves (404, 405), whose inner error its default handler logs.
+ * Neither logged nor reported: an aborted request, as in the default handler; the visitor left.
+ */
+export const handleError: HandleErrorFunction = (error, { request }) => {
+  if (request.signal.aborted) return;
+  if (isRouteErrorResponse(error)) {
+    const inner = (error as { error?: unknown }).error;
+    if (inner) console.error(inner);
+    return;
+  }
+  console.error(error);
+  Sentry.captureException(error);
+};
