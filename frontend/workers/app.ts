@@ -1,5 +1,6 @@
 import { createRequestHandler, RouterContextProvider } from "react-router";
 import * as Sentry from "@sentry/cloudflare";
+import { type PageCache, serveEntityPage } from "@/lib/edge-cache";
 import { cloudflareContext } from "@/lib/load-context";
 import { sentryRelease } from "@/lib/sentry";
 import { SENTRY_TUNNEL_PATH, sentryTunnelUpstream } from "@/lib/sentry-tunnel";
@@ -11,6 +12,13 @@ import { throwIfWorkerTestError } from "@/lib/test-error";
 // the tunnel rejects every envelope. `SENTRY_TEST_ERROR_TOKEN` is a secret too: it arms the
 // `?__test_error=<token>` trigger, which is off while it is unset.
 type WorkerEnv = Env & { SENTRY_DSN?: string; SENTRY_TEST_ERROR_TOKEN?: string };
+
+// The Worker's own cache, read per request rather than at module load. The tsconfig's DOM lib
+// declares `CacheStorage` too, and its interface shadows the Workers `default` property, hence
+// the cast.
+function edgeCache(): PageCache {
+  return (caches as unknown as { default: PageCache }).default;
+}
 
 const requestHandler = createRequestHandler(
   () => import("virtual:react-router/server-build"),
@@ -42,16 +50,26 @@ async function handleSentryTunnel(request: Request, dsn: string): Promise<Respon
 }
 
 const handler = {
-  async fetch(request: Request, env: WorkerEnv, _ctx: ExecutionContext) {
+  async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext) {
     const url = new URL(request.url);
     if (request.method === "POST" && url.pathname === SENTRY_TUNNEL_PATH) {
       return handleSentryTunnel(request, env.SENTRY_DSN ?? "");
     }
     // Inside `withSentry`, so the throw is reported: confirms the Worker reaches Bugsink.
     throwIfWorkerTestError(url, env.SENTRY_TEST_ERROR_TOKEN);
-    const context = new RouterContextProvider();
-    context.set(cloudflareContext, { env });
-    return requestHandler(request, context);
+    // Entity pages are served from the edge cache unless the request carries the timeline hint
+    // (NEU-2272, ADR-0029); every other path renders as before. The key carries the build SHA,
+    // so the cache is off in local dev, where there is none.
+    return serveEntityPage(request, {
+      cache: edgeCache(),
+      buildSha: sentryRelease,
+      waitUntil: ctx.waitUntil.bind(ctx),
+      render: () => {
+        const context = new RouterContextProvider();
+        context.set(cloudflareContext, { env });
+        return requestHandler(request, context);
+      },
+    });
   },
 } satisfies ExportedHandler<WorkerEnv>;
 

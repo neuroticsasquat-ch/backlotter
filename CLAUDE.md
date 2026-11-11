@@ -24,9 +24,9 @@ below, and `AGENTS.md` → *Frontend*, before touching `frontend/`.** Every fron
 - **`CONTEXT.md`** — the domain glossary. Terms there are *enforced in code* (e.g. `provenance` vs
   `news_backed`, "total stage failure" vs partial failure). When naming a concept in code, tests, or
   a PR, use the glossary's term and avoid the listed synonyms.
-- **`docs/adr/`** — 28 ADRs covering retrieval, clustering, LLM routing, sweep, feed grouping,
-  (0026–0027) the web app and (0028) overload handling. Read the ones touching your area; flag
-  explicitly if your change contradicts one.
+- **`docs/adr/`** — 29 ADRs covering retrieval, clustering, LLM routing, sweep, feed grouping,
+  (0026–0027) the web app, (0028) overload handling and (0029) the entity-page edge cache. Read
+  the ones touching your area; flag explicitly if your change contradicts one.
 - **`docs/specs/NEU-*.md`** — per-ticket specs (`specs_dir: docs`). Implementation work is spec-driven.
   A ticket with a backend and a frontend half may have two specs; the frontend one carries a
   `-frontend` suffix when the names collided. `docs/plans/`, `docs/superpowers/` (the retired
@@ -222,6 +222,18 @@ hop. `SSR_ORIGIN_SECRET` is an ASCII Wrangler secret (`wrangler secret put SSR_O
 a var in `wrangler.jsonc`; unset, loaders send nothing and the backend falls back to the egress IP.
 Deploy order matters — backend first, then this secret + the frontend, then flip
 `RATE_LIMIT_PUBLIC_ENABLED=true` in Coolify.
+
+### Edge cache for entity pages
+
+`/film`, `/person`, `/studio` and `/franchise` pages are cached in the Worker's own
+`caches.default` for an hour (NEU-2272, ADR-0029, `lib/edge-cache.ts`). The Worker is the origin,
+so Cache Rules never see these responses; the Cache API is the only cache there is. The key is the path plus the build SHA, the query string
+dropped. Only a `200` for the bare path is stored. A request **bypasses** the cache when it is not
+a `GET`, is a `.data` payload, carries `timeline_hint`, or comes from a build whose release is not
+a commit SHA (local dev, or a dashboard *Retry build*, which reports `main`): so only the render
+without the hint is ever cached. Every entity-path response says what happened in
+`X-Backlotter-Cache: HIT | MISS | BYPASS`. **Anything that makes an entity page's document vary per
+visitor** (another cookie, a query parameter, a `Set-Cookie`) must join the bypass or the key.
 
 ### SSR-safety invariant
 
