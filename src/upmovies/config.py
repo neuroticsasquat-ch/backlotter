@@ -583,6 +583,7 @@ class Settings(BaseSettings):
     # lets it name the visitor it is rendering for instead of being metered as one caller.
     # `None` by default — and an unset secret means the header is ignored entirely, never that
     # a signed request is refused, so this deploying before the Worker sibling costs nothing.
+    # The header is scrubbed from Bugsink events (`telemetry.event_scrubber`, NEU-2274).
     ssr_origin_secret: str | None = Field(default=None, alias="SSR_ORIGIN_SECRET")
 
     # Cloudflare Turnstile's server-side secret (D-18, M1) — the whole of what stops `POST

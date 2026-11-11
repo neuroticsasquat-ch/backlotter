@@ -8,6 +8,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.trace import StatusCode
 
 from upmovies import telemetry
+from upmovies.app.rate_limit import CLIENT_IP_HEADER, ORIGIN_HEADER
 from upmovies.telemetry import (
     init_sentry,
     parse_resource_attributes,
@@ -85,6 +86,34 @@ def test_init_sentry_passes_the_resolved_pair_to_the_sdk(monkeypatch):
     assert len(calls) == 1
     assert calls[0]["release"] == SHA
     assert calls[0]["environment"] == "production"
+
+
+def test_init_sentry_scrubs_the_ssr_origin_secret_and_visitor_ip_from_events(monkeypatch):
+    """NEU-2274: the SDK's scrubber knows `authorization` and `x-forwarded-for`, not our own
+    headers, so every event from an SSR request stored the Worker's secret and the visitor's IP.
+    The event is shaped as the starlette integration shapes one: lowercased header names."""
+    calls: list[dict] = []
+    monkeypatch.setattr(telemetry.sentry_sdk, "init", lambda **kw: calls.append(kw))
+    init_sentry({"SENTRY_DSN": "https://k@bugsink.example/1"})
+    event = {
+        "request": {
+            "headers": {
+                ORIGIN_HEADER.lower(): "the-ssr-origin-secret",
+                CLIENT_IP_HEADER.lower(): "2001:db8::1",
+                "authorization": "Bearer t",
+                "accept": "application/json",
+            }
+        }
+    }
+
+    calls[0]["event_scrubber"].scrub_event(event)
+
+    headers = event["request"]["headers"]
+    # Scrubbed keys are replaced by an `AnnotatedValue`, which the SDK serializes as "[Filtered]".
+    assert "the-ssr-origin-secret" not in repr(headers[ORIGIN_HEADER.lower()])
+    assert "2001:db8::1" not in repr(headers[CLIENT_IP_HEADER.lower()])
+    assert "Bearer t" not in repr(headers["authorization"])  # the SDK's own defaults still apply
+    assert headers["accept"] == "application/json"
 
 
 def test_init_sentry_skips_the_sdk_without_a_dsn(monkeypatch):
