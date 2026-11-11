@@ -24,9 +24,9 @@ below, and `AGENTS.md` → *Frontend*, before touching `frontend/`.** Every fron
 - **`CONTEXT.md`** — the domain glossary. Terms there are *enforced in code* (e.g. `provenance` vs
   `news_backed`, "total stage failure" vs partial failure). When naming a concept in code, tests, or
   a PR, use the glossary's term and avoid the listed synonyms.
-- **`docs/adr/`** — 27 ADRs covering retrieval, clustering, LLM routing, sweep, feed grouping and
-  (0026–0027) the web app. Read the ones touching your area; flag explicitly if your change
-  contradicts one.
+- **`docs/adr/`** — 28 ADRs covering retrieval, clustering, LLM routing, sweep, feed grouping,
+  (0026–0027) the web app and (0028) overload handling. Read the ones touching your area; flag
+  explicitly if your change contradicts one.
 - **`docs/specs/NEU-*.md`** — per-ticket specs (`specs_dir: docs`). Implementation work is spec-driven.
   A ticket with a backend and a frontend half may have two specs; the frontend one carries a
   `-frontend` suffix when the names collided. `docs/plans/`, `docs/superpowers/` (the retired

@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import TimeoutError as PoolTimeout
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.gzip import GZipMiddleware
 
@@ -17,6 +18,7 @@ from upmovies.ingest.runs import mark_stale_runs_cancelled
 from upmovies.llm import validate_stage_configuration
 from upmovies.logging_config import configure_logging
 from upmovies.mail import MailGateway, validate_mail_configuration
+from upmovies.overload import pool_exhausted_handler
 from upmovies.routers import (
     admin_runs,
     auth,
@@ -119,6 +121,9 @@ def create_app() -> FastAPI:
     # because the body carries the bucket and the wait alongside the detail string, and
     # FastAPI's own handler renders only `{"detail": ...}` (`app/rate_limit.py`).
     app.add_exception_handler(RateLimited, rate_limited_handler)
+    # And the 503 for a pool checkout timeout (NEU-2271, ADR-0028): overload is retryable,
+    # not a server fault, on every route. `overload.py` covers the logging and Bugsink cap.
+    app.add_exception_handler(PoolTimeout, pool_exhausted_handler)
     app.include_router(health.router)
     app.include_router(ingest_admin.router)
     app.include_router(admin_runs.router)

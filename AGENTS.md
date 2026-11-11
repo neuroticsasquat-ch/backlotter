@@ -257,6 +257,15 @@ DB split into Postgres schemas: `app`, `catalog`, `news`, `ingest`. Tests use `c
   **and** as the Wrangler secret of the same name, then deploy the frontend. (3) Only then set
   `RATE_LIMIT_PUBLIC_ENABLED=true` in the Coolify UI and restart. Both are Coolify UI changes, not
   compose edits — the fallbacks in `docker-compose.prod.yml` are seeds, per the gotcha above.
+- **The DB pool is per process, and an exhausted one answers 503 (NEU-2271, ADR-0028).**
+  `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` / `DB_POOL_TIMEOUT` (10 / 20 / 3 s) size `db.py`'s engine,
+  and every `pipeline_run` task is its own process with the same caps. So before raising them,
+  check (API + running tasks) × (size + overflow) against Postgres's `max_connections` of 100.
+  A checkout that times out answers **503 `overloaded`** with `Retry-After: 5`, not a 500. In
+  Bugsink, overload shows up as one warning issue, *DB connection pool exhausted*, with at most
+  one event a minute per process. The per-request detail is in the warning log lines. Public
+  read routes hand their connection back before building the response (`routers/public.py`
+  `_release`). Keep that when adding one.
 - **Turning the public bucket on meters the calendar feed too (NEU-1383).**
   `GET /calendar/{token}.ics` sits in the `public` bucket, and unlike every other route in it the
   callers are not browsers: a subscribed feed is fetched by Google Calendar, Apple and Outlook on

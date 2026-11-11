@@ -36,6 +36,15 @@ class Settings(BaseSettings):
 
     database_url: str = Field(..., alias="DATABASE_URL")
     test_database_url: str | None = Field(default=None, alias="TEST_DATABASE_URL")
+    # The engine's pool, per process (NEU-2271, D-2271.3, ADR-0028). Caps, not reservations:
+    # overflow connections open on demand and close on return. Sized against the dedicated
+    # Postgres's `max_connections` of 100: 30 for the API plus two `pipeline_run` tasks at
+    # their cap is 90. The timeout is how long a request waits for a connection before the
+    # app answers 503 (`overload.pool_exhausted_handler`) — ~20× a person read, not SQLAlchemy's
+    # 30 s, so a request that can't get a connection fails fast instead of queueing.
+    db_pool_size: int = Field(default=10, ge=1, alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(default=20, ge=0, alias="DB_MAX_OVERFLOW")
+    db_pool_timeout: float = Field(default=3.0, gt=0, alias="DB_POOL_TIMEOUT")
     admin_token: str = Field(..., alias="ADMIN_TOKEN")
 
     tmdb_api_key: str = Field(..., alias="TMDB_API_KEY")

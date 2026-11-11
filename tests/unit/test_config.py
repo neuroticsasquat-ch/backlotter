@@ -693,3 +693,34 @@ def test_a_zero_sanity_threshold_fails_the_container_at_boot(monkeypatch, key):
     monkeypatch.setenv(key, "0")
     with pytest.raises(ValidationError):
         Settings()  # pyright: ignore[reportCallIssue]
+
+
+def test_db_pool_defaults_are_explicit(monkeypatch):
+    """NEU-2271, D-2271.3: 10 + 20 against Postgres's 100, and a 3 s checkout wait rather than
+    SQLAlchemy's 30 s — a request that can't get a connection fails fast as a 503."""
+    _set_required(monkeypatch)
+    for key in ("DB_POOL_SIZE", "DB_MAX_OVERFLOW", "DB_POOL_TIMEOUT"):
+        monkeypatch.delenv(key, raising=False)
+    s = Settings()  # type: ignore[call-arg]
+    assert (s.db_pool_size, s.db_max_overflow, s.db_pool_timeout) == (10, 20, 3.0)
+
+
+def test_db_pool_settings_read_their_env_vars(monkeypatch):
+    _set_required(monkeypatch)
+    monkeypatch.setenv("DB_POOL_SIZE", "4")
+    monkeypatch.setenv("DB_MAX_OVERFLOW", "0")
+    monkeypatch.setenv("DB_POOL_TIMEOUT", "0.5")
+    s = Settings()  # type: ignore[call-arg]
+    assert (s.db_pool_size, s.db_max_overflow, s.db_pool_timeout) == (4, 0, 0.5)
+
+
+def test_the_app_engine_is_built_from_the_pool_settings():
+    """`db.py` passes the three settings through; nothing else sizes the pool."""
+    from upmovies.config import get_settings
+    from upmovies.db import engine
+
+    settings = get_settings()
+    pool = engine.pool
+    assert pool.size() == settings.db_pool_size  # type: ignore[attr-defined]
+    assert pool._max_overflow == settings.db_max_overflow  # type: ignore[attr-defined]
+    assert pool._timeout == settings.db_pool_timeout  # type: ignore[attr-defined]

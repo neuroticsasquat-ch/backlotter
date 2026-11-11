@@ -34,6 +34,23 @@ router = APIRouter(tags=["public"])
 _public_limit = Depends(rate_limit("public"))
 
 
+async def _release(session: AsyncSession) -> None:
+    """Hand the session's connection back to the pool now, not when the request ends
+    (NEU-2271, D-2271.2, ADR-0028).
+
+    Every route here calls it once its service has returned. A session holds its connection
+    from its first query until it closes, and `get_session` closes it only after the response
+    is built and sent — under a burst, long after the query finished, which is how 15
+    connections ran dry in a crawl of 50–150 ms reads. Ending it here is safe because the
+    services return response models and plain dataclasses, never live ORM objects, so nothing
+    reads the database after it. A route with two reads (`get_sitemap`) releases once, after
+    both: a read after the release would check a connection out again.
+
+    A plain call, not a dependency: the release point is mid-handler, which a dependency's
+    teardown cannot reach. `get_session`'s own close afterwards is a no-op."""
+    await session.close()
+
+
 @router.get("/films/search", response_model=FilmIndexResponse, dependencies=[_public_limit])
 async def search_films(
     q: str = Query(..., max_length=200),
@@ -51,7 +68,9 @@ async def search_films(
     all-punctuation, e.g. ``%``) intentionally return an empty page (``items: []``,
     ``total: 0``) rather than 422 -- they are treated as "no query yet", not an error.
     """
-    return await service.get_film_search(session, q=q, limit=limit, offset=offset)
+    result = await service.get_film_search(session, q=q, limit=limit, offset=offset)
+    await _release(session)
+    return result
 
 
 @router.get("/films/{ref}", response_model=FilmDetailResponse, dependencies=[_public_limit])
@@ -63,6 +82,7 @@ async def get_film(
     resolves. The response's own `ref` is the canonical one — callers redirect when it differs
     from what was requested."""
     film = await service.get_film_detail(session, ref)
+    await _release(session)
     if film is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="film not found")
     return film
@@ -83,7 +103,9 @@ async def search_people(
 ) -> PersonSearchResponse:
     """Search people by name / original name (case- and accent-insensitive substring),
     most popular first. `id` is the TMDB person id a follow is keyed on."""
-    return await service.get_person_search(session, q=q, limit=limit, offset=offset)
+    result = await service.get_person_search(session, q=q, limit=limit, offset=offset)
+    await _release(session)
+    return result
 
 
 @router.get("/people/popular", response_model=PopularPeopleResponse, dependencies=[_public_limit])
@@ -92,7 +114,9 @@ async def popular_people(
     session: AsyncSession = Depends(get_session),
 ) -> PopularPeopleResponse:
     """The onboarding grid (D-17): the `limit` most popular people who have a profile photo."""
-    return await service.get_popular_people(session, limit=limit)
+    result = await service.get_popular_people(session, limit=limit)
+    await _release(session)
+    return result
 
 
 async def _entity_events(
@@ -116,6 +140,8 @@ async def _entity_events(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_cursor"
         ) from None
+    finally:
+        await _release(session)
     if page is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"{entity_type} not found"
@@ -168,6 +194,7 @@ async def get_person(
     the same answer because neither is a person anything will be ingested against again.
     """
     person = await service.get_person_detail(session, ref)
+    await _release(session)
     if person is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="person not found")
     return person
@@ -181,7 +208,9 @@ async def search_companies(
     session: AsyncSession = Depends(get_session),
 ) -> CompanySearchResponse:
     """Search production companies by name (folded substring), alphabetical."""
-    return await service.get_company_search(session, q=q, limit=limit, offset=offset)
+    result = await service.get_company_search(session, q=q, limit=limit, offset=offset)
+    await _release(session)
+    return result
 
 
 @router.get(
@@ -194,7 +223,9 @@ async def search_collections(
     session: AsyncSession = Depends(get_session),
 ) -> CollectionSearchResponse:
     """Search TMDB collections (franchises) by name (folded substring), alphabetical."""
-    return await service.get_collection_search(session, q=q, limit=limit, offset=offset)
+    result = await service.get_collection_search(session, q=q, limit=limit, offset=offset)
+    await _release(session)
+    return result
 
 
 @router.get(
@@ -237,6 +268,7 @@ async def get_company(
     is the canonical one — callers redirect when it differs from what was requested, as the
     person and film pages do. 404 for an id the catalog does not hold."""
     company = await service.get_company_detail(session, ref)
+    await _release(session)
     if company is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="company not found")
     return company
@@ -252,6 +284,7 @@ async def get_collection(
     """`ref` is `<collection_id>-<name-slug>`, resolved on the leading id. `/companies/{ref}`
     over franchises, down to the redirect rule and the 404."""
     collection = await service.get_collection_detail(session, ref)
+    await _release(session)
     if collection is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="collection not found")
     return collection
@@ -263,7 +296,9 @@ async def get_feed(
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
 ) -> FeedResponse:
-    return await service.get_feed(session, limit=limit, offset=offset)
+    result = await service.get_feed(session, limit=limit, offset=offset)
+    await _release(session)
+    return result
 
 
 @router.get("/feed/grouped", response_model=FeedDayResponse, dependencies=[_public_limit])
@@ -273,7 +308,9 @@ async def get_grouped_feed(
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
 ) -> FeedDayResponse:
-    return await service.get_feed_grouped(session, limit=limit, offset=offset)
+    result = await service.get_feed_grouped(session, limit=limit, offset=offset)
+    await _release(session)
+    return result
 
 
 @router.get("/calendar", response_model=CalendarResponse, dependencies=[_public_limit])
@@ -286,7 +323,9 @@ async def get_calendar(
     offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
 ) -> CalendarResponse:
-    return await service.get_calendar(session, kind=kind, limit=limit, offset=offset)
+    result = await service.get_calendar(session, kind=kind, limit=limit, offset=offset)
+    await _release(session)
+    return result
 
 
 # `{token}.ics` rather than a query parameter: a calendar client is handed one URL and asked to
@@ -312,6 +351,7 @@ async def get_calendar_feed(
     ceiling on how stale this can be is the daily ingest.
     """
     events = await service.get_ical_feed(session, token=token)
+    await _release(session)
     if events is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="calendar not found")
     settings = get_settings()
@@ -327,6 +367,7 @@ async def get_sitemap(session: AsyncSession = Depends(get_session)) -> Response:
     settings = get_settings()
     films = await service.get_sitemap_films(session)
     entities = await service.get_sitemap_entities(session)
+    await _release(session)
     return Response(
         content=render_sitemap(settings.public_base_url, films, entities),
         media_type="application/xml",
