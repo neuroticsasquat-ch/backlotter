@@ -27,6 +27,9 @@ from sentry_sdk.integrations import Integration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.scrubber import DEFAULT_DENYLIST, DEFAULT_PII_DENYLIST, EventScrubber
+
+from upmovies.app.rate_limit import CLIENT_IP_HEADER, ORIGIN_HEADER
 
 log = logging.getLogger(__name__)
 
@@ -77,6 +80,22 @@ def resolve_telemetry(env: Mapping[str, str]) -> Telemetry:
     )
 
 
+def event_scrubber() -> EventScrubber:
+    """The SDK's own scrubber, plus the two headers the SSR Worker signs its requests with
+    (NEU-2274).
+
+    The SDK filters headers it knows (`authorization`, `cookie`, `x-forwarded-for`, …) and passes
+    any other through to Bugsink verbatim. `X-Backlotter-Origin` carries `SSR_ORIGIN_SECRET`
+    itself, and `X-Backlotter-Client-IP` the visitor's IP, the PII `x-real-ip` is filtered as.
+    The scrubber compares a key's lowercased form exactly, and the starlette integration records
+    header names lowercased, so the entries are too.
+    """
+    return EventScrubber(
+        denylist=[*DEFAULT_DENYLIST, ORIGIN_HEADER.lower()],
+        pii_denylist=[*DEFAULT_PII_DENYLIST, CLIENT_IP_HEADER.lower()],
+    )
+
+
 def pipeline_integrations() -> list[Integration]:
     """The scheduled tasks' integrations: no FastAPI, and logging kept as breadcrumbs only.
 
@@ -120,6 +139,7 @@ def init_sentry(
             traces_sample_rate=0.1,
             environment=telemetry.environment,
             release=telemetry.release,
+            event_scrubber=event_scrubber(),
         )
     return telemetry
 
