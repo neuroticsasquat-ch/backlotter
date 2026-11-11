@@ -2,6 +2,8 @@
 import type { Route } from "./+types/feed";
 import { buildMeta } from "@/lib/seo";
 import { loadGlobalFeed } from "@/lib/global-feed";
+import { busyHeaders, isBusy } from "@/lib/overload";
+import { BusyPage } from "@/components/BusyPage";
 import { FeedErrorBoundary } from "@/components/feed/GlobalFeed";
 import { TimelineOrFeed } from "@/components/feed/TimelineOrFeed";
 
@@ -12,6 +14,10 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   // whether the server renders this feed or the timeline skeleton over it (NEU-1468, D-1468.6),
   // and a wrong hint falls back to this data with no second request.
   return loadGlobalFeed({ request, context });
+}
+
+export function headers(args: Route.HeadersArgs) {
+  return busyHeaders(args);
 }
 
 export function meta({ location }: Route.MetaArgs): Route.MetaDescriptors {
@@ -29,6 +35,6 @@ export default function FeedPage({ loaderData }: Route.ComponentProps) {
   return <TimelineOrFeed feed={loaderData.feed} />;
 }
 
-export function ErrorBoundary() {
-  return <FeedErrorBoundary />;
+export function ErrorBoundary({ error }: { error: unknown }) {
+  return isBusy(error) ? <BusyPage /> : <FeedErrorBoundary />;
 }

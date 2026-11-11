@@ -3,6 +3,8 @@ import { isRouteErrorResponse, Link, redirect } from "react-router";
 import type { Route } from "./+types/film";
 import { getFilm } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
+import { busyHeaders, busyOnOverload, isBusy } from "@/lib/overload";
+import { BusyPage } from "@/components/BusyPage";
 import { ssrOriginHeaders } from "@/lib/ssr-origin";
 import { buildMeta } from "@/lib/seo";
 import { posterUrl } from "@/lib/poster";
@@ -19,29 +21,35 @@ import { EventTimeline } from "@/components/film/EventTimeline";
 import type { FilmEvent } from "@/api/types";
 
 export async function loader({ params, request, context }: Route.LoaderArgs) {
-  const { env } = context.get(cloudflareContext);
-  const film = await getFilm(env.API_BASE_URL, params.ref, {
-    headers: ssrOriginHeaders(env, request),
+  return busyOnOverload(async () => {
+    const { env } = context.get(cloudflareContext);
+    const film = await getFilm(env.API_BASE_URL, params.ref, {
+      headers: ssrOriginHeaders(env, request),
+    });
+    if (!film) {
+      throw new Response(null, { status: 404, statusText: "Film not found" });
+    }
+    // A ref resolves on its leading id, so several URLs reach the same film: one minted before
+    // NEU-1143 (a bare legacy slug), a bare id, or a ref whose decorative half was built from a
+    // title the film has since outgrown. Send all of them to the canonical form.
+    //
+    // 301, not 302: the old URLs are in the sitemap and indexed, and a permanent redirect is what
+    // moves the ranking signal onto the URL we now emit. A temporary one strands it on a URL that
+    // no longer appears anywhere.
+    if (params.ref !== film.ref) {
+      const url = new URL(request.url);
+      url.pathname = `/film/${film.ref}`;
+      throw redirect(url.toString(), 301);
+    }
+    // Decided here rather than in render so the server and the hydrating client agree: "today"
+    // is read once, on the side that rendered the document (D-1542.8).
+    const watchable = isWatchable(film.release_dates, todayUtc());
+    return { film, watchable };
   });
-  if (!film) {
-    throw new Response(null, { status: 404, statusText: "Film not found" });
-  }
-  // A ref resolves on its leading id, so several URLs reach the same film: one minted before
-  // NEU-1143 (a bare legacy slug), a bare id, or a ref whose decorative half was built from a
-  // title the film has since outgrown. Send all of them to the canonical form.
-  //
-  // 301, not 302: the old URLs are in the sitemap and indexed, and a permanent redirect is what
-  // moves the ranking signal onto the URL we now emit. A temporary one strands it on a URL that
-  // no longer appears anywhere.
-  if (params.ref !== film.ref) {
-    const url = new URL(request.url);
-    url.pathname = `/film/${film.ref}`;
-    throw redirect(url.toString(), 301);
-  }
-  // Decided here rather than in render so the server and the hydrating client agree: "today"
-  // is read once, on the side that rendered the document (D-1542.8).
-  const watchable = isWatchable(film.release_dates, todayUtc());
-  return { film, watchable };
+}
+
+export function headers(args: Route.HeadersArgs) {
+  return busyHeaders(args);
 }
 
 export function meta({ loaderData, location }: Route.MetaArgs): Route.MetaDescriptors {
@@ -89,6 +97,7 @@ export default function FilmPage({ loaderData }: Route.ComponentProps) {
 }
 
 export function ErrorBoundary({ error }: { error: unknown }) {
+  if (isBusy(error)) return <BusyPage />;
   const isNotFound = isRouteErrorResponse(error) && error.status === 404;
   return (
     <main className="mx-auto max-w-3xl px-4 py-16 text-center">

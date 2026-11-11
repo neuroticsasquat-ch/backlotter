@@ -44,6 +44,57 @@ function apiUrl(baseUrl: string, path: string): URL {
   return new URL(`${baseUrl.replace(/\/$/, "")}${path}`, globalThis.location?.origin);
 }
 
+/** How long to wait before retrying when the API's overload answer names no usable delay. The
+ *  backend's own constant (`Retry-After: 5`, NEU-2271 D-2271.4). */
+const DEFAULT_RETRY_AFTER_SECONDS = 5;
+
+/** The exception type Sentry reports an {@link ApiOverloadedError} under. Set by hand rather
+ *  than left to the class, whose name a minified build rewrites; `lib/sentry.ts` matches on it. */
+export const API_OVERLOADED_ERROR_NAME = "ApiOverloadedError";
+
+/**
+ * The API shed this request under load (NEU-2271 D-2271.4): a 503 whose body is
+ * `{"detail": "overloaded", "retry_after": 5}`. Expected during a burst and over in seconds, so
+ * the SSR loaders render it as a "busy, try again" page with the same 503 (`lib/overload.ts`)
+ * and neither Sentry SDK reports it (`lib/sentry.ts`).
+ */
+export class ApiOverloadedError extends Error {
+  readonly retryAfter: number;
+
+  constructor(path: string, retryAfter: number) {
+    super(`GET ${path} shed: API overloaded, retry after ${retryAfter}s`);
+    this.name = API_OVERLOADED_ERROR_NAME;
+    this.retryAfter = retryAfter;
+  }
+}
+
+/**
+ * The error a fetcher throws for a non-OK response it has no answer of its own for.
+ *
+ * Only a 503 that says `overloaded` is the distinct error. Any other 503 (Traefik with no
+ * backend behind it, say) is a real outage and stays a plain, reported `Error`. The delay is read
+ * from the body rather than the `Retry-After` header because the browser cannot see that header
+ * on a cross-origin response; the two carry the same value.
+ */
+async function responseError(res: Response, path: string): Promise<Error> {
+  if (res.status === 503) {
+    const body = (await res.json().catch(() => null)) as {
+      detail?: unknown;
+      retry_after?: unknown;
+    } | null;
+    if (body?.detail === "overloaded") {
+      const retryAfter = body.retry_after;
+      return new ApiOverloadedError(
+        path,
+        typeof retryAfter === "number" && Number.isFinite(retryAfter) && retryAfter > 0
+          ? Math.ceil(retryAfter)
+          : DEFAULT_RETRY_AFTER_SECONDS,
+      );
+    }
+  }
+  return new Error(`GET ${path} failed: ${res.status}`);
+}
+
 /**
  * Fetch a film's public detail from the no-auth backend. The base URL is injected by the
  * caller (the SSR loader reads it from the Worker env), so this stays pure and runs in the
@@ -61,7 +112,7 @@ export async function getFilm(
     headers: { Accept: "application/json", ...headers },
   });
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`GET /films/${encodeURIComponent(ref)} failed: ${res.status}`);
+  if (!res.ok) throw await responseError(res, `/films/${encodeURIComponent(ref)}`);
   return (await res.json()) as FilmDetail;
 }
 
@@ -78,7 +129,7 @@ export async function getPerson(
     headers: { Accept: "application/json", ...headers },
   });
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`GET /people/${encodeURIComponent(ref)} failed: ${res.status}`);
+  if (!res.ok) throw await responseError(res, `/people/${encodeURIComponent(ref)}`);
   return (await res.json()) as PersonDetail;
 }
 
@@ -94,7 +145,7 @@ export async function getCompany(
     headers: { Accept: "application/json", ...headers },
   });
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`GET /companies/${encodeURIComponent(ref)} failed: ${res.status}`);
+  if (!res.ok) throw await responseError(res, `/companies/${encodeURIComponent(ref)}`);
   return (await res.json()) as CompanyDetail;
 }
 
@@ -110,7 +161,7 @@ export async function getCollection(
     headers: { Accept: "application/json", ...headers },
   });
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`GET /collections/${encodeURIComponent(ref)} failed: ${res.status}`);
+  if (!res.ok) throw await responseError(res, `/collections/${encodeURIComponent(ref)}`);
   return (await res.json()) as CollectionDetail;
 }
 
@@ -163,7 +214,7 @@ export async function getEntityEvents(
   if (cursor) url.searchParams.set("cursor", cursor);
   const res = await fetch(url, { headers: { Accept: "application/json", ...headers }, signal });
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+  if (!res.ok) throw await responseError(res, path);
   return (await res.json()) as EntityEventsPage;
 }
 
@@ -183,7 +234,7 @@ export async function getFilmSearch(
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("offset", String(offset));
   const res = await fetch(url, { headers: { Accept: "application/json" }, signal });
-  if (!res.ok) throw new Error(`GET /films/search failed: ${res.status}`);
+  if (!res.ok) throw await responseError(res, "/films/search");
   return (await res.json()) as FilmIndexResponse;
 }
 
@@ -210,7 +261,7 @@ function entitySearch<T>(path: string) {
     url.searchParams.set("limit", String(limit));
     url.searchParams.set("offset", String(offset));
     const res = await fetch(url, { headers: { Accept: "application/json" }, signal });
-    if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+    if (!res.ok) throw await responseError(res, path);
     return (await res.json()) as EntitySearchResponse<T>;
   };
 }
@@ -229,7 +280,7 @@ export async function getPopularPeople(
   const url = apiUrl(baseUrl, "/people/popular");
   url.searchParams.set("limit", String(limit));
   const res = await fetch(url, { headers: { Accept: "application/json" }, signal });
-  if (!res.ok) throw new Error(`GET /people/popular failed: ${res.status}`);
+  if (!res.ok) throw await responseError(res, "/people/popular");
   return (await res.json()) as PopularPeopleResponse;
 }
 
@@ -246,7 +297,7 @@ export async function getFeedGrouped(
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("offset", String(offset));
   const res = await fetch(url, { headers: { Accept: "application/json", ...headers } });
-  if (!res.ok) throw new Error(`GET /feed/grouped failed: ${res.status}`);
+  if (!res.ok) throw await responseError(res, "/feed/grouped");
   return (await res.json()) as FeedDayResponse;
 }
 
@@ -272,6 +323,6 @@ export async function getCalendar(
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("offset", String(offset));
   const res = await fetch(url, { headers: { Accept: "application/json", ...headers } });
-  if (!res.ok) throw new Error(`GET /calendar failed: ${res.status}`);
+  if (!res.ok) throw await responseError(res, "/calendar");
   return (await res.json()) as CalendarResponse;
 }

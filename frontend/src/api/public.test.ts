@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
 import {
+  ApiOverloadedError,
   getCalendar,
   getCollection,
   getCollectionsSearch,
@@ -120,6 +121,43 @@ const sampleGrouped: FeedDayResponse = {
   limit: 50,
   offset: 0,
 };
+
+// The API sheds a request it cannot serve within its pool timeout (NEU-2271 D-2271.4). Only that
+// answer is the distinct error the loaders turn into the busy page (NEU-2273); any other 503 is
+// an outage and stays a plain error.
+describe("an overloaded API", () => {
+  const overloaded = (body: { detail: string; retry_after?: number }) =>
+    HttpResponse.json(body, { status: 503, headers: { "Retry-After": "5" } });
+
+  it("throws ApiOverloadedError carrying retry_after for the overload 503", async () => {
+    server.use(
+      http.get(`${BACKEND}/people/busy`, () =>
+        overloaded({ detail: "overloaded", retry_after: 7 }),
+      ),
+    );
+    const error = await getPerson(BACKEND, "busy").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiOverloadedError);
+    expect((error as ApiOverloadedError).retryAfter).toBe(7);
+    expect((error as ApiOverloadedError).name).toBe("ApiOverloadedError");
+  });
+
+  it("falls back to 5 s when the body names no usable delay", async () => {
+    server.use(http.get(`${BACKEND}/feed/grouped`, () => overloaded({ detail: "overloaded" })));
+    await expect(getFeedGrouped(BACKEND)).rejects.toMatchObject({ retryAfter: 5 });
+  });
+
+  it("keeps any other 503 a plain error", async () => {
+    server.use(
+      http.get(
+        `${BACKEND}/films/down`,
+        () => new HttpResponse("no available server", { status: 503 }),
+      ),
+    );
+    const error = await getFilm(BACKEND, "down").catch((e: unknown) => e);
+    expect(error).not.toBeInstanceOf(ApiOverloadedError);
+    expect(error).toMatchObject({ message: expect.stringMatching(/failed: 503/) });
+  });
+});
 
 describe("getFeedGrouped", () => {
   it("returns the typed grouped feed on 200 and sends default limit/offset", async () => {

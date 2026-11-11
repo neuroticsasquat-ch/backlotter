@@ -3,6 +3,8 @@ import { isRouteErrorResponse, Link, type ShouldRevalidateFunctionArgs } from "r
 import type { Route } from "./+types/calendar";
 import { getCalendar } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
+import { busyHeaders, busyOnOverload, isBusy } from "@/lib/overload";
+import { BusyPage } from "@/components/BusyPage";
 import { ssrOriginHeaders } from "@/lib/ssr-origin";
 import { buildMeta } from "@/lib/seo";
 import {
@@ -18,17 +20,23 @@ import { CalendarView } from "@/components/calendar/CalendarView";
  *  twin's document, and the reader's own calendar is a client-side fetch inside `CalendarView`.
  *  Anything but the four addresses (NEU-1544, D-1544.1) is a 404. */
 export async function loader({ request, context, params }: Route.LoaderArgs) {
-  const address = parseCalendarPath(params["*"]);
-  if (!address) {
-    throw new Response(null, { status: 404, statusText: "Calendar view not found" });
-  }
-  const { env } = context.get(cloudflareContext);
-  const calendar = await getCalendar(env.API_BASE_URL, {
-    kind: address.kind,
-    limit: DATES_PER_PAGE,
-    headers: ssrOriginHeaders(env, request),
+  return busyOnOverload(async () => {
+    const address = parseCalendarPath(params["*"]);
+    if (!address) {
+      throw new Response(null, { status: 404, statusText: "Calendar view not found" });
+    }
+    const { env } = context.get(cloudflareContext);
+    const calendar = await getCalendar(env.API_BASE_URL, {
+      kind: address.kind,
+      limit: DATES_PER_PAGE,
+      headers: ssrOriginHeaders(env, request),
+    });
+    return { calendar, kind: address.kind };
   });
-  return { calendar, kind: address.kind };
+}
+
+export function headers(args: Route.HeadersArgs) {
+  return busyHeaders(args);
 }
 
 /** A tab or kind click moves between calendar addresses inside one mounted element, so it is a
@@ -96,6 +104,7 @@ export default function CalendarPage({ loaderData, params }: Route.ComponentProp
 }
 
 export function ErrorBoundary({ error }: { error: unknown }) {
+  if (isBusy(error)) return <BusyPage />;
   if (isRouteErrorResponse(error) && error.status === 404) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-16 text-center">

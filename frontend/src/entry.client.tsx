@@ -2,7 +2,7 @@ import { startTransition, StrictMode } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { HydratedRouter } from "react-router/dom";
 import * as Sentry from "@sentry/react";
-import { sentryRelease, shouldInitBrowserSentry } from "@/lib/sentry";
+import { dropOverloaded, sentryRelease, shouldInitBrowserSentry } from "@/lib/sentry";
 import { SENTRY_TUNNEL_PATH } from "@/lib/sentry-tunnel";
 
 const dsn = import.meta.env.VITE_SENTRY_DSN;
@@ -21,6 +21,7 @@ if (dsn && shouldInitBrowserSentry(navigator.userAgent)) {
     replaysOnErrorSampleRate: 1.0,
     environment: import.meta.env.MODE,
     release: sentryRelease,
+    beforeSend: dropOverloaded,
   });
 }
 

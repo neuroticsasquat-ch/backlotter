@@ -2,6 +2,7 @@ import type { RouterContextProvider } from "react-router";
 import { getFeedGrouped } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
 import { ssrOriginHeaders } from "@/lib/ssr-origin";
+import { busyOnOverload } from "@/lib/overload";
 
 // How many days the feed shows per page. "View more" fetches the next page of days
 // (manual — never auto-loads — so the footer stays reachable). Shared by the global feed and
@@ -19,9 +20,11 @@ export async function loadGlobalFeed({
   context: Readonly<RouterContextProvider>;
 }) {
   const { env } = context.get(cloudflareContext);
-  const feed = await getFeedGrouped(env.API_BASE_URL, {
-    limit: DAYS_PER_PAGE,
-    headers: ssrOriginHeaders(env, request),
+  return busyOnOverload(async () => {
+    const feed = await getFeedGrouped(env.API_BASE_URL, {
+      limit: DAYS_PER_PAGE,
+      headers: ssrOriginHeaders(env, request),
+    });
+    return { feed };
   });
-  return { feed };
 }
