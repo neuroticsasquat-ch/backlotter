@@ -8,3 +8,15 @@ declare const __GIT_SHA__: string | undefined;
  *  carry no release instead of a wrong one. */
 export const sentryRelease: string | undefined =
   typeof __GIT_SHA__ === "string" ? __GIT_SHA__ : undefined;
+
+/** Clients whose browser errors are artefacts of the client, not of our code. Lightpanda, a
+ *  headless crawler, fails to parse `/me`'s valid JSON 401 body and reports the rejection as
+ *  unhandled although `api/client.ts` catches it: ~100 false events a day, each with a replay
+ *  (NEU-2270, Bugsink `UPCOMING-MOVIES-FRONTEND-3`). */
+const SKIPPED_USER_AGENTS = /Lightpanda/i;
+
+/** Whether `entry.client.tsx` should start the browser SDK for this user agent. Skipping the
+ *  init, rather than filtering in `beforeSend`, also stops the client's traces and replays. */
+export function shouldInitBrowserSentry(userAgent: string): boolean {
+  return !SKIPPED_USER_AGENTS.test(userAgent);
+}

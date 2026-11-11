@@ -19,3 +19,25 @@ describe("sentryRelease", () => {
     expect(sentryRelease).toBeUndefined();
   });
 });
+
+describe("shouldInitBrowserSentry", () => {
+  const CHROME =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) " +
+    "Chrome/130.0.0.0 Safari/537.36";
+
+  it("skips the Lightpanda headless crawler, whatever the case", async () => {
+    const { shouldInitBrowserSentry } = await import("./sentry");
+    expect(shouldInitBrowserSentry("Lightpanda/1.0")).toBe(false);
+    expect(shouldInitBrowserSentry("lightpanda/2.3")).toBe(false);
+  });
+
+  it("initialises for a real browser", async () => {
+    const { shouldInitBrowserSentry } = await import("./sentry");
+    expect(shouldInitBrowserSentry(CHROME)).toBe(true);
+  });
+
+  it("initialises when the user agent is empty", async () => {
+    const { shouldInitBrowserSentry } = await import("./sentry");
+    expect(shouldInitBrowserSentry("")).toBe(true);
+  });
+});
