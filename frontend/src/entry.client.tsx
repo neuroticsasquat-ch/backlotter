@@ -2,11 +2,11 @@ import { startTransition, StrictMode } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { HydratedRouter } from "react-router/dom";
 import * as Sentry from "@sentry/react";
-import { sentryRelease } from "@/lib/sentry";
+import { sentryRelease, shouldInitBrowserSentry } from "@/lib/sentry";
 import { SENTRY_TUNNEL_PATH } from "@/lib/sentry-tunnel";
 
 const dsn = import.meta.env.VITE_SENTRY_DSN;
-if (dsn) {
+if (dsn && shouldInitBrowserSentry(navigator.userAgent)) {
   Sentry.init({
     dsn,
     // Route envelopes through our own origin so ad blockers (Brave Shields, uBlock, …)
