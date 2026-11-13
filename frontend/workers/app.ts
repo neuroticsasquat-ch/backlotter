@@ -2,7 +2,7 @@ import { createRequestHandler, RouterContextProvider } from "react-router";
 import * as Sentry from "@sentry/cloudflare";
 import { type PageCache, serveEntityPage } from "@/lib/edge-cache";
 import { cloudflareContext } from "@/lib/load-context";
-import { dropOverloaded, sentryRelease } from "@/lib/sentry";
+import { beforeSend, sentryRelease } from "@/lib/sentry";
 import { SENTRY_TUNNEL_PATH, sentryTunnelUpstream } from "@/lib/sentry-tunnel";
 import { throwIfWorkerTestError } from "@/lib/test-error";
 
@@ -83,7 +83,7 @@ export default Sentry.withSentry(
     environment: import.meta.env.MODE,
     release: sentryRelease,
     tracesSampleRate: 0.1,
-    beforeSend: dropOverloaded,
+    beforeSend,
   }),
   handler,
 );

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
 import {
   ApiOverloadedError,
+  ApiUnavailableError,
   getCalendar,
   getCollection,
   getCollectionsSearch,
@@ -123,8 +124,8 @@ const sampleGrouped: FeedDayResponse = {
 };
 
 // The API sheds a request it cannot serve within its pool timeout (NEU-2271 D-2271.4). Only that
-// answer is the distinct error the loaders turn into the busy page (NEU-2273); any other 503 is
-// an outage and stays a plain error.
+// answer is the overload error the loaders render quietly as the busy page (NEU-2273); a proxy's
+// 502, 503 or 504 is an outage, its own reported error (NEU-2284).
 describe("an overloaded API", () => {
   const overloaded = (body: { detail: string; retry_after?: number }) =>
     HttpResponse.json(body, { status: 503, headers: { "Retry-After": "5" } });
@@ -145,17 +146,31 @@ describe("an overloaded API", () => {
     server.use(http.get(`${BACKEND}/feed/grouped`, () => overloaded({ detail: "overloaded" })));
     await expect(getFeedGrouped(BACKEND)).rejects.toMatchObject({ retryAfter: 5 });
   });
+});
 
-  it("keeps any other 503 a plain error", async () => {
-    server.use(
-      http.get(
-        `${BACKEND}/films/down`,
-        () => new HttpResponse("no available server", { status: 503 }),
-      ),
-    );
+describe("an unreachable API", () => {
+  it.each([
+    ["a proxy's 503", () => new HttpResponse("no available server", { status: 503 })],
+    [
+      "a 503 with some other JSON detail",
+      () => HttpResponse.json({ detail: "x" }, { status: 503 }),
+    ],
+    ["a 502", () => new HttpResponse("Bad Gateway", { status: 502 })],
+    ["a 504", () => new HttpResponse(null, { status: 504 })],
+  ])("throws ApiUnavailableError for %s", async (_label, respond) => {
+    server.use(http.get(`${BACKEND}/films/down`, respond));
     const error = await getFilm(BACKEND, "down").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiUnavailableError);
     expect(error).not.toBeInstanceOf(ApiOverloadedError);
-    expect(error).toMatchObject({ message: expect.stringMatching(/failed: 503/) });
+    expect((error as ApiUnavailableError).name).toBe("ApiUnavailableError");
+    expect((error as ApiUnavailableError).message).toMatch(/^GET \/films\/down failed: 50[234]$/);
+  });
+
+  it("keeps a 500 a plain error", async () => {
+    server.use(http.get(`${BACKEND}/films/down`, () => new HttpResponse(null, { status: 500 })));
+    const error = await getFilm(BACKEND, "down").catch((e: unknown) => e);
+    expect(error).not.toBeInstanceOf(ApiUnavailableError);
+    expect(error).toMatchObject({ message: "GET /films/down failed: 500" });
   });
 });
 

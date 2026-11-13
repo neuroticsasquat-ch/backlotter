@@ -183,6 +183,21 @@ describe("film route loader", () => {
     await expect(callLoader("missing")).rejects.toMatchObject({ status: 404 });
   });
 
+  // NEU-2284: Traefik answers for the API when it is out of rotation. The visitor gets the busy
+  // page, the same 503 an overload gives, rather than the error page.
+  it.each([
+    ["a proxy's 503", () => new HttpResponse("no available server", { status: 503 })],
+    ["a 502", () => new HttpResponse("Bad Gateway", { status: 502 })],
+    ["a 504", () => new HttpResponse("Gateway Timeout", { status: 504 })],
+  ])("throws the busy 503 with Retry-After for %s", async (_label, respond) => {
+    server.use(http.get(`${BACKEND}/films/12345-the-odyssey`, respond));
+    const thrown = await callLoader("12345-the-odyssey").catch((e: unknown) => e);
+    expect(thrown).toMatchObject({ type: "DataWithResponseInit" });
+    const { init } = thrown as { init: ResponseInit };
+    expect(init.status).toBe(503);
+    expect(new Headers(init.headers).get("Retry-After")).toBe("5");
+  });
+
   // NEU-1143: a ref resolves on its leading id, so several URLs reach the same film. Each is
   // sent to the canonical one, permanently — the old URLs are indexed, and only a 301 moves the
   // ranking signal onto the URL we now emit.

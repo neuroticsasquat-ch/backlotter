@@ -8,6 +8,7 @@ import {
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Sentry from "@sentry/cloudflare";
+import * as BrowserSentry from "@sentry/react";
 import { server } from "@/test/msw/server";
 import { EMPTY_ACTIVITY } from "@/api/public";
 import { cloudflareContext } from "@/lib/load-context";
@@ -15,6 +16,8 @@ import * as entryServer from "@/entry.server";
 import * as personRoute from "@/routes/person";
 
 vi.mock("@sentry/cloudflare", () => ({ captureException: vi.fn() }));
+// `lib/overload.ts` reports through `@sentry/react`, which shares the Worker SDK's scope.
+vi.mock("@sentry/react", () => ({ captureException: vi.fn() }));
 
 const BACKEND = "https://api.upmovies.localhost";
 
@@ -109,6 +112,26 @@ describe("a person page whose loader the API could not serve", () => {
     expect(res.status).toBe(503);
     expect(res.headers.get("Retry-After")).toBe("5");
     expect(html).toContain("Busy right now");
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+    expect(BrowserSentry.captureException).not.toHaveBeenCalled();
+  });
+
+  it("renders the busy page for a proxy's 503, reported once by the loader", async () => {
+    server.use(
+      http.get(
+        `${BACKEND}/people/:ref`,
+        () => new HttpResponse("no available server", { status: 503 }),
+      ),
+    );
+    const { res, html } = await requestPerson("525-christopher-nolan");
+    expect(res.status).toBe(503);
+    expect(res.headers.get("Retry-After")).toBe("5");
+    expect(html).toContain("Busy right now");
+    expect(BrowserSentry.captureException).toHaveBeenCalledOnce();
+    expect(vi.mocked(BrowserSentry.captureException).mock.calls[0][0]).toMatchObject({
+      name: "ApiUnavailableError",
+      status: 503,
+    });
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
