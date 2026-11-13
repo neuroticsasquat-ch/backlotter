@@ -18,7 +18,7 @@ from upmovies.ingest.runs import mark_stale_runs_cancelled
 from upmovies.llm import validate_stage_configuration
 from upmovies.logging_config import configure_logging
 from upmovies.mail import MailGateway, validate_mail_configuration
-from upmovies.overload import pool_exhausted_handler
+from upmovies.overload import InFlightCap, pool_exhausted_handler
 from upmovies.routers import (
     admin_runs,
     auth,
@@ -95,6 +95,12 @@ def create_app() -> FastAPI:
     # see it constructed.
     init_sentry()
     app = FastAPI(title="upmovies-backend", lifespan=lifespan)
+    # The in-flight cap (NEU-2285, ADR-0028): past `MAX_IN_FLIGHT_REQUESTS` a request is shed
+    # with the overload 503 before routing, so a burst can't push the event loop so far behind
+    # that `/healthz` misses its deadline and Traefik drops the container. Added *first*, which
+    # puts it innermost of the three: CORS still answers preflights and stamps the shed 503,
+    # and gzip still wraps it. `overload.py` covers the logging and Bugsink cap.
+    app.add_middleware(InFlightCap, limit=settings.max_in_flight_requests)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
