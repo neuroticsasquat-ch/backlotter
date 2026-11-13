@@ -1,6 +1,7 @@
 # ADR-0028 — The API sheds overload in one process instead of adding workers
 
-**Status:** Accepted 2026-11-10 (NEU-2271) · **Spec:** `../specs/NEU-2271-db-pool-fail-fast.md`
+**Status:** Accepted 2026-11-10 (NEU-2271), amended 2026-11-13 (NEU-2285) · **Spec:**
+`../specs/NEU-2271-db-pool-fail-fast.md`, `../specs/NEU-2285-in-flight-cap.md`
 
 ## Context
 
@@ -42,5 +43,30 @@ their queries** and **failing fast**:
   workers safe.
 - Edge caching of public pages is the bigger lever against crawls. It is separate work: the
   server-rendered document varies on `timeline_hint` (ADR-0026).
-- Clients see 503s during a burst. The frontend's loaders treat a 503 like any other failure
-  today; rendering a "busy" page is a follow-up.
+- Clients see 503s during a burst. The frontend's loaders render them as a "busy" page
+  (NEU-2273).
+- The pool timeout alone does not bound how many requests the process admits; an in-flight cap
+  now does (NEU-2285, amendment below).
+
+## Amendment (2026-11-13, NEU-2285): an admission cap
+
+The pool timeout bounded how long a request waits for a connection, not how many requests the
+one process accepts. On 2026-11-13 a burst from a wide spread of IPs put the event loop so far
+behind that `/healthz`, which does no DB work, missed the Docker health check for long enough
+that Traefik took the container out of rotation. Every visitor then got Traefik's plain 502/503
+instead of the busy page. The process, not the pool, was the bottleneck: late in the burst the
+pool had idle connections while requests still timed out.
+
+So the one process now also has an **admission cap**. `overload.InFlightCap` admits at most
+`MAX_IN_FLIGHT_REQUESTS` (default 60, twice the pool) requests at once and answers the rest with
+the same `503 overloaded` + `Retry-After`, before routing, dependencies or the database.
+`/healthz` is exempt and never counted. A shed request costs the loop almost nothing, so the
+loop stays short enough for the probe to be answered and the container stays in rotation,
+serving the busy page instead of a proxy error.
+
+Rejected: uvicorn's `--limit-concurrency`, which counts connections (Traefik holds keep-alives
+open) and answers a plain-text 503 the frontend can't tell from an outage; and loosening the
+health check alone, which keeps a saturated process in rotation without making it answer.
+
+The first consequence above still holds: if the process saturates *below* the cap, the next
+step is a shared rate-limit store, then workers. Why throughput under load is low is NEU-2286.

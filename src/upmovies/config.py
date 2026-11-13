@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     db_pool_size: int = Field(default=10, ge=1, alias="DB_POOL_SIZE")
     db_max_overflow: int = Field(default=20, ge=0, alias="DB_MAX_OVERFLOW")
     db_pool_timeout: float = Field(default=3.0, gt=0, alias="DB_POOL_TIMEOUT")
+    # Requests the process admits at once before it sheds the rest with an immediate 503
+    # (`overload.InFlightCap`, NEU-2285). Twice the pool's 30 connections: public reads hand
+    # their connection back before the response is built (D-2271.2), so up to a pool's worth
+    # more can be serializing or sending while the pool stays busy. Past that a request
+    # would only queue for a connection and 503 after `DB_POOL_TIMEOUT`, having spent the
+    # event loop's time that `/healthz` needs. A setting so NEU-2286 can tune it from Coolify.
+    max_in_flight_requests: int = Field(default=60, ge=1, alias="MAX_IN_FLIGHT_REQUESTS")
     admin_token: str = Field(..., alias="ADMIN_TOKEN")
 
     tmdb_api_key: str = Field(..., alias="TMDB_API_KEY")
