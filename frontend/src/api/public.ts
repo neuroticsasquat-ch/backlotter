@@ -46,7 +46,7 @@ function apiUrl(baseUrl: string, path: string): URL {
 
 /** How long to wait before retrying when the API's overload answer names no usable delay. The
  *  backend's own constant (`Retry-After: 5`, NEU-2271 D-2271.4). */
-const DEFAULT_RETRY_AFTER_SECONDS = 5;
+export const DEFAULT_RETRY_AFTER_SECONDS = 5;
 
 /** The exception type Sentry reports an {@link ApiOverloadedError} under. Set by hand rather
  *  than left to the class, whose name a minified build rewrites; `lib/sentry.ts` matches on it. */
@@ -68,11 +68,36 @@ export class ApiOverloadedError extends Error {
   }
 }
 
+/** The exception type Sentry reports an {@link ApiUnavailableError} under, hand-set for the same
+ *  reason as {@link API_OVERLOADED_ERROR_NAME}; `lib/sentry.ts` groups on it. */
+export const API_UNAVAILABLE_ERROR_NAME = "ApiUnavailableError";
+
+/** The statuses a proxy answers with when no API is behind it (NEU-2284). */
+const UNAVAILABLE_STATUSES = new Set([502, 503, 504]);
+
+/**
+ * The API could not be reached (NEU-2284): a 502, 503 or 504 that is not its own `overloaded`
+ * answer. Traefik sends these when the backend is out of rotation: a 503 "no available server",
+ * or a 502 when the connection is refused or reset. Unlike {@link ApiOverloadedError} this is a
+ * real outage, so it is still reported, but `lib/sentry.ts` gives every one of them the same
+ * fingerprint per status: the message names the path, and Bugsink would otherwise file one issue
+ * per URL a crawl touched. The SSR loaders render it as the busy page too (`lib/overload.ts`).
+ */
+export class ApiUnavailableError extends Error {
+  readonly status: number;
+
+  constructor(path: string, status: number) {
+    super(`GET ${path} failed: ${status}`);
+    this.name = API_UNAVAILABLE_ERROR_NAME;
+    this.status = status;
+  }
+}
+
 /**
  * The error a fetcher throws for a non-OK response it has no answer of its own for.
  *
- * Only a 503 that says `overloaded` is the distinct error. Any other 503 (Traefik with no
- * backend behind it, say) is a real outage and stays a plain, reported `Error`. The delay is read
+ * A 503 that says `overloaded` is {@link ApiOverloadedError}; any other 502, 503 or 504 is
+ * {@link ApiUnavailableError}; everything else is a plain, reported `Error`. The delay is read
  * from the body rather than the `Retry-After` header because the browser cannot see that header
  * on a cross-origin response; the two carry the same value.
  */
@@ -92,6 +117,7 @@ async function responseError(res: Response, path: string): Promise<Error> {
       );
     }
   }
+  if (UNAVAILABLE_STATUSES.has(res.status)) return new ApiUnavailableError(path, res.status);
   return new Error(`GET ${path} failed: ${res.status}`);
 }
 

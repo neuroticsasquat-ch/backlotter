@@ -1,21 +1,43 @@
 import { isRouteErrorResponse } from "react-router";
-import { describe, expect, it } from "vitest";
-import { ApiOverloadedError } from "@/api/public";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as Sentry from "@sentry/react";
+import { ApiOverloadedError, ApiUnavailableError } from "@/api/public";
 import { busyHeaders, busyOnOverload, isBusy } from "./overload";
 
+vi.mock("@sentry/react", () => ({ captureException: vi.fn() }));
+
+/** What `busyOnOverload` threw: React Router's `data(…)` result, as its status and headers. */
+async function thrownBy(error: Error) {
+  const thrown = await busyOnOverload(async () => {
+    throw error;
+  }).catch((e: unknown) => e);
+  expect(thrown).toMatchObject({ type: "DataWithResponseInit" });
+  const { init } = thrown as { init: ResponseInit };
+  return { status: init.status, retryAfter: new Headers(init.headers).get("Retry-After") };
+}
+
 describe("busyOnOverload", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("passes a loader's result through", async () => {
     await expect(busyOnOverload(async () => ({ ok: true }))).resolves.toEqual({ ok: true });
   });
 
-  it("turns the API's overload answer into a 503 carrying Retry-After", async () => {
-    const thrown = await busyOnOverload(async () => {
-      throw new ApiOverloadedError("/people/x", 7);
-    }).catch((e: unknown) => e);
-    expect(thrown).toMatchObject({ type: "DataWithResponseInit" });
-    const { init } = thrown as { init: ResponseInit };
-    expect(init.status).toBe(503);
-    expect(new Headers(init.headers).get("Retry-After")).toBe("7");
+  it("turns the API's overload answer into a 503 carrying Retry-After, unreported", async () => {
+    expect(await thrownBy(new ApiOverloadedError("/people/x", 7))).toEqual({
+      status: 503,
+      retryAfter: "7",
+    });
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  it("turns an unreachable API into the same 503, and reports it once", async () => {
+    const error = new ApiUnavailableError("/people/x", 502);
+    expect(await thrownBy(error)).toEqual({ status: 503, retryAfter: "5" });
+    expect(Sentry.captureException).toHaveBeenCalledOnce();
+    expect(Sentry.captureException).toHaveBeenCalledWith(error);
   });
 
   it("rethrows every other error untouched", async () => {
@@ -25,6 +47,7 @@ describe("busyOnOverload", () => {
         throw boom;
       }),
     ).rejects.toBe(boom);
+    expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 });
 

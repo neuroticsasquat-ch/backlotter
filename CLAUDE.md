@@ -267,7 +267,14 @@ speaks the Sentry protocol — the `@sentry/*` SDKs stay, only the DSNs and uplo
   `api/public.ts`; public loaders run through `busyOnOverload` (`lib/overload.ts`), which turns it
   into a 503 with `Retry-After` that each route's boundary renders as `BusyPage`. Each such route
   exports `headers` (`busyHeaders`), because React Router copies only cookies from a thrown
-  response onto the document. Both SDKs' `beforeSend` (`dropOverloaded`, `lib/sentry.ts`) drop it.
+  response onto the document. Both SDKs' `beforeSend` (`beforeSend` → `dropOverloaded`,
+  `lib/sentry.ts`) drop it.
+- **An unreachable API is an error, grouped.** Any other 502/503/504 (Traefik with the backend out
+  of rotation, NEU-2284) is `ApiUnavailableError`. `busyOnOverload` renders it as the same busy
+  503 but reports it itself, through `@sentry/react` (the module is in the browser bundle too;
+  both SDKs share one `@sentry/core` scope), because a thrown response never reaches
+  `handleError`. `groupUnavailable` in `beforeSend` fingerprints it `["api-unavailable",
+  <status>]`, so an outage is at most three Bugsink issues, not one per URL.
 - **Tunnel proxy** (`workers/app.ts` `handleSentryTunnel` + `lib/sentry-tunnel.ts`): the Worker
   forwards `/monitoring` POSTs to `https://<dsn host>/api/<id>/envelope/` after validating the
   envelope's `dsn` against its own, so it can't be used as an open relay. **Must read the body as

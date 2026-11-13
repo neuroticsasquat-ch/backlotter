@@ -1,4 +1,9 @@
-import { API_OVERLOADED_ERROR_NAME, ApiOverloadedError } from "@/api/public";
+import {
+  API_OVERLOADED_ERROR_NAME,
+  API_UNAVAILABLE_ERROR_NAME,
+  ApiOverloadedError,
+  ApiUnavailableError,
+} from "@/api/public";
 
 // Set by vite.config.ts on a build that knows its commit (NEU-1594); undefined in dev, in
 // tests, and on a build without one.
@@ -23,22 +28,59 @@ export function shouldInitBrowserSentry(userAgent: string): boolean {
   return !SKIPPED_USER_AGENTS.test(userAgent);
 }
 
+/** The part of a Sentry event the filters below read and write. Structural, so the one function
+ *  serves both SDKs' event types. */
+type ReportedEvent = {
+  exception?: { values?: { type?: string; value?: string }[] };
+  fingerprint?: string[];
+};
+
+type EventHint = { originalException?: unknown };
+
 /**
- * Both SDKs' `beforeSend` (`entry.client.tsx`, `workers/app.ts`): drop the API's overload answer
- * (NEU-2273). A burst sheds requests by design, and one Bugsink event per shed page load would
- * bury the errors that matter. The SSR loaders already turn it into the busy page before
- * anything reports it (`lib/overload.ts`); this catches the paths that don't, such as a browser
- * fetch whose rejection goes unhandled.
+ * Drop the API's overload answer (NEU-2273). A burst sheds requests by design, and one Bugsink
+ * event per shed page load would bury the errors that matter. The SSR loaders already turn it
+ * into the busy page before anything reports it (`lib/overload.ts`); this catches the paths
+ * that don't, such as a browser fetch whose rejection goes unhandled.
  *
  * Matched on the instance where the SDK still has it, and on the exception type otherwise. The
  * type is the error's hand-set `name`, so it survives minification.
  */
-export function dropOverloaded<E extends { exception?: { values?: { type?: string }[] } }>(
-  event: E,
-  hint: { originalException?: unknown },
-): E | null {
+export function dropOverloaded<E extends ReportedEvent>(event: E, hint: EventHint): E | null {
   if (hint.originalException instanceof ApiOverloadedError) return null;
   if (event.exception?.values?.some((value) => value.type === API_OVERLOADED_ERROR_NAME))
     return null;
   return event;
+}
+
+/**
+ * Group every unreachable-API event into one Bugsink issue per status (NEU-2284). The message
+ * names the path, so without a fingerprint a crawl during an outage files one issue per URL it
+ * touched: 785 of them on 2026-11-13. Reported rather than dropped, because unlike an overload
+ * this is an outage, and the Worker is where it shows first.
+ *
+ * The status comes from the instance where the SDK still has it, and otherwise from the
+ * message's trailing `failed: <status>`.
+ */
+export function groupUnavailable<E extends ReportedEvent>(event: E, hint: EventHint): E {
+  let status: number | undefined;
+  if (hint.originalException instanceof ApiUnavailableError) {
+    status = hint.originalException.status;
+  } else {
+    const value = event.exception?.values?.find(
+      (candidate) => candidate.type === API_UNAVAILABLE_ERROR_NAME,
+    );
+    if (!value) return event;
+    const match = /failed: (\d{3})$/.exec(value.value ?? "");
+    status = match ? Number(match[1]) : undefined;
+  }
+  event.fingerprint = ["api-unavailable", String(status ?? "unknown")];
+  return event;
+}
+
+/** Both SDKs' `beforeSend` (`entry.client.tsx`, `workers/app.ts`): drop the API's overload
+ *  answer, and group an unreachable API's events by status. */
+export function beforeSend<E extends ReportedEvent>(event: E, hint: EventHint): E | null {
+  const kept = dropOverloaded(event, hint);
+  return kept && groupUnavailable(kept, hint);
 }

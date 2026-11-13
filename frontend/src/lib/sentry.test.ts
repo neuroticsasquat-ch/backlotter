@@ -63,3 +63,72 @@ describe("dropOverloaded", () => {
     expect(dropOverloaded(kept, { originalException: new Error("boom") })).toBe(kept);
   });
 });
+
+describe("groupUnavailable", () => {
+  type TestEvent = {
+    exception: { values: { type: string; value: string }[] };
+    fingerprint?: string[];
+  };
+  const event = (type: string, value: string): TestEvent => ({
+    exception: { values: [{ type, value }] },
+  });
+
+  it("gives two paths with the same status the same fingerprint", async () => {
+    const { groupUnavailable } = await import("./sentry");
+    const { ApiUnavailableError } = await import("@/api/public");
+    const people = new ApiUnavailableError("/people/525-christopher-nolan", 503);
+    const studio = new ApiUnavailableError("/companies/1-lucasfilm/events", 503);
+    const a = groupUnavailable(event("Error", people.message), { originalException: people });
+    const b = groupUnavailable(event("Error", studio.message), { originalException: studio });
+    expect(a.fingerprint).toEqual(["api-unavailable", "503"]);
+    expect(b.fingerprint).toEqual(a.fingerprint);
+  });
+
+  it("gives different statuses different fingerprints", async () => {
+    const { groupUnavailable } = await import("./sentry");
+    const { ApiUnavailableError } = await import("@/api/public");
+    const fingerprints = [502, 503, 504].map((status) => {
+      const error = new ApiUnavailableError("/films/x", status);
+      return groupUnavailable(event("Error", error.message), { originalException: error })
+        .fingerprint;
+    });
+    expect(new Set(fingerprints.map(String)).size).toBe(3);
+  });
+
+  it("reads the status from the message when the instance is gone", async () => {
+    const { groupUnavailable } = await import("./sentry");
+    const grouped = groupUnavailable(event("ApiUnavailableError", "GET /people/x failed: 502"), {});
+    expect(grouped.fingerprint).toEqual(["api-unavailable", "502"]);
+  });
+
+  it("leaves every other event's grouping alone", async () => {
+    const { groupUnavailable } = await import("./sentry");
+    const other = groupUnavailable(event("Error", "GET /people/x failed: 500"), {
+      originalException: new Error("GET /people/x failed: 500"),
+    });
+    expect(other.fingerprint).toBeUndefined();
+  });
+});
+
+describe("beforeSend", () => {
+  it("still drops the API's overload answer", async () => {
+    const { beforeSend } = await import("./sentry");
+    const { ApiOverloadedError } = await import("@/api/public");
+    const error = new ApiOverloadedError("/people/x", 5);
+    const dropped = { exception: { values: [{ type: "ApiOverloadedError" }] } };
+    expect(beforeSend(dropped, { originalException: error })).toBeNull();
+    expect(beforeSend(dropped, {})).toBeNull();
+  });
+
+  it("groups an unreachable API's event", async () => {
+    const { beforeSend } = await import("./sentry");
+    const { ApiUnavailableError } = await import("@/api/public");
+    const error = new ApiUnavailableError("/people/x", 504);
+    const event: {
+      exception: { values: { type: string; value: string }[] };
+      fingerprint?: string[];
+    } = { exception: { values: [{ type: "ApiUnavailableError", value: error.message }] } };
+    const sent = beforeSend(event, { originalException: error });
+    expect(sent?.fingerprint).toEqual(["api-unavailable", "504"]);
+  });
+});
