@@ -1,0 +1,145 @@
+# The throughput bench (NEU-2286, docs/specs/NEU-2286-api-throughput-spike.md): the prod image,
+# run as prod runs it, against the local database, with its telemetry pointed at local sinks.
+# Its own compose project, started and stopped by `task bench:up` / `task bench:down`, so it
+# never touches the dev stack in docker-compose.yml. Results land in ./bench-out (gitignored).
+#
+# Reached only over the shared `proxy` network (no published port, no Traefik labels): the load
+# script runs in the dev container and calls http://bench-api:8000.
+name: upmovies-bench
+
+services:
+  bench-api:
+    build:
+      context: .
+      # The prod stage, unmodified: non-root, no dev dependencies, no bind mount.
+      target: prod
+    # Prod's CMD without `alembic upgrade head`: the bench must never migrate the shared local
+    # database. BENCH_OTEL=0 drops the `opentelemetry-instrument` wrapper, for the A/B.
+    command:
+      - sh
+      - -c
+      - |
+        if [ "$${BENCH_OTEL:-1}" = "0" ]; then set -- ; else set -- opentelemetry-instrument; fi
+        exec "$$@" uvicorn upmovies.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'
+    environment:
+      BENCH_OTEL: "${BENCH_OTEL:-1}"
+      DATABASE_URL: "postgresql+asyncpg://root:root@tbc_postgresql_db:5432/upmovies"
+      ADMIN_TOKEN: "bench-admin-token"
+      TMDB_API_KEY: "bench-tmdb-key"
+      ANTHROPIC_API_KEY: "bench-anthropic-key"
+      LOG_LEVEL: "INFO"
+      # The in-flight cap, passed through only when set, so unset means the code's own default.
+      # The closed-loop steps run with 1000 so the cap can't mask process saturation; the
+      # open-loop replay runs with the default and with other values.
+      MAX_IN_FLIGHT_REQUESTS:
+      # Sentry as prod has it, aimed at bench-sink so nothing reaches Bugsink. `BENCH_SENTRY_DSN=`
+      # (set, but empty) leaves the DSN empty, which is how the API runs without the SDK.
+      SENTRY_DSN: "${BENCH_SENTRY_DSN-http://benchkey@bench-sink:8080/1}"
+      # OTel exactly as prod sets it (read by name from the prod container, 2026-11-13), except
+      # the endpoint, which is bench-otel, and the environment, which is `bench`.
+      OTEL_RESOURCE_ATTRIBUTES: "service.name=upcoming-movies-backend,deployment.environment=bench,service.version=bench"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://bench-otel:4318"
+      OTEL_TRACES_EXPORTER: "otlp"
+      OTEL_METRICS_EXPORTER: "otlp"
+      OTEL_LOGS_EXPORTER: "otlp"
+      OTEL_PYTHON_FASTAPI_EXCLUDED_URLS: "health"
+      OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: "${OTEL_PYTHON_DISABLED_INSTRUMENTATIONS:-}"
+      # Rate limiting as prod has it. The load script signs its requests with this secret and a
+      # rotating client IP (`--origin-secret`), so the limiter sees a spread of visitors as it
+      # did in the crawl, through the Worker.
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_PUBLIC_ENABLED: "true"
+      RATE_LIMIT_PUBLIC: "240/120"
+      SSR_ORIGIN_SECRET: "bench-origin-secret"
+    # Copied from docker-compose.prod.yml, so a run can show Docker marking the container
+    # unhealthy (`docker inspect … .State.Health`).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz', timeout=2).status == 200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - bench-otel
+      - bench-sink
+    networks:
+      - proxy
+
+  # An OTLP/HTTP receiver that discards everything: the exporter threads in bench-api do their
+  # real work (batching, protobuf, HTTP), and nothing reaches prod's SigNoz.
+  bench-otel:
+    image: otel/opentelemetry-collector:0.139.0
+    command: ["--config=/etc/otelcol/bench.yaml"]
+    configs:
+      - source: otel-bench
+        target: /etc/otelcol/bench.yaml
+    networks:
+      - proxy
+
+  # The Sentry DSN's host: answers 200 to anything, so the SDK sends as it does in prod and
+  # nothing reaches Bugsink.
+  bench-sink:
+    image: python:3.13-slim
+    command:
+      - python
+      - -c
+      - |
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        class H(BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                self.send_response(200)
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"{}")
+            def log_message(self, *args):
+                pass
+        ThreadingHTTPServer(("0.0.0.0", 8080), H).serve_forever()
+    networks:
+      - proxy
+
+  # py-spy, attached to bench-api's process from outside, so the profiled image stays the prod
+  # one byte for byte. On demand only (`task bench:profile`), never started by `up`.
+  bench-pyspy:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.13-slim
+        RUN pip install --no-cache-dir py-spy==0.4.1
+    pid: "service:bench-api"
+    cap_add:
+      - SYS_PTRACE
+    volumes:
+      - ./bench-out:/out
+    networks:
+      - proxy
+
+configs:
+  otel-bench:
+    content: |
+      receivers:
+        otlp:
+          protocols:
+            http:
+              endpoint: 0.0.0.0:4318
+      exporters:
+        nop:
+      service:
+        telemetry:
+          logs:
+            level: warn
+        pipelines:
+          traces:
+            receivers: [otlp]
+            exporters: [nop]
+          metrics:
+            receivers: [otlp]
+            exporters: [nop]
+          logs:
+            receivers: [otlp]
+            exporters: [nop]
+
+networks:
+  proxy:
+    external: true

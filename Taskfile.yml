@@ -17,6 +17,8 @@ vars:
   # The frontend (frontend/) runs in its own container; the fe:* tasks below are its.
   FE_SVC: "upmovies-frontend"
   FE_EXEC: "{{.COMPOSE}} exec {{.FE_SVC}}"
+  # The NEU-2286 throughput bench, its own compose project (docker-compose.bench.yml).
+  BENCH: "{{.COMPOSE}} -f docker-compose.bench.yml"
 
 tasks:
   up:
@@ -267,3 +269,40 @@ tasks:
         } > "$tmp"
         mv "$tmp" RELEASE_NOTES.md
         echo "Prepended $version to RELEASE_NOTES.md"
+
+  # The throughput bench (NEU-2286): the prod image in its own compose project
+  # (docker-compose.bench.yml), loaded from the dev container over the proxy network. Results
+  # and profiles go to bench-out/ (gitignored). Vary the stack with environment variables on
+  # bench:up: BENCH_OTEL=0 (no opentelemetry-instrument), BENCH_SENTRY_DSN= (no Sentry),
+  # MAX_IN_FLIGHT_REQUESTS=<n>, OTEL_PYTHON_DISABLED_INSTRUMENTATIONS=<list>.
+  bench:up:
+    desc: 'Build and (re)start the bench stack, waiting until bench-api is healthy'
+    cmds:
+      - "{{.BENCH}} up -d --build --wait"
+  bench:down:
+    desc: Stop the bench stack
+    cmds:
+      - "{{.BENCH}} down"
+  # CPU in cores for bench-api, Postgres and the load generator, and Docker's health-status
+  # changes during the run: see scripts/bench_load.sh.
+  bench:load:
+    desc: 'Run scripts/bench_public_burst.py at bench-api, with CPU and health changes (task bench:load -- <args>)'
+    cmds:
+      - scripts/bench_load.sh {{.CLI_ARGS}}
+  # A py-spy profile of bench-api's uvicorn process, then its breakdown by component.
+  # `task bench:profile -- 60` for the event loop; `task bench:profile -- 60 --gil` for the
+  # GIL-holding thread. Start the load first, in another shell. `--no-deps`, or compose
+  # re-evaluates bench-api against this shell's environment and may recreate it mid-run.
+  bench:profile:
+    desc: 'Profile bench-api with py-spy for N seconds and break it down (task bench:profile -- <seconds> [--gil])'
+    cmds:
+      - |
+        out=profile-$(date +%Y%m%dT%H%M%S).txt
+        {{.BENCH}} run --rm --no-deps bench-pyspy py-spy record --pid 1 --rate 100 --nonblocking --threads --full-filenames \
+          --format raw -o "/out/$out" --duration {{.CLI_ARGS}}
+        case "{{.CLI_ARGS}}" in *--gil*) by=--by-thread ;; *) by= ;; esac
+        {{.EXEC}} python scripts/bench_profile_breakdown.py $by "bench-out/$out"
+  bench:cpu:
+    desc: 'Run the single-core CPU benchmark in bench-api (compare with prod for the scale factor)'
+    cmds:
+      - "{{.BENCH}} exec bench-api python - < scripts/bench_cpu.py"
