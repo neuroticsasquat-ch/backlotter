@@ -78,7 +78,7 @@ EXPOSE 8000
 ENV OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 
 # Run migrations on startup, then exec uvicorn (wrapped by opentelemetry-instrument
-# to auto-instrument FastAPI/SQLAlchemy/asyncpg/httpx) so signals reach the server.
+# to auto-instrument FastAPI/SQLAlchemy/httpx/logging) so signals reach the server.
 #
 # `--proxy-headers --forwarded-allow-ips='*'` (NEU-1344): without them every request
 # arrives as Traefik's address, which makes the per-IP rate limiter one global bucket and

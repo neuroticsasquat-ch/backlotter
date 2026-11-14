@@ -25,7 +25,6 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-http",
     "opentelemetry-instrumentation-fastapi",
     "opentelemetry-instrumentation-sqlalchemy",
-    "opentelemetry-instrumentation-asyncpg",
     "opentelemetry-instrumentation-httpx",
     "opentelemetry-instrumentation-logging",
     "anthropic>=0.121.0",
