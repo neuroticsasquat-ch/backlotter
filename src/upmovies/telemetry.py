@@ -110,7 +110,13 @@ def init_sentry(
     env: Mapping[str, str] = os.environ, *, integrations: Sequence[Integration] | None = None
 ) -> Telemetry:
     """Initialise the Sentry SDK (pointed at Bugsink) when `SENTRY_DSN` is set, and log the
-    resolved release and environment either way. `integrations` defaults to the API's."""
+    resolved release and environment either way. `integrations` defaults to the API's.
+
+    Errors only, no tracing: no `traces_sample_rate` is what keeps the SDK's tracing off
+    (NEU-2290). Bugsink discards transactions and spans, so any rate above zero sent envelopes
+    nobody could read, and the integrations' tracing cost the API ~10% of its CPU at saturation
+    (NEU-2286 §6). Traces are OTel's, in SigNoz.
+    """
     telemetry = resolve_telemetry(env)
     dsn = env.get("SENTRY_DSN")
     log.info(
@@ -136,7 +142,6 @@ def init_sentry(
             integrations=list(integrations)
             if integrations is not None
             else [FastApiIntegration(), SqlalchemyIntegration()],
-            traces_sample_rate=0.1,
             environment=telemetry.environment,
             release=telemetry.release,
             event_scrubber=event_scrubber(),
