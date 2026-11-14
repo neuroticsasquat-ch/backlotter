@@ -58,6 +58,7 @@ the cast means the WHERE (the type filter and the shape guard) has already run w
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from functools import cache
 from typing import Any
 from uuid import UUID
 
@@ -66,8 +67,10 @@ from sqlalchemy import (
     DateTime,
     Integer,
     Select,
+    String,
     Text,
     any_,
+    bindparam,
     case,
     cast,
     false,
@@ -196,6 +199,21 @@ _CREDIT_CHANGE_ADDED = "added"
 which are the same word for the same direction on two tables. Spelled rather than imported:
 both of those modules import `followed_people` from this one, so either import would be a
 cycle."""
+
+
+ENTITY_ID_PARAM = "entity_id"
+ENTITY_ID_TEXT_PARAM = "entity_id_text"
+"""The bind parameters `entity_event_statement` leaves the page's entity id as: the integer the
+catalog keys and the mention tables compare against, and its text the organisation token is
+built from. Two, because the two id sources cast different types and a single parameter would
+change the SQL (`CAST(:id AS TEXT)` of an integer is not `CAST('<id>' AS TEXT)`).
+`entity_event_params` fills both from one id, so they cannot disagree."""
+
+_BOUND_ENTITY_ID = ":entity_id"
+"""What `entity_event_statement` passes down as the entity id, telling `_int_id_source` and
+`_text_id_source` to render the bind parameters above instead of literals. A string no parsed
+`ref` can be, so a real id never takes this path; `int()` of it would fail rather than select
+some other entity's cards."""
 
 
 def _int_id_guard(entity_id: Any) -> ColumnElement[bool]:
@@ -435,10 +453,12 @@ def _int_id_source(
     it one rule rather than two that drift."""
     if user_id is not None:
         return followed_tmdb_ids(user_id, entity_type, entity_id=entity_id)
-    # `entity_event_ids` is the only caller that passes no user, it takes an `int`, and it
-    # always names one. Asserted rather than defaulted: a `None` here would silently build a
-    # branch selecting entity 0's cards, which is a page quietly showing the wrong thing.
+    # The entity-page builders are the only callers that pass no user, and they always name
+    # one. Asserted rather than defaulted: a `None` here would silently build a branch
+    # selecting entity 0's cards, which is a page quietly showing the wrong thing.
     assert entity_id is not None
+    if entity_id == _BOUND_ENTITY_ID:
+        return select(cast(bindparam(ENTITY_ID_PARAM, type_=Integer), Integer))
     return select(cast(literal(int(entity_id)), Integer))
 
 
@@ -449,7 +469,12 @@ def _text_id_source(entity_type: str, *, user_id: UUID | None, entity_id: str | 
     A subquery rather than a `Select` because those branches *join* it: the token they match is
     `'company:' || entity_id`, which is not a column of anything."""
     if user_id is None:
-        return select(cast(literal(entity_id), Text).label("entity_id")).subquery("named_entity")
+        named = (
+            bindparam(ENTITY_ID_TEXT_PARAM, type_=String)
+            if entity_id == _BOUND_ENTITY_ID
+            else literal(entity_id)
+        )
+        return select(cast(named, Text).label("entity_id")).subquery("named_entity")
     stmt = select(Follow.entity_id.label("entity_id")).where(
         Follow.user_id == user_id,
         Follow.entity_type == entity_type,
@@ -537,8 +562,45 @@ def entity_event_ids(entity_type: str, entity_id: int) -> Select[tuple[UUID]]:
     `entity_type` is the **follow** graph's word, so a franchise is `franchise` here and
     `collection` in the catalog and in its `subject_key` token (CONTEXT.md **Franchise**).
     Visibility stays the caller's, as above.
+
+    **Builds the whole statement on every call.** The request path reads
+    `entity_event_statement` instead, which is this builder run once per type with the id left
+    as a bind parameter. This one stays for the callers that want the id in the tree, the
+    tests, and as what the statement is checked against.
     """
-    pairs = _entity_event_pairs(user_id=None, only=(entity_type, str(entity_id)))
+    return _entity_event_ids(entity_type, str(entity_id))
+
+
+@cache
+def entity_event_statement(entity_type: str) -> Select[tuple[UUID]]:
+    """`entity_event_ids` for any entity of `entity_type`, built once per process: execute it,
+    or a statement composing it, with `entity_event_params(entity_id)` (NEU-2288).
+
+    The tree is a few hundred elements, the shape depends only on the type, and building it was
+    the API's largest single cost under load: at saturation a third of the event loop went on
+    constructing it and the cache key read off it on every execution (NEU-2286 §5). Reused, the
+    construction happens once, and SQLAlchemy memoizes the cache key on the statement object,
+    so a request costs a parameter bind and a lookup.
+
+    Bound rather than a `lambda_stmt`: the builders take several arguments and closures over
+    them are easy to track wrongly, while a module-level statement with named parameters is
+    plain. The SQL is `entity_event_ids`' exactly, which a test pins per type by rendering
+    both with their values inline. A missing parameter fails the execution
+    (`bindparam` without a value is required), never selects another entity's cards.
+
+    Safe to share: SQLAlchemy statements are immutable, and everything that composes this one
+    (`.where`, `.in_`) copies rather than changes it.
+    """
+    return _entity_event_ids(entity_type, _BOUND_ENTITY_ID)
+
+
+def entity_event_params(entity_id: int) -> dict[str, Any]:
+    """The bind values `entity_event_statement` needs for one entity."""
+    return {ENTITY_ID_PARAM: entity_id, ENTITY_ID_TEXT_PARAM: str(entity_id)}
+
+
+def _entity_event_ids(entity_type: str, entity_id: str) -> Select[tuple[UUID]]:
+    pairs = _entity_event_pairs(user_id=None, only=(entity_type, entity_id))
     if pairs is None:
         return _no_events()
     reached = pairs.subquery("entity_events")

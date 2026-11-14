@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from functools import cache
 from typing import Any
 from uuid import UUID
 
@@ -7,7 +8,9 @@ from sqlalchemy import (
     CTE,
     ColumnElement,
     Date,
+    Integer,
     Select,
+    bindparam,
     case,
     cast,
     exists,
@@ -25,7 +28,8 @@ from upmovies.app.entitlements import entitled_user_clause
 from upmovies.app.entity_names import ENTITY_TYPES, entity_names
 from upmovies.app.follow_queries import (
     entity_attribution_pairs,
-    entity_event_ids,
+    entity_event_params,
+    entity_event_statement,
     follow_reach,
     title_follow_film_ids,
 )
@@ -704,6 +708,40 @@ the tombstone term is the case that actually arises (`_LIVE_PERSON` — TMDB has
 so they are not a follow target anywhere)."""
 
 
+@cache
+def _entity_events_page(
+    entity_type: str, *, after_cursor: bool
+) -> Select[tuple[Event, str, datetime | None]]:
+    """The `get_entity_events` page query, built once per type and cursor shape, every value
+    left as a bind parameter: `entity_event_params`' two, `page_rows`, and
+    `cursor_created_at` / `cursor_event_id` past the first page.
+
+    Built once for the reason `follow_queries.entity_event_statement` is (NEU-2288): the tree
+    it composes is the API's most expensive one to build, and a statement reused whole keeps
+    its memoized cache key too, which composing the cached part into a new query per request
+    would not. Nothing here varies by request but values: `feed_visible()` reads no clock."""
+    filters: list[ColumnElement[bool]] = [
+        Event.id.in_(entity_event_statement(entity_type)),
+        *feed_visible(),
+    ]
+    if after_cursor:
+        filters.append(
+            tuple_(Event.created_at, Event.id)
+            < tuple_(
+                bindparam("cursor_created_at", type_=Event.created_at.type),
+                bindparam("cursor_event_id", type_=Event.id.type),
+            )
+        )
+    return (
+        select(Event, EventSummary.summary, EventSummary.edited_at)
+        .join(EventSummary, EventSummary.event_id == Event.id)
+        .join(Film, Film.id == Event.film_id)
+        .where(*filters)
+        .order_by(Event.created_at.desc(), Event.id.desc())
+        .limit(bindparam("page_rows", type_=Integer))
+    )
+
+
 async def get_entity_events(
     session: AsyncSession,
     *,
@@ -716,7 +754,8 @@ async def get_entity_events(
     `ref` the catalog does not hold.
 
     **What a follow of this entity would deliver**, which is why the selection is
-    `follow_queries.entity_event_ids` and not a query of this module's own: the page sits
+    `follow_queries.entity_event_statement` (`entity_event_ids`, built once and bound per
+    request, `_entity_events_page`) and not a query of this module's own: the page sits
     beside the follow button and its promise is "this is what you would get". A second
     spelling here would be a promise that goes stale the first time EF-3's rule moves — and it
     has moved twice already this project.
@@ -738,22 +777,13 @@ async def get_entity_events(
     if not await session.scalar(select(exists().where(*terms))):
         return None
 
-    filters: list[ColumnElement[bool]] = [
-        Event.id.in_(entity_event_ids(entity_type, entity_id)),
-        *feed_visible(),
-    ]
+    params: dict[str, Any] = {**entity_event_params(entity_id), "page_rows": limit + 1}
     if cursor is not None:
-        created_at, event_id = decode_cursor(cursor)
-        filters.append(tuple_(Event.created_at, Event.id) < (created_at, event_id))
+        params["cursor_created_at"], params["cursor_event_id"] = decode_cursor(cursor)
 
     rows = (
         await session.execute(
-            select(Event, EventSummary.summary, EventSummary.edited_at)
-            .join(EventSummary, EventSummary.event_id == Event.id)
-            .join(Film, Film.id == Event.film_id)
-            .where(*filters)
-            .order_by(Event.created_at.desc(), Event.id.desc())
-            .limit(limit + 1)
+            _entity_events_page(entity_type, after_cursor=cursor is not None), params
         )
     ).all()
 
