@@ -24,7 +24,7 @@ The bench runs ran 2026-11-13 23:45 UTC to 2026-11-14 ~02:00 UTC. Spec:
   count up to 120 never pushed the probe past 0.5 s on the bench. The probe missed in prod because
   arrivals outran the process and queued *ahead of* the app, in the listen backlog, where the
   in-flight cap cannot see them. Replayed open-loop, the incident reproduces on the bench without
-  the cap (Docker marked the container unhealthy for 71 s) and does not with it, at 1.4× the
+  the cap (Docker marked the container unhealthy for 71 s) and does not with it, at 1.1–1.4× the
   incident's admissions in prod terms.
 - **Recommended `MAX_IN_FLIGHT_REQUESTS`: 30**, down from 60 (NEU-2291). This overrides the
   spec's D-2286.4 criterion, which by its letter gives 60 (§4). Throughput stops rising at about
@@ -317,49 +317,59 @@ a peak admission rate of 71/s, against a ceiling of ~40/s.
 The median grows steadily with the number in flight. Each request holds the loop for a slice, and
 a probe waits behind one pass over all of them. The worst probe is noisy, under 0.5 s everywhere.
 
-**The scale factor: 2.2, from throughput.** At process saturation, with the same route mix
-(person detail and events about half each), prod completed ~40 requests a second on one core
-(§1, 10:44:30–10:45:50) and the bench 89.3 (§6 baselines). The bench does the same work 2.2× as
-fast. This is the factor used here. It compares the real workload on both sides, the very
-thing being scaled. It is not what D-2286.4 asked for ("prod time ÷ bench time" from
-`bench_cpu.py`), and it stands in for that number until it exists. The recommendation below
-does not hang on it: it compares two cap values at the same load on the same bench, and the
-factor only converts the bench's latencies into prod's.
+**The scale factor: 2.69 by CPU benchmark, 2.2 by throughput.** Two measures, which disagree
+by about a fifth:
 
-`scripts/bench_cpu.py`, the synthetic single-core benchmark, took **1.70 s** in `bench-api`
-(1.701 and 1.710 s, two runs). **Its prod run is not measured yet.** The spec gives it to the user,
-outside 10:15–10:50 UTC, and it is a manual step on this ticket. If it gives a factor far from 2.2,
-the per-request costs in prod are not simply the bench's at a slower clock, which would itself be
-worth knowing. Either way, linear scaling by a CPU ratio is an approximation. The next crawl burst
-against the cap is the confirmation, already a manual step on NEU-2285.
+- **CPU benchmark (D-2286.4's factor), 2.69.** `scripts/bench_cpu.py`, the synthetic single-core
+  benchmark, took 1.70 s in `bench-api` (1.701 and 1.710 s, two runs) and **4.575 s in the prod
+  backend container** (2026-11-14 ~02:25 UTC, outside the crawl window). By part: JSON 1.329 s
+  against 0.481 s (2.76×), gzip 1.101 against 0.439 (2.51×), pydantic 1.241 against 0.484
+  (2.56×), plain Python 0.904 against 0.298 (3.03×). Prod's CPU is an x86_64 core, the bench's an
+  Apple-silicon one.
+- **Throughput, 2.2.** At process saturation, with the same route mix (person detail and events
+  about half each), prod completed ~40 requests a second on one core (§1,
+  10:44:30–10:45:50) and the bench 89.3 (§6 baselines).
 
-**The criterion** (D-2286.4): the largest in-flight count at which the worst probe, ×2.2, stays
-under 1 s.
+By the CPU benchmark alone, prod would have managed 89.3 ÷ 2.69 ≈ 33 requests a second. It held
+~40, so the real workload runs relatively better in prod than raw CPU speed predicts. Its time
+isn't all CPU-bound Python of the kind the benchmark times: the loop also waits on I/O that
+behaves differently on the two hosts. So per-request costs don't scale exactly linearly, and the
+next crawl burst against the cap stays the confirmation (a manual step on NEU-2285).
 
-| In flight | Worst probe, either endpoint | ×2.2 | Under 1 s? |
+The factors are used for different things here. **2.69 converts the bench's probe latencies into
+prod's**, as D-2286.4 specifies. **2.2 converts load**, since it is the ratio of the two
+measured ceilings. The recommendation doesn't hang on either: it compares two cap values at the
+same load on the same bench.
+
+**The criterion** (D-2286.4): the largest in-flight count at which the worst probe, scaled to
+prod, stays under 1 s.
+
+| In flight | Worst probe, either endpoint | ×2.69 (CPU) | ×2.2 (throughput) |
 |---|---|---|---|
-| 10 | 199 ms | 0.44 s | yes |
-| 30 | 461 ms | 1.01 s | no, by 10 ms |
-| 60 | 379 ms | 0.83 s | yes |
-| 120 | 462 ms | 1.02 s | no |
+| 10 | 199 ms | 0.54 s | 0.44 s |
+| 30 | 461 ms | 1.24 s | 1.01 s |
+| 60 | 379 ms | 1.02 s | 0.83 s |
+| 120 | 462 ms | 1.24 s | 1.02 s |
 
-**By its letter the criterion gives 60**: the largest step that passes, with 30 failing by 10 ms
-on one probe. **This recommendation overrides it.** The worst probe barely moves between 30 and
-120, so it doesn't rank in-flight counts at all: in a closed loop nothing queues ahead of the app,
-and the probe was never in danger. The open-loop replay (§7) is the test that reproduces the
-incident's failure, and it is where the two values differ.
+**By its letter the criterion gives 10** with the CPU factor, since 60 fails by 20 ms, and **60**
+with the throughput factor, since 30 fails by 10 ms. **This recommendation overrides it.** The worst
+probe barely moves between 30 and 120, so it doesn't rank in-flight counts at all: in a closed loop
+nothing queues ahead of the app, and the probe was never in danger. The open-loop replay (§7) is
+the test that reproduces the incident's failure, and it is where cap values differ.
 
 **Recommended `MAX_IN_FLIGHT_REQUESTS`: 30**, down from 60, overriding D-2286.4's criterion:
 
 - **Throughput stops rising at about 10 in flight.** Every slot past that adds waiting, not
   throughput (§3). At 30 an admitted request in prod waits about 30 ÷ 40/s ≈ 0.75 s at the
   ceiling; at 60, about 1.5 s.
-- **The open-loop replay favours 30** (§7). At 1.4× the incident's admissions in prod terms, both
-  values kept the container healthy. 30 had no missed probes in three runs and half the admitted
-  latency; 60 missed six probes in one run, and its worst admitted request took 12 s.
+- **The open-loop replay favours 30** (§7). At 1.1–1.4× the incident's admissions in prod terms,
+  both values kept the container healthy. 30 had no missed probes in three runs and half the
+  admitted latency; 60 missed six probes in one run, and its worst admitted request took 12 s.
 - **By the criterion, neither value is clean in the open loop**, because the worst probe is a
-  noisy tail. Scaled ×2.2, cap 30's worst probes were 3.1, 1.0 and 0.47 s, and cap 60's 0.68, 5.1
-  and 1.1 s. 30 passes or sits at the line in two runs of three, 60 in one.
+  noisy tail. Scaled ×2.69, cap 30's worst probes were 3.8, 1.2 and 0.57 s, and cap 60's 0.84, 6.3
+  and 1.4 s: each passes in one run of three, and 60's worst is the worse. (×2.2: 3.1, 1.0, 0.47
+  against 0.68, 5.1, 1.1.) The probe tail does not separate the two; the admitted latency, the
+  misses and the pool argument below do.
 - **Against the pool's 30 connections** (D-2285.2's argument for 60): that argument was that
   public reads hand their connection back before the response is built, so up to a pool's worth
   more can be serializing or sending while the pool is busy. True, but those extra requests add
@@ -498,8 +508,9 @@ is sent as person reads, so the total count is the incident's. Each run also pro
 at 1 Hz from the load generator. Docker's own check inside `bench-api` (10 s interval, 2 s
 timeout, 3 retries, as prod) is captured live from `docker events`.
 
-The bench is 2.2× as fast as prod (§4), so ×1 here is a light load, and **×3 on the bench is
-about 1.4× the incident's admissions in prod terms**. True arrivals were higher than admissions
+The bench's ceiling is 2.2× prod's and its CPU 2.69× as fast (§4), so ×1 here is a light load,
+and **×3 on the bench is about 1.1–1.4× the incident's admissions in prod terms**: 1.4× against
+the measured ceilings, 1.1× by CPU. True arrivals were higher than admissions
 (§1), by an unknown amount.
 
 | Cap | Scale | Statuses | Admitted 200s: p50 / p95 / max | 503s: p50 / max | OK/s | Probes missed (of 155) | Worst probe | Docker |
@@ -546,8 +557,6 @@ What the replay shows:
 
 ## 8. What this does not measure
 
-- **`scripts/bench_cpu.py` in prod.** The spec gives that run to the user, outside the crawl
-  window; it is a manual step on NEU-2286. The scale factor here (2.2) comes from throughput (§4).
 - **The incident's true arrival rate.** Traefik's access log is off, and server spans start only
   once the app reads a request. The admissions CSV is a lower bound. Not ticketed; turning on
   Traefik's access log is a host-wide change for the ops repo.
@@ -570,9 +579,10 @@ What the replay shows:
   SigNoz shows the mechanism in prod: one core, every await stretched alike, the probe starved
   ahead of the app. The bench, the prod image, reproduced the failure itself, the same way (Docker
   unhealthy, admitted requests 14–23 s), once the cap was taken away. What a prod profile could
-  add is whether prod spends its core in the same places as the bench. That is unmeasured: the
-  2.2 factor is itself derived from the two throughputs, so it can't confirm it. If NEU-2288–2290
-  move prod's ceiling much less than they move the bench's, that is when to design prod profiling.
+  add is whether prod spends its core in the same places as the bench. That is unmeasured. The
+  two scale factors (2.69 by CPU, 2.2 by throughput, §4) say the split differs somewhat, without
+  saying where. If NEU-2288–2290 move prod's ceiling much less than they move the bench's, that is
+  when to design prod profiling.
 
 ## 9. Follow-ups
 
@@ -594,7 +604,7 @@ rate-limit store and then workers. **The answer is yes, stay on one process for 
 after NEU-2288–2290.** Two reasons:
 
 - The cap already prevents the failure the ADR was amended for. With it, the container stayed in
-  rotation at 1.4× the incident's admissions (§7), serving its ceiling and shedding the rest
+  rotation at 1.1–1.4× the incident's admissions (§7), serving its ceiling and shedding the rest
   cheaply.
 - The ceiling has cheaper multipliers in-process. Instrumentation alone is +39% (§6), and
   statement construction is a third of what remains (§5). A shared store and workers would
