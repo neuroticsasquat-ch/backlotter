@@ -6,6 +6,9 @@ import pytest
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.trace import StatusCode
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.scrubber import EventScrubber
 
 from upmovies import telemetry
 from upmovies.app.rate_limit import CLIENT_IP_HEADER, ORIGIN_HEADER
@@ -86,6 +89,30 @@ def test_init_sentry_passes_the_resolved_pair_to_the_sdk(monkeypatch):
     assert len(calls) == 1
     assert calls[0]["release"] == SHA
     assert calls[0]["environment"] == "production"
+
+
+def test_init_sentry_reports_errors_and_does_not_trace(monkeypatch):
+    """NEU-2290: Bugsink keeps errors and discards transactions, so any traces sample rate
+    sends envelopes nobody can read, and the integrations' tracing cost the API ~10% of its CPU
+    at saturation (NEU-2286 §6). Traces live in SigNoz, from OTel. An unset rate is what turns
+    the SDK's tracing off; the rest of the options are the error contract and stay as they are.
+    """
+    calls: list[dict] = []
+    monkeypatch.setattr(telemetry.sentry_sdk, "init", lambda **kw: calls.append(kw))
+    init_sentry(
+        {"SENTRY_DSN": "https://k@bugsink.example/1", "OTEL_RESOURCE_ATTRIBUTES": PROD_ATTRS}
+    )
+    [options] = calls
+    assert set(options) == {"dsn", "integrations", "environment", "release", "event_scrubber"}
+    assert "traces_sample_rate" not in options and "traces_sampler" not in options
+    assert options["dsn"] == "https://k@bugsink.example/1"
+    assert [type(i) for i in options["integrations"]] == [
+        FastApiIntegration,
+        SqlalchemyIntegration,
+    ]
+    assert options["release"] == SHA
+    assert options["environment"] == "production"
+    assert isinstance(options["event_scrubber"], EventScrubber)
 
 
 def test_init_sentry_scrubs_the_ssr_origin_secret_and_visitor_ip_from_events(monkeypatch):
