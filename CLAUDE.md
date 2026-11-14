@@ -60,6 +60,8 @@ follow `~/projects/tbc-localdev-infra/CONVENTIONS.md`.
 | Create local DBs | `task db:init` |
 | Refresh local content from prod | `task db:refresh` |
 | Frontend: lint / format / typecheck / test / build | `task fe:lint` / `task fe:format` / `task fe:typecheck` / `task fe:test` / `task fe:build` |
+| Throughput bench: prod image up / down (NEU-2286) | `task bench:up` / `task bench:down` (vary with `BENCH_OTEL=0`, `BENCH_SENTRY_DSN=`, `MAX_IN_FLIGHT_REQUESTS=<n>`) |
+| Bench load / profile / CPU scale benchmark | `task bench:load -- <args>` / `task bench:profile -- <seconds> [--gil]` / `task bench:cpu` |
 | Frontend: Worker deploy dry run / deps | `task fe:deploy-dry-run` / `task fe:deps:add -- <pkg>` (`fe:deps:add-dev`, `fe:deps:remove`) |
 
 `task up` starts both containers: `upmovies-backend` (`https://api.upmovies.localhost`) and
