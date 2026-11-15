@@ -1,7 +1,7 @@
 import { isRouteErrorResponse } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as Sentry from "@sentry/react";
-import { ApiOverloadedError, ApiUnavailableError } from "@/api/public";
+import { ApiOverloadedError, ApiRateLimitedError, ApiUnavailableError } from "@/api/public";
 import { busyHeaders, busyOnOverload, isBusy } from "./overload";
 
 vi.mock("@sentry/react", () => ({ captureException: vi.fn() }));
@@ -40,6 +40,14 @@ describe("busyOnOverload", () => {
     expect(Sentry.captureException).toHaveBeenCalledWith(error);
   });
 
+  it("turns a rate-limited visitor into a 429 carrying the API's wait, unreported", async () => {
+    expect(await thrownBy(new ApiRateLimitedError("/films/x", 7))).toEqual({
+      status: 429,
+      retryAfter: "7",
+    });
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
   it("rethrows every other error untouched", async () => {
     const boom = new Error("GET /people/x failed: 500");
     await expect(
@@ -52,11 +60,12 @@ describe("busyOnOverload", () => {
 });
 
 describe("isBusy", () => {
-  it("is true only for a 503 route error response", () => {
+  it("is true only for a 503 or 429 route error response", () => {
     const busy = { status: 503, statusText: "Service Unavailable", internal: false, data: null };
     // The shape React Router hands a boundary for a thrown `data(…, { status: 503 })`.
     expect(isRouteErrorResponse(busy)).toBe(true);
     expect(isBusy(busy)).toBe(true);
+    expect(isBusy({ ...busy, status: 429, statusText: "Too Many Requests" })).toBe(true);
     expect(isBusy({ ...busy, status: 404 })).toBe(false);
     expect(isBusy(new Error("503"))).toBe(false);
   });

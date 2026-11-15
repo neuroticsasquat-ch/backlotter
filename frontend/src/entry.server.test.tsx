@@ -116,6 +116,23 @@ describe("a person page whose loader the API could not serve", () => {
     expect(BrowserSentry.captureException).not.toHaveBeenCalled();
   });
 
+  it("renders the busy page as a 429 with the API's Retry-After for a rate-limited visitor, unreported", async () => {
+    server.use(
+      http.get(`${BACKEND}/people/:ref`, () =>
+        HttpResponse.json(
+          { detail: "rate_limited", bucket: "public", retry_after: 7 },
+          { status: 429, headers: { "Retry-After": "7" } },
+        ),
+      ),
+    );
+    const { res, html } = await requestPerson("525-christopher-nolan");
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("7");
+    expect(html).toContain("Busy right now");
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+    expect(BrowserSentry.captureException).not.toHaveBeenCalled();
+  });
+
   it("renders the busy page for a proxy's 503, reported once by the loader", async () => {
     server.use(
       http.get(

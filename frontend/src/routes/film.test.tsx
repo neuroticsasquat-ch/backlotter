@@ -198,6 +198,28 @@ describe("film route loader", () => {
     expect(new Headers(init.headers).get("Retry-After")).toBe("5");
   });
 
+  // NEU-2322: the API rate-limited this visitor. The document goes out as a 429 carrying the
+  // API's wait, so a crawler backs off, rather than a 500 that says the site is broken.
+  it.each([
+    [
+      "the API's 429",
+      () =>
+        HttpResponse.json(
+          { detail: "rate_limited", bucket: "public", retry_after: 7 },
+          { status: 429, headers: { "Retry-After": "7" } },
+        ),
+      "7",
+    ],
+    ["a 429 with a non-JSON body", () => new HttpResponse("slow down", { status: 429 }), "5"],
+  ])("throws a 429 with Retry-After for %s", async (_label, respond, retryAfter) => {
+    server.use(http.get(`${BACKEND}/films/12345-the-odyssey`, respond));
+    const thrown = await callLoader("12345-the-odyssey").catch((e: unknown) => e);
+    expect(thrown).toMatchObject({ type: "DataWithResponseInit" });
+    const { init } = thrown as { init: ResponseInit };
+    expect(init.status).toBe(429);
+    expect(new Headers(init.headers).get("Retry-After")).toBe(retryAfter);
+  });
+
   // NEU-1143: a ref resolves on its leading id, so several URLs reach the same film. Each is
   // sent to the canonical one, permanently — the old URLs are indexed, and only a 301 moves the
   // ranking signal onto the URL we now emit.
@@ -366,6 +388,26 @@ describe("film route render", () => {
     ]);
     renderStub(Stub, "/film/missing");
     expect(await screen.findByText(/film not found/i)).toBeInTheDocument();
+  });
+
+  // NEU-2322: the rate-limited 429 the loader throws renders the busy page, not "not found".
+  it("renders the busy page when the loader threw the rate-limited 429", async () => {
+    const Stub = createRoutesStub([
+      {
+        path: "/film/:slug",
+        Component: FilmPage,
+        ErrorBoundary,
+        loader: () => {
+          throw new Response(null, {
+            status: 429,
+            statusText: "Too Many Requests",
+            headers: { "Retry-After": "7" },
+          });
+        },
+      },
+    ]);
+    renderStub(Stub, "/film/the-odyssey-2026");
+    expect(await screen.findByRole("heading", { name: "Busy right now" })).toBeInTheDocument();
   });
 
   it("renders the release-dates section when the film has release dates", async () => {

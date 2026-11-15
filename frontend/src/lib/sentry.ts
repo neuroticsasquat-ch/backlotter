@@ -2,8 +2,10 @@ import type { CloudflareOptions } from "@sentry/cloudflare";
 import { type BrowserOptions, replayIntegration } from "@sentry/react";
 import {
   API_OVERLOADED_ERROR_NAME,
+  API_RATE_LIMITED_ERROR_NAME,
   API_UNAVAILABLE_ERROR_NAME,
   ApiOverloadedError,
+  ApiRateLimitedError,
   ApiUnavailableError,
 } from "@/api/public";
 import { SENTRY_TUNNEL_PATH } from "@/lib/sentry-tunnel";
@@ -57,6 +59,19 @@ export function dropOverloaded<E extends ReportedEvent>(event: E, hint: EventHin
 }
 
 /**
+ * Drop the API's rate-limit answer (NEU-2322). A 429 is the per-visitor limiter turning away
+ * one address, by design: one scraper throttled for 53 s filed 126 Bugsink issues on 2026-11-15.
+ * The SSR loaders answer it with a 429 before anything reports it (`lib/overload.ts`); this
+ * catches a browser fetch that surfaces it. Matched as {@link dropOverloaded} matches.
+ */
+export function dropRateLimited<E extends ReportedEvent>(event: E, hint: EventHint): E | null {
+  if (hint.originalException instanceof ApiRateLimitedError) return null;
+  if (event.exception?.values?.some((value) => value.type === API_RATE_LIMITED_ERROR_NAME))
+    return null;
+  return event;
+}
+
+/**
  * Group every unreachable-API event into one Bugsink issue per status (NEU-2284). The message
  * names the path, so without a fingerprint a crawl during an outage files one issue per URL it
  * touched: 785 of them on 2026-11-13. Reported rather than dropped, because unlike an overload
@@ -81,11 +96,12 @@ export function groupUnavailable<E extends ReportedEvent>(event: E, hint: EventH
   return event;
 }
 
-/** Both SDKs' `beforeSend` (`entry.client.tsx`, `workers/app.ts`): drop the API's overload
- *  answer, and group an unreachable API's events by status. */
+/** Both SDKs' `beforeSend` (`entry.client.tsx`, `workers/app.ts`): drop the API's overload and
+ *  rate-limit answers, and group an unreachable API's events by status. */
 export function beforeSend<E extends ReportedEvent>(event: E, hint: EventHint): E | null {
   const kept = dropOverloaded(event, hint);
-  return kept && groupUnavailable(kept, hint);
+  const allowed = kept && dropRateLimited(kept, hint);
+  return allowed && groupUnavailable(allowed, hint);
 }
 
 // Errors only, no tracing, in both SDKs: no `tracesSampleRate` is what keeps an SDK's tracing

@@ -271,6 +271,11 @@ speaks the Sentry protocol — the `@sentry/*` SDKs stay, only the DSNs and uplo
   exports `headers` (`busyHeaders`), because React Router copies only cookies from a thrown
   response onto the document. Both SDKs' `beforeSend` (`beforeSend` → `dropOverloaded`,
   `lib/sentry.ts`) drop it.
+- **A rate-limited visitor is not an error either.** An API 429 (the per-visitor `public`
+  bucket, NEU-1344) is `ApiRateLimitedError`; `busyOnOverload` answers it with a 429 carrying the
+  API's `retry_after` as `Retry-After`, which `isBusy` also renders as `BusyPage`, and
+  `beforeSend` → `dropRateLimited` drops it (NEU-2322). SSR requests are signed, so the 429 is
+  one visitor's — in practice a scraper — and a 429 is what makes a well-behaved crawler back off.
 - **An unreachable API is an error, grouped.** Any other 502/503/504 (Traefik with the backend out
   of rotation, NEU-2284) is `ApiUnavailableError`. `busyOnOverload` renders it as the same busy
   503 but reports it itself, through `@sentry/react` (the module is in the browser bundle too;

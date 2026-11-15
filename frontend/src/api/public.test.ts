@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw/server";
 import {
   ApiOverloadedError,
+  ApiRateLimitedError,
   ApiUnavailableError,
   getCalendar,
   getCollection,
@@ -171,6 +172,37 @@ describe("an unreachable API", () => {
     const error = await getFilm(BACKEND, "down").catch((e: unknown) => e);
     expect(error).not.toBeInstanceOf(ApiUnavailableError);
     expect(error).toMatchObject({ message: "GET /films/down failed: 500" });
+  });
+});
+
+// The API's per-visitor rate limit (NEU-1344) answers a 429 that names its wait. A throttled
+// scraper is the limiter working, so it is its own quiet error, never a reported one (NEU-2322).
+describe("a rate-limited visitor", () => {
+  it("throws ApiRateLimitedError carrying retry_after for the API's 429", async () => {
+    server.use(
+      http.get(`${BACKEND}/films/hot`, () =>
+        HttpResponse.json(
+          { detail: "rate_limited", bucket: "public", retry_after: 7 },
+          { status: 429, headers: { "Retry-After": "7" } },
+        ),
+      ),
+    );
+    const error = await getFilm(BACKEND, "hot").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiRateLimitedError);
+    expect((error as ApiRateLimitedError).retryAfter).toBe(7);
+    expect((error as ApiRateLimitedError).name).toBe("ApiRateLimitedError");
+    expect((error as ApiRateLimitedError).message).toBe(
+      "GET /films/hot rate limited, retry after 7s",
+    );
+  });
+
+  it("falls back to 5 s when the 429's body names no usable delay", async () => {
+    server.use(
+      http.get(`${BACKEND}/films/hot`, () => new HttpResponse("slow down", { status: 429 })),
+    );
+    const error = await getFilm(BACKEND, "hot").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiRateLimitedError);
+    expect((error as ApiRateLimitedError).retryAfter).toBe(5);
   });
 });
 
