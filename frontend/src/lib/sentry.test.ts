@@ -120,6 +120,15 @@ describe("beforeSend", () => {
     expect(beforeSend(dropped, {})).toBeNull();
   });
 
+  it("drops a rate-limited visitor's 429, by instance and by type", async () => {
+    const { beforeSend } = await import("./sentry");
+    const { ApiRateLimitedError } = await import("@/api/public");
+    const error = new ApiRateLimitedError("/films/x", 7);
+    const dropped = { exception: { values: [{ type: "ApiRateLimitedError" }] } };
+    expect(beforeSend(dropped, { originalException: error })).toBeNull();
+    expect(beforeSend(dropped, {})).toBeNull();
+  });
+
   it("groups an unreachable API's event", async () => {
     const { beforeSend } = await import("./sentry");
     const { ApiUnavailableError } = await import("@/api/public");

@@ -93,28 +93,60 @@ export class ApiUnavailableError extends Error {
   }
 }
 
+/** The exception type Sentry reports an {@link ApiRateLimitedError} under, hand-set for the same
+ *  reason as {@link API_OVERLOADED_ERROR_NAME}; `lib/sentry.ts` drops on it. */
+export const API_RATE_LIMITED_ERROR_NAME = "ApiRateLimitedError";
+
+/**
+ * The API rate-limited this visitor (NEU-2322): its per-IP `public` bucket (NEU-1344) is spent,
+ * and the 429 body says how long for, `{"detail": "rate_limited", "bucket": …, "retry_after": N}`.
+ * SSR requests are signed, so the bucket is the visitor's own, and every burst so far has been
+ * one scraper throttled for under a minute. That is the limiter working, not a fault: the SSR
+ * loaders answer the visitor with the same 429 (`lib/overload.ts`) and neither Sentry SDK
+ * reports it (`lib/sentry.ts`).
+ */
+export class ApiRateLimitedError extends Error {
+  readonly retryAfter: number;
+
+  constructor(path: string, retryAfter: number) {
+    super(`GET ${path} rate limited, retry after ${retryAfter}s`);
+    this.name = API_RATE_LIMITED_ERROR_NAME;
+    this.retryAfter = retryAfter;
+  }
+}
+
+/** A JSON error body's `detail` and `retry_after`, or nothing when the body is not JSON. */
+async function errorBody(res: Response): Promise<{ detail?: unknown; retry_after?: unknown }> {
+  return (
+    ((await res.json().catch(() => null)) as { detail?: unknown; retry_after?: unknown }) ?? {}
+  );
+}
+
+/** The body's `retry_after` as whole seconds, or {@link DEFAULT_RETRY_AFTER_SECONDS} when it
+ *  names no usable delay. */
+function retryAfterSeconds(retryAfter: unknown): number {
+  return typeof retryAfter === "number" && Number.isFinite(retryAfter) && retryAfter > 0
+    ? Math.ceil(retryAfter)
+    : DEFAULT_RETRY_AFTER_SECONDS;
+}
+
 /**
  * The error a fetcher throws for a non-OK response it has no answer of its own for.
  *
- * A 503 that says `overloaded` is {@link ApiOverloadedError}; any other 502, 503 or 504 is
- * {@link ApiUnavailableError}; everything else is a plain, reported `Error`. The delay is read
- * from the body rather than the `Retry-After` header because the browser cannot see that header
- * on a cross-origin response; the two carry the same value.
+ * A 429 is {@link ApiRateLimitedError}; a 503 that says `overloaded` is
+ * {@link ApiOverloadedError}; any other 502, 503 or 504 is {@link ApiUnavailableError};
+ * everything else is a plain, reported `Error`. The delay is read from the body rather than the
+ * `Retry-After` header because the browser cannot see that header on a cross-origin response;
+ * the two carry the same value.
  */
 async function responseError(res: Response, path: string): Promise<Error> {
+  if (res.status === 429) {
+    return new ApiRateLimitedError(path, retryAfterSeconds((await errorBody(res)).retry_after));
+  }
   if (res.status === 503) {
-    const body = (await res.json().catch(() => null)) as {
-      detail?: unknown;
-      retry_after?: unknown;
-    } | null;
-    if (body?.detail === "overloaded") {
-      const retryAfter = body.retry_after;
-      return new ApiOverloadedError(
-        path,
-        typeof retryAfter === "number" && Number.isFinite(retryAfter) && retryAfter > 0
-          ? Math.ceil(retryAfter)
-          : DEFAULT_RETRY_AFTER_SECONDS,
-      );
+    const body = await errorBody(res);
+    if (body.detail === "overloaded") {
+      return new ApiOverloadedError(path, retryAfterSeconds(body.retry_after));
     }
   }
   if (UNAVAILABLE_STATUSES.has(res.status)) return new ApiUnavailableError(path, res.status);
