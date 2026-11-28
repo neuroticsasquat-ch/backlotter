@@ -59,7 +59,7 @@
     "isbot": "^5.2.3",
     "jsdom": "~30.0.1",
     "msw": "^3.0.7",
-    "oxlint": "^1.94.0",
+    "oxlint": "^1.95.0",
     "prettier": "^3.10.1",
     "sharp": "0.35.5",
     "tailwindcss": "^4",
